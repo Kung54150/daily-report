@@ -15,6 +15,8 @@
     --font: 'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif; --print: 'Sarabun', 'IBM Plex Sans Thai', sans-serif;
     --r: 10px;
   }
+  .shifthd { margin: 20px 0 8px; padding: 7px 12px; background: var(--accent); color: var(--accent-ink); border-radius: var(--r); font-size: 17px; }
+  @media print { .shifthd { display: none; } }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
     --bg: #0f1a1b; --surface: #172526; --sunk: #1d2e2f; --line: #2c4143; --fg: #e3eeee; --muted: #93a9ab;
     --accent: #4fc1b8; --accent-ink: #062523; --accent-soft: #1b3a38;
@@ -151,6 +153,16 @@
   .viewer .vbody { flex: 1; overflow: auto; display: grid; place-items: center; padding: 8px; }
   .viewer img { max-width: 100%; max-height: 100%; object-fit: contain; background: #fff; }
   .viewer .vpdf { color: #fff; text-align: center; display: grid; gap: 12px; justify-items: center; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-bottom: 14px; }
+  .tile { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; display: grid; gap: 2px; min-width: 0; }
+  .tile b { font-size: 22px; line-height: 1.2; font-variant-numeric: tabular-nums; }
+  .tile span { font-size: 13px; color: var(--muted); }
+  .tile.bad b { color: var(--bad); }
+  .sbox .shead { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 16px; }
+  .sbox .ln { font-size: 14px; margin: 3px 0; overflow-wrap: anywhere; }
+  .sbox .ln b { font-weight: 700; }
+  .sbox .miss { color: var(--bad); font-size: 14px; }
+  .sbox.gsum { background: var(--accent-soft); }
   .rm small { display: block; font-size: 10px; opacity: .75; line-height: 1.1; }
   .rrow { display: grid; grid-template-columns: 1fr 1.4fr 36px; gap: 6px; margin-bottom: 6px; align-items: center; }
   .rrow .btn { grid-column: 1 / -1; justify-self: start; }
@@ -408,42 +420,29 @@ const S = { token: null, me: null, cfg: null, date: todayStr(), day: {}, staff: 
 /* ===== เวร Day / Night: รายงานแยกตามเวร  S.dayRaw = { หน่วยงาน: { Day, Night } } ===== */
 const guessShift = () => { const h = new Date().getHours(); return h >= 7 && h < 19 ? 'Day' : 'Night'; };
 S.shift = guessShift();
-S.vshift = 'ALL';
+S.vshift = guessShift();
 S.dayRaw = {};
-const shiftName = s => s === 'ALL' ? 'ทั้งวัน' : (s || '-');
-const vshiftLabel = () => S.vshift === 'ALL' ? 'ทั้งวัน (Day + Night)' : 'เวร ' + S.vshift;
+const shiftName = s => s || '-';
+const vshiftLabel = () => 'เวร ' + S.vshift;
 const repOf = (code, shift) => (S.dayRaw[code] || {})[shift];
-function mergeReports(u, list) {
-  const first = list[0], last = list[list.length - 1], vals = {}, snapOf = {};
-  u.form.sections.forEach(s => { if (s.type !== 'grid') s.fields.forEach(f => { snapOf[f.key] = f.snap || (s.categories || f.rooms || f.type === 'time' ? 'last' : ''); }); });
-  const keys = new Set(); list.forEach(r => Object.keys(r.values || {}).forEach(k => keys.add(k)));
-  keys.forEach(k => {
-    const snap = snapOf[k.replace(/_note$/, '')];
-    const vs = list.map(r => (r.values || {})[k]).filter(x => x !== undefined && x !== '');
-    if (!vs.length) return;
-    if (snap === 'first') vals[k] = vs[0];
-    else if (snap === 'last') vals[k] = vs[vs.length - 1];
-    else if (vs.every(x => typeof x === 'number')) vals[k] = vs.reduce((a, x) => a + x, 0);
-    else vals[k] = vs.join(' / ');
-  });
-  const red = {}; ['RN', 'PN', 'NA'].forEach(k => { red[k] = list.reduce((a, r) => a + num((r.reduce || {})[k]), 0); });
-  red.detail = list.map(r => (r.reduce || {}).detail).filter(Boolean).join(' / ');
-  return { date: first.date, unit: u.code, shift: 'ALL', reporter: list.map(r => r.reporter + ' (' + r.shift + ')').join(', '), updatedAt: last.updatedAt,
-    values: vals, staff: list.flatMap(r => r.staff || []), reduce: red, notes: list.map(r => r.notes).filter(Boolean).join(' / '),
-    incidents: list.flatMap(r => r.incidents || []) };
-}
+const unitHas = (u, k) => (u.shifts || ['Day', 'Night']).includes(k);
+// หน่วยงานที่มีเวรนี้ (OPD ยกเว้น ER ไม่มีเวร Night)
+const shUnits = () => S.cfg.units.filter(u => unitHas(u, S.vshift));
+const shSecUnits = sc => sc.units.map(unitCfg).filter(u => unitHas(u, S.vshift));
 function deriveReports(vs) {
   const out = {};
-  S.cfg.units.forEach(u => {
-    const raw = S.dayRaw[u.code] || {};
-    if (vs === 'Day' || vs === 'Night') { if (raw[vs]) out[u.code] = raw[vs]; return; }
-    const list = ['Day', 'Night'].map(k => raw[k]).filter(Boolean);
-    if (list.length) out[u.code] = list.length === 1 ? list[0] : mergeReports(u, list);
-  });
+  S.cfg.units.forEach(u => { const r = (S.dayRaw[u.code] || {})[vs]; if (r && unitHas(u, vs)) out[u.code] = r; });
+  return out;
+}
+// เอกสารสรุป: ทำทีละเวร (Day แล้ว Night) ไม่รวมยอดเข้าด้วยกัน
+function eachShift(fn) {
+  const keep = S.vshift, out = [];
+  S.cfg.shifts.forEach(k => { S.vshift = k; S.day = { reports: deriveReports(k) }; out.push(fn(k)); });
+  S.vshift = keep; S.day = { reports: deriveReports(keep) };
   return out;
 }
 function setDay(raw) { S.dayRaw = (raw && raw.reports) || {}; S.day = { reports: deriveReports(S.vshift) }; }
-const vshiftSeg = () => `<div class="seg noprint" style="position:static;margin-bottom:12px">${[['ALL', 'ทั้งวัน (Day + Night)'], ['Day', 'เวร Day'], ['Night', 'เวร Night']].map(([k, t]) => `<button type="button" data-vshift="${k}" class="${S.vshift === k ? 'on' : ''}">${t}</button>`).join('')}</div>`;
+const vshiftSeg = () => `<div class="seg noprint" style="position:static;margin-bottom:12px">${[['Day', 'เวร Day'], ['Night', 'เวร Night']].map(([k, t]) => `<button type="button" data-vshift="${k}" class="${S.vshift === k ? 'on' : ''}">${t}</button>`).join('')}</div>`;
 
 const unitCfg = code => S.cfg.units.find(u => u.code === code);
 const groupName = key => S.cfg.groups.find(g => g.key === key).name;
@@ -498,7 +497,7 @@ async function startApp(b) {
   $('t_unit').textContent = admin ? 'ADMIN' : S.me.unit;
   $('t_sub').textContent = admin ? 'ผู้จัดการ \u00b7 ดูได้ทุกหน่วยงาน' : unitLabel(unitCfg(S.me.unit));
   const tabs = admin
-    ? [['all', 'ทุกหน่วยงาน'], ['print', 'สรุป / พิมพ์ A4'], ['staff', 'รายชื่อเจ้าหน้าที่ (อัปโหลด)']]
+    ? [['summary', 'สรุป'], ['all', 'ทุกหน่วยงาน'], ['print', 'พิมพ์ A4'], ['staff', 'รายชื่อเจ้าหน้าที่ (อัปโหลด)']]
     : [['mine', 'หน่วยงานของฉัน'], ['all', 'ทุกหน่วยงาน'], ['staff', 'ทะเบียนเจ้าหน้าที่ / ห้อง']];
   $('tabs').innerHTML = tabs.map(([k, t]) => `<button type="button" data-tab="${k}">${t}</button>`).join('');
   $('tabs').querySelectorAll('button').forEach(btn => btn.onclick = () => go(btn.dataset.tab));
@@ -550,6 +549,7 @@ function render() {
   const v = $('view');
   if (S.tab === 'mine') v.innerHTML = S.editing ? '' : renderMine();
   else if (S.tab === 'all') v.innerHTML = S.viewUnit ? renderUnitDetail(S.viewUnit) : renderAll();
+  else if (S.tab === 'summary') v.innerHTML = renderSummary();
   else if (S.tab === 'print') v.innerHTML = renderPrint();
   else if (S.tab === 'staff') v.innerHTML = renderStaff();
   if (S.tab === 'mine' && S.editing) mountForm();
@@ -559,8 +559,10 @@ function render() {
 
 /* ===== หน่วยงานของฉัน ===== */
 function renderMine() {
-  const u = unitCfg(S.me.unit), rep = repOf(u.code, S.shift);
-  const seg = `<div class="seg" style="position:static">${['Day', 'Night'].map(k => `<button type="button" data-mshift="${k}" class="${S.shift === k ? 'on' : ''}">เวร ${k}<small>${repOf(u.code, k) ? 'ส่งแล้ว' : 'ยังไม่ส่ง'}</small></button>`).join('')}</div>`;
+  const u = unitCfg(S.me.unit);
+  if (!unitHas(u, S.shift)) S.shift = u.shifts[0];
+  const rep = repOf(u.code, S.shift);
+  const seg = u.shifts.length < 2 ? '' : `<div class="seg" style="position:static">${u.shifts.map(k => `<button type="button" data-mshift="${k}" class="${S.shift === k ? 'on' : ''}">เวร ${k}<small>${repOf(u.code, k) ? 'ส่งแล้ว' : 'ยังไม่ส่ง'}</small></button>`).join('')}</div>`;
   if (!rep) {
     return `${seg}${u.form.draft ? draftNote() : ''}<div class="card"><h3>ยังไม่ได้ส่งรายงานเวร ${esc(S.shift)} ของ ${esc(thaiDate(S.date))}</h3>
       <p class="muted" style="margin:0 0 12px">กรอกยอดผู้ป่วย อัตรากำลัง และเหตุการณ์ผิดปกติของหน่วยงาน ${esc(u.code)}</p>
@@ -574,15 +576,15 @@ const draftNote = () => '<div class="note">แบบฟอร์มของห�
 
 /* ===== ทุกหน่วยงาน ===== */
 function renderAll() {
-  const reps = S.day.reports, total = S.cfg.units.length;
-  const done = S.cfg.units.filter(u => reps[u.code]).length;
-  const full = S.cfg.units.filter(u => repOf(u.code, 'Day') && repOf(u.code, 'Night')).length;
-  let html = vshiftSeg() + `<div class="card"><h3>ส่งรายงานแล้ว <span class="num">${done}/${total}</span> หน่วยงาน${S.vshift === 'ALL' ? ` <span class="sub">\u00b7 ครบ 2 เวร ${full}</span>` : ` <span class="sub">\u00b7 ${esc(vshiftLabel())}</span>`}</h3>
+  const reps = S.day.reports, total = shUnits().length;
+  const done = shUnits().filter(u => reps[u.code]).length;
+  let html = vshiftSeg() + `<div class="card"><h3>ส่งรายงานแล้ว <span class="num">${done}/${total}</span> หน่วยงาน <span class="sub">\u00b7 ${esc(vshiftLabel())}</span></h3>
     <div class="progress"><i style="width:${done / total * 100}%"></i></div>
     <div class="muted" style="font-size:13px">แตะที่หน่วยงานเพื่อดูรายละเอียด${S.me.role === 'admin' ? '' : ' \u00b7 แก้ไขได้เฉพาะหน่วยงานของตนเอง'}</div></div>`;
   S.cfg.sections.forEach(sc => {
+    if (!shSecUnits(sc).length) return;
     html += `<h2 class="grp">${esc(sc.label)}</h2><div class="ulist">`;
-    sc.units.map(unitCfg).forEach(u => {
+    shSecUnits(sc).forEach(u => {
       const r = reps[u.code];
       const incN = r ? (r.incidents || []).length : 0;
       html += `<button type="button" class="ucard${u.code === S.me.unit ? ' mine' : ''}" data-unit="${esc(u.code)}">
@@ -595,10 +597,7 @@ function renderAll() {
   return html;
 }
 function statusPill(u, r) {
-  if (S.vshift !== 'ALL') return r ? '<span class="pill ok">ส่งแล้ว</span>' : '<span class="pill no">ยังไม่ส่ง</span>';
-  const have = ['Day', 'Night'].filter(k => repOf(u.code, k));
-  if (have.length === 2) return '<span class="pill ok">ครบ 2 เวร</span>';
-  return have.length ? `<span class="pill warn">ส่งเวร ${have[0]}</span>` : '<span class="pill no">ยังไม่ส่ง</span>';
+  return r ? '<span class="pill ok">ส่งแล้ว</span>' : '<span class="pill no">ยังไม่ส่ง</span>';
 }
 // ตัวเลขหลักบนการ์ด: คงพยาบาล หรือช่องแรก
 function headline(u, r) {
@@ -612,7 +611,7 @@ function renderUnitDetail(code) {
       <button class="btn ghost sm" data-act="back" type="button">\u2039 ทุกหน่วยงาน</button>
       <b style="font-size:18px">${esc(code)}</b><span class="muted">${esc(unitLabel(u))}</span></div>
     ${r ? `<div class="meta">ส่งโดย ${esc(r.reporter)} \u00b7 แก้ไขล่าสุด ${esc(r.updatedAt)}</div>${renderReportView(u, r)}`
-        : '<div class="card muted">หน่วยงานนี้ยังไม่ส่งรายงานของวันนี้</div>'}`;
+        : `<div class="card muted">${unitHas(u, S.vshift) ? 'หน่วยงานนี้ยังไม่ส่งรายงานเวร ' + esc(S.vshift) + ' ของวันนี้' : 'หน่วยงานนี้ไม่มีเวร ' + esc(S.vshift)}</div>`}`;
 }
 
 /* ===== ค่าที่คำนวณ ===== */
@@ -676,7 +675,7 @@ function renderReportView(u, r) {
       return `<div class="card"><h3>${esc(s.title)}</h3><div class="kv">${rows}${sum}</div></div>`;
     });
     if (u.form.total) cards.push(`<div class="card"><div class="kv"><div><b>${esc(u.form.total)}</b></div><div class="v">${u.form.sections.filter(s => s.sum).reduce((a, s) => a + sectionSum(s, v), 0)}</div></div></div>`);
-    if (r.notes) cards.push(`<div class="card"><h3>แจ้งเพื่อทราบ</h3><div class="pre">${esc(r.notes)}</div></div>`);
+    if (r.notes) cards.push(`<div class="card"><h3>เรื่องแจ้ง</h3><div class="pre">${esc(r.notes)}</div></div>`);
     body = `<div class="view-grid">${cards.join('')}</div>`;
   } else if (S.sub === 'staff') {
     const staff = r.staff || [], rd = r.reduce || {};
@@ -739,7 +738,7 @@ function mountForm() {
     pat += '</div>';
   });
   if (u.form.total) pat += `<div class="card"><div class="sumline" style="border:0;margin:0;padding:0"><span>${esc(u.form.total)}</span><span class="num" id="fm_total">0</span></div></div>`;
-  pat += `<div class="card"><h3>แจ้งเพื่อทราบ</h3><textarea id="fm_notes" rows="3" placeholder="เช่น พรุ่งนี้แพทย์งดออกตรวจ / ไม่มีเอกสารค้างส่ง">${esc(d.notes || '')}</textarea></div>`;
+  pat += `<div class="card"><h3>เรื่องแจ้ง</h3><textarea id="fm_notes" rows="3" placeholder="เช่น พรุ่งนี้แพทย์งดออกตรวจ / ไม่มีเอกสารค้างส่ง">${esc(d.notes || '')}</textarea></div>`;
 
   const rd = d.reduce || {};
   const staff = `<div class="card"><h3>อัตรากำลัง</h3>
@@ -1259,15 +1258,57 @@ function downloadTemplate() {
   document.body.appendChild(a); a.click(); a.remove();
 }
 
+/* ===== สรุป (หน้าจอ ผู้จัดการ): อ่านบนมือถือได้ เรียงลงข้างล่างคอลัมน์เดียว ไม่ต้องเลื่อนซ้ายขวา ===== */
+function incCardHtml(i, unitLabelText, n) {
+  const vs = vitals(i);
+  return `<div class="card inc-view"><div class="inc-head"><span>${n}. ${esc(unitLabelText)} \u00b7 ${esc(i.type)}</span><span class="pill ${i.severity && i.severity !== '-' ? 'warn' : 'plain'}">ระดับ ${esc(i.severity || '-')}</span></div>
+    <div class="pt">${i.patient ? `<b>${esc(i.patient)}</b>` : '<span class="muted">ไม่ระบุชื่อผู้ป่วย</span>'}${i.age ? ` \u00b7 อายุ ${esc(i.age)} ปี` : ''}${i.hn ? ` \u00b7 HN ${esc(i.hn)}` : ''}</div>
+    <div class="muted" style="font-size:14px">${i.time ? `มารับบริการ ${esc(i.time)} น.` : ''}${i.time && i.doctor ? ' \u00b7 ' : ''}${i.doctor ? `แพทย์เจ้าของไข้ ${esc(i.doctor)}` : ''}</div>
+    ${vs.length || i.o2mode ? `<div class="vsline">${vs.map(([k, x, unit]) => `<span><small>${k}</small> ${esc(x)} <small>${unit}</small></span>`).join('')}${i.o2mode ? `<span><small>O2</small> ${esc(o2Text(i))}</span>` : ''}</div>` : ''}
+    <div class="pre" style="margin-top:6px">${esc(i.detail)}</div>
+    ${i.action ? `<div class="muted pre" style="font-size:14px;margin-top:4px">การแก้ไขเบื้องต้น: ${esc(i.action)}</div>` : ''}
+    ${(i.files || []).length ? `<div class="atts">${i.files.map(f => attChip(f, false)).join('')}</div>` : ''}</div>`;
+}
+function renderSummary() {
+  return eachShift(k => `<h2 class="shifthd">เวร ${esc(k)}</h2>` + summaryShift()).join('');
+}
+function summaryShift() {
+  const reps = S.day.reports, L = S.cfg.stdLabels;
+  const sv = u => reps[u.code] ? stdValues(u, reps[u.code].values) : null;
+  const sum = (list, k) => list.reduce((a, u) => a + ((sv(u) || {})[k] || 0), 0);
+  const staffN = (list, role) => list.reduce((a, u) => a + (reps[u.code] ? (reps[u.code].staff || []).filter(x => x.role === role && x.tag !== 'ออกหน่วย').length : 0), 0);
+  const opd = shUnits().filter(u => u.group === 'OPD');
+  const ipd = shUnits().filter(u => u.group === 'IPD' || (u.group === 'SPU' && S.cfg.stdIpd.every(k => k in (u.form.std || {}))));
+  const missing = shUnits().filter(u => !reps[u.code]).map(u => u.code);
+  const incs = []; shUnits().forEach(u => (reps[u.code] ? reps[u.code].incidents || [] : []).forEach(i => incs.push({ u, i })));
+  const tile = (n, t, cls) => `<div class="tile${cls ? ' ' + cls : ''}"><b>${n}</b><span>${t}</span></div>`;
+  let h = `<div class="meta">ส่งรายงานแล้ว ${shUnits().length - missing.length}/${shUnits().length} หน่วยงาน${missing.length ? ` \u00b7 <span style="color:var(--bad)">ยังไม่รายงาน: ${missing.map(esc).join(', ')}</span>` : ''}</div>`;
+  h += `<div class="tiles">${tile(sum(opd, 'total'), 'ผู้ป่วยนอก (ราย)')}${tile(sum(opd, 'admit'), 'Admit จาก OPD')}${tile(sum(ipd, 'remain'), 'ผู้ป่วยในคงพยาบาล')}${tile(sum(ipd, 'admit') + ' / ' + sum(ipd, 'dc'), 'รับใหม่ / จำหน่าย')}${tile(['RN', 'PN', 'NA'].map(k => staffN(shUnits(), k)).join(' / '), 'RN / PN / NA')}${tile(incs.length, 'เหตุการณ์ผิดปกติ', incs.length ? 'bad' : '')}</div>`;
+  S.cfg.sections.forEach(sc => {
+    const list = shSecUnits(sc);
+    if (!list.length) return;
+    h += `<h2 class="grp">${esc(sc.label)}</h2>`;
+    const keys = sc.group === 'OPD' ? S.cfg.stdOpd : sc.group === 'IPD' ? S.cfg.stdIpd : null;
+    if (keys) h += `<div class="card sbox gsum"><div class="shead"><b>รวม ${esc(sc.sub || sc.label)}</b></div><div class="kv">${keys.map(k => `<div>${L[k]}</div><div class="v">${sum(list, k)}</div>`).join('')}<div>RN / PN / NA</div><div class="v">${['RN', 'PN', 'NA'].map(k => staffN(list, k)).join(' / ')}</div></div></div>`;
+    list.forEach(u => {
+      const r = reps[u.code];
+      h += `<div class="card sbox"><div class="shead"><b>${esc(u.code)}</b> ${statusPill(u, r)}</div>${r ? `<div class="slines">${printLines(u, r)}</div>` : '<div class="miss">ยังไม่รายงาน</div>'}</div>`;
+    });
+  });
+  h += `<h2 class="grp">เหตุการณ์ผิดปกติ รวมทุกหน่วยงาน (${incs.length})</h2>`;
+  h += incs.length ? incs.map((x, n) => incCardHtml(x.i, x.u.code, n + 1)).join('') : '<div class="card muted">ไม่มีเหตุการณ์ผิดปกติ</div>';
+  return h;
+}
+
 /* ===== สรุป / พิมพ์ A4 ===== */
 function renderPrint() {
   const scope = S.printScope || 'all';
   const inFrame = !(window.google && google.script);
   const sign = '<div class="sign">ลงชื่อ ........................................ ผู้สรุปรายงาน<br>(........................................)</div>';
   const pages = scope === 'all'
-    ? [printUnits(), printOverview() + printIncidents() + sign]
-    : [printSingle(unitCfg(scope)) + sign];
-  return vshiftSeg() + `<div class="noprint" style="display:flex;gap:10px;align-items:end;margin-bottom:12px;flex-wrap:wrap">
+    ? eachShift(() => [printUnits(), printOverview() + printIncidents() + sign]).flat()
+    : eachShift(() => unitHas(unitCfg(scope), S.vshift) ? [printSingle(unitCfg(scope)) + sign] : []).flat();
+  return `<div class="noprint" style="display:flex;gap:10px;align-items:end;margin-bottom:12px;flex-wrap:wrap">
       <div style="flex:0 1 260px"><label class="f" for="p_scope">พิมพ์</label>
         <select id="p_scope"><option value="all">รายงานทั้งหมด (แยกหน่วยงาน + ภาพรวม + เหตุการณ์ผิดปกติ)</option>
         ${unitOptgroups(scope, '\u0e40\u0e09\u0e1e\u0e32\u0e30\u0e2b\u0e19\u0e48\u0e27\u0e22\u0e07\u0e32\u0e19 \u00b7 ')}</select></div>
@@ -1276,22 +1317,22 @@ function renderPrint() {
     <div class="a4-scroll">${pages.map(p => `<div class="a4">${p}</div>`).join('')}</div>`;
 }
 function printHead(sub) {
-  const reps = S.day.reports, missing = S.cfg.units.filter(u => !reps[u.code]).map(u => u.code);
-  return `<h1>รายงานยอดประจำวัน${sub ? ' \u00b7 ' + sub : ''}</h1><div class="d">${esc(thaiDate(S.date, true))}</div>
-    <div class="st">${esc(vshiftLabel())} \u00b7 ส่งรายงานแล้ว ${S.cfg.units.length - missing.length}/${S.cfg.units.length} หน่วยงาน${missing.length ? ` \u00b7 <span class="m">ยังไม่รายงาน: ${missing.map(esc).join(', ')}</span>` : ''}</div>`;
+  const reps = S.day.reports, missing = shUnits().filter(u => !reps[u.code]).map(u => u.code);
+  return `<h1>รายงานยอดประจำวัน \u00b7 ${esc(vshiftLabel())}${sub ? ' \u00b7 ' + sub : ''}</h1><div class="d">${esc(thaiDate(S.date, true))}</div>
+    <div class="st">ส่งรายงานแล้ว ${shUnits().length - missing.length}/${shUnits().length} หน่วยงาน${missing.length ? ` \u00b7 <span class="m">ยังไม่รายงาน: ${missing.map(esc).join(', ')}</span>` : ''}</div>`;
 }
 
 function printOverview() {
   const reps = S.day.reports, L = S.cfg.stdLabels;
-  const units = g => S.cfg.units.filter(u => u.group === g);
+  const units = g => shUnits().filter(u => u.group === g);
   const sv = u => reps[u.code] ? stdValues(u, reps[u.code].values) : null;
   const sum = (list, k) => list.reduce((a, u) => a + ((sv(u) || {})[k] || 0), 0);
 
   const opd = units('OPD'), ipd = units('IPD').concat(units('SPU').filter(u => S.cfg.stdIpd.every(k => k in (u.form.std || {})))),
     spu = units('SPU').filter(u => !ipd.includes(u));
-  const allIncs = S.cfg.units.flatMap(u => reps[u.code] ? reps[u.code].incidents || [] : []);
-  const staffAll = S.cfg.units.flatMap(u => reps[u.code] ? reps[u.code].staff || [] : []);
-  const reduceAll = S.cfg.units.reduce((a, u) => { const r = reps[u.code] && reps[u.code].reduce || {}; return a + num(r.RN) + num(r.PN) + num(r.NA); }, 0);
+  const allIncs = shUnits().flatMap(u => reps[u.code] ? reps[u.code].incidents || [] : []);
+  const staffAll = shUnits().flatMap(u => reps[u.code] ? reps[u.code].staff || [] : []);
+  const reduceAll = shUnits().reduce((a, u) => { const r = reps[u.code] && reps[u.code].reduce || {}; return a + num(r.RN) + num(r.PN) + num(r.NA); }, 0);
 
   // ตัวเลขสรุป
   let h = printHead('ภาพรวม') + `<div class="kpis">
@@ -1312,12 +1353,12 @@ function printOverview() {
     ${opd.map(u => { const s = sv(u); return s ? `<tr><td>${esc(u.code)}</td>${S.cfg.stdOpd.map(k => `<td class="n">${k in s ? s[k] : '\u2013'}</td>`).join('')}${staffTd(u)}</tr>`
       : `<tr><td>${esc(u.code)}</td><td colspan="${S.cfg.stdOpd.length + 3}" class="miss">ยังไม่รายงาน</td></tr>`; }).join('')}
     <tr class="tot"><td>รวม</td>${S.cfg.stdOpd.map(k => `<td class="n">${sum(opd, k)}</td>`).join('')}${staffSumTd(opd)}</tr></table>
-    <div class="foot">RN / PN / NA = จำนวนเจ้าหน้าที่ที่ปฏิบัติงานตามรายงานของแต่ละหน่วยงาน (ไม่นับผู้ที่ออกไปปฏิบัติงานหน่วยอื่น)${S.vshift === 'ALL' ? ' \u00b7 ทั้งวัน = รวมจำนวนคนของเวร Day และ Night' : ''}</div>`;
+    <div class="foot">RN / PN / NA = จำนวนเจ้าหน้าที่ที่ปฏิบัติงานตามรายงานของแต่ละหน่วยงาน (ไม่นับผู้ที่ออกไปปฏิบัติงานหน่วยอื่น)</div>`;
 
   // ผู้ป่วยใน
   const ipdRow = u => { const s = sv(u); return s ? `<tr><td>${esc(u.code)}</td>${S.cfg.stdIpd.map(k => `<td class="n${k === 'remain' ? ' b' : ''}">${s[k] || '\u2013'}</td>`).join('')}${staffTd(u)}</tr>`
       : `<tr><td>${esc(u.code)}</td><td colspan="${S.cfg.stdIpd.length + 3}" class="miss">ยังไม่รายงาน</td></tr>`; };
-  const ipdBlocks = S.cfg.sections.filter(sc => sc.group === 'IPD').map(sc => ({ name: sc.sub, list: sc.units.map(unitCfg) }));
+  const ipdBlocks = S.cfg.sections.filter(sc => sc.group === 'IPD').map(sc => ({ name: sc.sub, list: shSecUnits(sc) })).filter(bk => bk.list.length);
   const icuLike = ipd.filter(u => u.group !== 'IPD');
   if (icuLike.length) ipdBlocks.push({ name: 'Special Unit', list: icuLike });
   h += `<h2>ผู้ป่วยใน</h2><table class="stat"><thead><tr><th>ตึก</th>${S.cfg.stdIpd.map(k => `<th>${L[k]}</th>`).join('')}${staffTh}</tr></thead>
@@ -1348,7 +1389,7 @@ function printOverview() {
 
 function printIncidents() {
   const reps = S.day.reports, incs = [];
-  S.cfg.units.forEach(u => (reps[u.code] ? reps[u.code].incidents || [] : []).forEach(i => incs.push(Object.assign({ unit: u.code }, i))));
+  shUnits().forEach(u => (reps[u.code] ? reps[u.code].incidents || [] : []).forEach(i => incs.push(Object.assign({ unit: u.code }, i))));
   const byType = {}; incs.forEach(i => byType[i.type] = (byType[i.type] || 0) + 1);
   return `<h2>เหตุการณ์ผิดปกติ รวมทุกหน่วยงาน (${incs.length})</h2>` + (incs.length
     ? `<div class="chipsp">${Object.entries(byType).map(([k, n]) => `<span>${esc(k)} <b>${n}</b></span>`).join('')}</div>${incTable(incs)}`
@@ -1368,8 +1409,9 @@ function printUnits() {
   const reps = S.day.reports, incs = [];
   let body = printHead('แยกหน่วยงาน');
   S.cfg.sections.forEach(sc => {
+    if (!shSecUnits(sc).length) return;
     body += `<h2>${esc(sc.label)}</h2><div class="cols">`;
-    sc.units.map(unitCfg).forEach(u => {
+    shSecUnits(sc).forEach(u => {
       const r = reps[u.code];
       if (!r) { body += `<div class="ub"><b class="c">${esc(u.code)}</b> <span class="miss">ยังไม่รายงาน</span></div>`; return; }
       (r.incidents || []).forEach(i => incs.push(Object.assign({ unit: u.code }, i)));
@@ -1383,7 +1425,7 @@ function printUnits() {
 // รายงานเฉพาะหน่วยงานเดียว (ละเอียด)
 function printSingle(u) {
   const r = S.day.reports[u.code];
-  let h = `<h1>รายงานยอดประจำวัน \u00b7 ${esc(u.code)}</h1><div class="d">${esc(unitLabel(u))} \u00b7 ${esc(thaiDate(S.date, true))}</div>`;
+  let h = `<h1>รายงานยอดประจำวัน \u00b7 ${esc(u.code)} \u00b7 ${esc(vshiftLabel())}</h1><div class="d">${esc(unitLabel(u))} \u00b7 ${esc(thaiDate(S.date, true))}</div>`;
   if (!r) return h + '<div class="miss" style="text-align:center;margin:20mm 0">หน่วยงานนี้ยังไม่ส่งรายงาน</div>';
   const v = r.values || {};
   h += `<div class="st">ผู้รายงาน ${esc(r.reporter)} \u00b7 แก้ไขล่าสุด ${esc(r.updatedAt)}</div><h2>รายงานผู้ป่วย</h2><div class="cols">`;
@@ -1402,12 +1444,12 @@ function printSingle(u) {
   });
   if (u.form.total) h += `<div class="ub"><b>${esc(u.form.total)} ${u.form.sections.filter(s => s.sum).reduce((a, s) => a + sectionSum(s, v), 0)}</b></div>`;
   h += '</div>';
-  if (r.notes) h += `<div class="ln"><b>แจ้งเพื่อทราบ:</b> ${esc(r.notes).replace(/\n/g, ' / ')}</div>`;
+  if (r.notes) h += `<div class="ln"><b>เรื่องแจ้ง:</b> ${esc(r.notes).replace(/\n/g, ' / ')}</div>`;
   const staff = r.staff || [], rd = r.reduce || {};
   h += `<h2>อัตรากำลัง \u00b7 เวร ${esc(shiftName(r.shift))} \u00b7 ${roleCounts(staff).map(([k, n]) => `${esc(k)} ${n}`).join(', ') || 'ไม่ได้ระบุ'}</h2>
     <div class="cols">${staff.map(s => `<div class="ln">${esc(s.role)} ${esc(s.name)}${s.tag ? ` (${esc(s.tag)}${s.tagNote ? ' ' + esc(s.tagNote) : ''})` : ''}</div>`).join('')}</div>`;
   const rt = num(rd.RN) + num(rd.PN) + num(rd.NA);
-  if (rt || rd.detail) h += `<div class="ln" style="margin-top:3px"><b>ลดอัตรากำลัง ${rt} ชม.</b> (RN ${num(rd.RN)}, PN ${num(rd.PN)}, NA ${num(rd.NA)})${rd.detail ? ' \u00b7 ' + esc(rd.detail).replace(/\n/g, ' / ') : ''}</div>`;
+  if (rt || rd.detail) h += `<div class="ln" style="margin-top:3px"><b>ลดอัตรากำลัง ${rt} ชม.</b> (RN ${num(rd.RN)} ชม., PN ${num(rd.PN)} ชม., NA ${num(rd.NA)} ชม.)${rd.detail ? ' \u00b7 ' + esc(rd.detail).replace(/\n/g, ' / ') : ''}</div>`;
   const incs = (r.incidents || []).map(i => Object.assign({ unit: u.code }, i));
   return h + `<h2>เหตุการณ์ผิดปกติ (${incs.length})</h2>` + (incs.length ? incTable(incs) : '<div>ไม่มีเหตุการณ์ผิดปกติ</div>');
 }
@@ -1418,22 +1460,25 @@ function printLines(u, r) {
       s.rows.forEach(rw => { const parts = s.cols.map(c => [c[1], num(v[rw[0] + '_' + c[0]])]).filter(x => x[1]); const t = parts.reduce((a, x) => a + x[1], 0); out.push(`${esc(rw[1])} ${t}${parts.length ? ` (${parts.map(x => esc(x[0]) + ' ' + x[1]).join(', ')})` : ''}`); });
       return;
     }
+    const calcLines = [];
     const items = s.fields.filter(f => f.type !== 'text').map(f => {
       const val = fieldValue(u, v, f);
       if (f.type === 'time') return val ? `${esc(f.label)} ${esc(val)} น.` : '';
-      if (!f.calc && !num(val)) return '';
+      if (f.calc) { calcLines.push(`<b>${esc(f.label)} ${val}</b>`); return ''; }
+      if (!num(val)) return '';
       return `${esc(f.label)} <b>${val}</b>${f.pctOf && num(v[f.pctOf]) ? ` (${(num(val) / num(v[f.pctOf]) * 100).toFixed(1)}%)` : ''}${f.note && v[f.key + '_note'] ? ' (' + esc(v[f.key + '_note']) + ')' : ''}`;
     }).filter(Boolean);
     if (s.sum) items.push(`${esc(s.sum)} <b>${sectionSum(s, v)}</b>`);
-    if (items.length) out.push((u.form.sections.length > 1 ? `<u>${esc(s.title)}</u> ` : '') + items.join(', '));
+    if (items.length) out.push((u.form.sections.length > 1 ? `<b>${esc(s.title)}:</b> ` : '') + items.join(', '));
+    calcLines.forEach(l => out.push(l));
     s.fields.filter(f => f.type === 'text' && v[f.key]).forEach(f => out.push(`${esc(f.label)}: ${esc(v[f.key])}`));
   });
   if (u.form.total) out.push(`<b>${esc(u.form.total)} ${u.form.sections.filter(s => s.sum).reduce((a, s) => a + sectionSum(s, v), 0)}</b>`);
   const rc = roleCounts(r.staff || []);
   if (rc.length) out.push(`อัตรากำลัง (${esc(shiftName(r.shift))}): ${rc.map(([k, n]) => `${esc(k)} ${n}`).join(', ')}`);
   const rd = r.reduce || {}, rt = num(rd.RN) + num(rd.PN) + num(rd.NA);
-  if (rt) out.push(`ลดอัตรากำลัง ${rt} ชม. (${['RN', 'PN', 'NA'].filter(k => num(rd[k])).map(k => `${k} ${num(rd[k])}`).join(', ')})`);
-  if (r.notes) out.push(`แจ้ง: ${esc(r.notes).replace(/\n/g, ' / ')}`);
+  if (rt) out.push(`ลดอัตรากำลัง ${rt} ชม. (${['RN', 'PN', 'NA'].filter(k => num(rd[k])).map(k => `${k} ${num(rd[k])} ชม.`).join(', ')})`);
+  if (r.notes) out.push(`เรื่องแจ้ง: ${esc(r.notes).replace(/\n/g, ' / ')}`);
   if ((r.incidents || []).length) out.push(`<span class="miss">เหตุการณ์ผิดปกติ ${r.incidents.length} เรื่อง</span>`);
   return out.map(l => `<div class="ln">${l}</div>`).join('');
 }

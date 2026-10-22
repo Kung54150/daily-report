@@ -126,9 +126,10 @@ function saveReport(token, rep) {
   if (me.role !== 'unit' || rep.unit !== me.unit) throw new Error('แก้ไขได้เฉพาะรายงานของหน่วยงานตนเอง');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(rep.date)) throw new Error('วันที่ไม่ถูกต้อง');
   if (!String(rep.reporter || '').trim()) throw new Error('กรุณากรอกชื่อผู้รายงาน');
-  if (SHIFTS.indexOf(rep.shift) < 0) throw new Error('กรุณาเลือกเวร Day หรือ Night');
+  const myUnit = buildConfig_().units.find(u => u.code === me.unit);
+  if (myUnit.shifts.indexOf(rep.shift) < 0) throw new Error('หน่วยงานนี้รายงานได้เฉพาะเวร ' + myUnit.shifts.join(', '));
 
-  const form = buildConfig_().units.find(u => u.code === me.unit).form;
+  const form = myUnit.form;
   const keys = form.sections.flatMap(s => s.type === 'grid'
     ? s.rows.flatMap(r => s.cols.map(c => r[0] + '_' + c[0]))
     : s.fields.filter(f => !f.calc).flatMap(f => f.note ? [f.key, f.key + '_note'] : [f.key]));

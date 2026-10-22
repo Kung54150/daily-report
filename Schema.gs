@@ -200,10 +200,15 @@ function subGroups_(g) {
   return Object.keys(by).sort().map(k => ({ label: g.name + ' \u00b7 ตึก ' + k, sub: 'ตึก ' + k, units: by[k] }));
 }
 
+// ผู้ป่วยนอกทุกแผนกยกเว้น ER ไม่มีเวร Night
+function unitShifts_(group, code) {
+  return group === 'OPD' && code !== 'ER' ? ['Day'] : SHIFTS;
+}
+
 function buildConfig_() {
   const subOf = {};
   GROUPS.forEach(g => subGroups_(g).forEach(s => s.units.forEach(u => { subOf[u] = s.sub; })));
-  const units = GROUPS.flatMap(g => g.units.map(code => ({ code, group: g.key, sub: subOf[code], form: FORMS[code] || OPD_DRAFT })));
+  const units = GROUPS.flatMap(g => g.units.map(code => ({ code, group: g.key, sub: subOf[code], shifts: unitShifts_(g.key, code), form: FORMS[code] || OPD_DRAFT })));
   return {
     groups: GROUPS.map(g => ({ key: g.key, name: g.name })),
     sections: GROUPS.flatMap(g => subGroups_(g).map(s => ({ group: g.key, label: s.label, sub: s.sub, units: s.units }))),
