@@ -25,7 +25,7 @@ const HEADERS = {
     'BP (mmHg)', 'PR (/min)', 'RR (/min)', 'T (°C)', 'O2 sat (%)', 'O2', 'O2 ที่ให้', 'รายละเอียด', 'การแก้ไขเบื้องต้น', 'ผู้รายงาน'],
   // ยอดมาตรฐานแบบแถวยาว ใช้ทำ Pivot / Looker Studio ภายหลัง
   [SH_STATS]: ['วันที่', 'กลุ่ม', 'หน่วยงาน', 'หมวด', 'รายการ', 'จำนวน', 'ตึก'],
-  [SH_STAFF]: ['id', 'หน่วยงาน', 'ชื่อ-สกุล', 'ตำแหน่ง', 'ที่มา', 'แก้ไขล่าสุด'],
+  [SH_STAFF]: ['id', 'หน่วยงาน', 'ชื่อ-สกุล', 'ตำแหน่ง', 'ที่มา', 'แก้ไขล่าสุด', 'แผนกในไฟล์'],
   [SH_ROOMS]: ['หน่วยงาน', 'เลขห้อง', 'ชื่อ/ประเภทห้อง (ไม่บังคับ)'],
   [SH_ALIASES]: ['ชื่อแผนกที่ใช้ในไฟล์', 'หน่วยงานในระบบ']
 };
@@ -118,7 +118,7 @@ function saveReport(token, rep) {
   const form = buildConfig_().units.find(u => u.code === me.unit).form;
   const keys = form.sections.flatMap(s => s.type === 'grid'
     ? s.rows.flatMap(r => s.cols.map(c => r[0] + '_' + c[0]))
-    : s.fields.filter(f => !f.calc).map(f => f.key));
+    : s.fields.filter(f => !f.calc).flatMap(f => f.note ? [f.key, f.key + '_note'] : [f.key]));
   const values = {};
   keys.forEach(k => { if (rep.values && rep.values[k] !== undefined && rep.values[k] !== '') values[k] = rep.values[k]; });
 
@@ -228,10 +228,18 @@ function seedRooms_() {
 }
 
 // ===== ทะเบียนเจ้าหน้าที่ =====
+let staffHdrOk_ = false;
+function staffSheet_() {
+  const sh = sheet_(SH_STAFF);
+  if (!staffHdrOk_) { ensureHeaders_(sh, HEADERS[SH_STAFF]); staffHdrOk_ = true; }
+  return sh;
+}
+
+// หน่วยงานว่าง ('') = ยังไม่ผูกแผนก  |  fileDept = ชื่อแผนกตามไฟล์รายชื่อ (คอลัมน์แผนก)
 function listStaff(token) {
   auth_(token);
-  return sheet_(SH_STAFF).getDataRange().getValues().slice(1)
-    .map(r => ({ id: Number(r[0]), unit: r[1], name: r[2], role: r[3], source: r[4] }));
+  return staffSheet_().getDataRange().getValues().slice(1)
+    .map(r => ({ id: Number(r[0]), unit: String(r[1] || ''), name: r[2], role: r[3], source: r[4], fileDept: String(r[6] || '') }));
 }
 
 function saveStaff(token, s) {
@@ -240,18 +248,20 @@ function saveStaff(token, s) {
   const name = String(s.name || '').trim();
   if (!name) throw new Error('กรุณากรอกชื่อ');
   return withLock_(() => {
-    const sh = sheet_(SH_STAFF), data = sh.getDataRange().getValues();
+    const sh = staffSheet_(), data = sh.getDataRange().getValues();
     const now = stamp_();
     if (s.id) {
       const i = data.findIndex((r, k) => k > 0 && Number(r[0]) === Number(s.id));
       if (i < 0) throw new Error('ไม่พบรายชื่อนี้');
       if (me.role !== 'admin' && data[i][1] !== me.unit) throw new Error('แก้ไขได้เฉพาะทะเบียนของหน่วยงานตนเอง');
       sh.getRange(i + 1, 3, 1, 2).setValues([[name, s.role]]);
+      // ADMIN ย้ายคนไปหน่วยงานอื่น (หรือ '' = ยังไม่ผูก) ได้
+      if (me.role === 'admin' && s.unit !== undefined && (s.unit === '' || allUnitCodes_().indexOf(s.unit) >= 0)) sh.getRange(i + 1, 2).setValue(s.unit);
       sh.getRange(i + 1, 6).setValue(now);
       return { id: Number(s.id) };
     }
     const id = nextId_(data);
-    sh.appendRow([id, s.unit, name, s.role, 'manual', now]);
+    sh.appendRow([id, s.unit, name, s.role, 'manual', now, '']);
     return { id };
   });
 }
@@ -259,7 +269,7 @@ function saveStaff(token, s) {
 function deleteStaff(token, id) {
   const me = auth_(token);
   withLock_(() => {
-    const sh = sheet_(SH_STAFF);
+    const sh = staffSheet_();
     const row = sh.getDataRange().getValues().find(r => Number(r[0]) === Number(id));
     if (!row) return;
     if (me.role !== 'admin' && row[1] !== me.unit) throw new Error('ลบได้เฉพาะทะเบียนของหน่วยงานตนเอง');
@@ -269,36 +279,47 @@ function deleteStaff(token, id) {
 }
 
 /**
- * อัปโหลดรายชื่อประจำเดือน (ADMIN)
- * - รายชื่อ "จากไฟล์" เดิมของหน่วยงานที่อยู่ในไฟล์ถูกแทนที่ทั้งหมด
+ * อัปโหลดรายชื่อประจำเดือน (ADMIN) — rows: [{ dept, name, role }]
+ * - นำเข้าทุกคน ชื่อแผนกตามไฟล์เก็บไว้ในช่อง "แผนกในไฟล์"
+ *   แผนกที่ผูกไว้แล้ว (ชื่อตรงกับหน่วยงาน หรือเคยผูกไว้) ถูกจัดเข้าหน่วยงานนั้นทันที
+ *   แผนกที่ยังไม่ผูก เก็บไว้ที่ "ยังไม่ผูกแผนก" รอผูกภายหลัง (saveBindings)
+ * - รายชื่อ "จากไฟล์" เดิมของแผนกที่อยู่ในไฟล์ใหม่ถูกแทนที่ทั้งหมด
  * - ชื่อที่หน่วยงาน "เพิ่มเอง" แล้วซ้ำกับไฟล์ → ยึดข้อมูลจากไฟล์
  */
 function uploadStaff(token, rows) {
   if (auth_(token).role !== 'admin') throw new Error('เฉพาะผู้ดูแลระบบ');
-  const codes = buildConfig_().units.map(u => u.code);
-  const incoming = (rows || []).filter(r => codes.indexOf(r.unit) >= 0 && String(r.name || '').trim());
-  const units = new Set(incoming.map(r => r.unit));
+  const byNorm = {};
+  allUnitCodes_().forEach(c => { byNorm[normAlias_(c)] = c; });
+  sheet_(SH_ALIASES).getDataRange().getValues().slice(1).forEach(r => {
+    if (String(r[0]).trim() && String(r[1]).trim()) byNorm[normAlias_(r[0])] = String(r[1]).trim();
+  });
+  const incoming = (rows || []).filter(r => r && String(r.name || '').trim()).map(r => {
+    const dept = String(r.dept || '').replace(/\s+/g, ' ').trim();
+    return { dept, name: String(r.name).replace(/\s+/g, ' ').trim(), role: r.role || '', unit: byNorm[normAlias_(dept)] || '' };
+  });
+  const depts = new Set(incoming.map(r => normAlias_(r.dept)));
   const names = new Set(incoming.map(r => normName_(r.name)));
 
   return withLock_(() => {
-    const sh = sheet_(SH_STAFF), data = sh.getDataRange().getValues();
+    const sh = staffSheet_(), data = sh.getDataRange().getValues();
     let removed = 0, replaced = 0;
     const keep = data.slice(1).filter(r => {
-      if (r[4] === 'upload' && units.has(r[1])) { removed++; return false; }
+      if (r[4] === 'upload' && depts.has(normAlias_(r[6] || r[1]))) { removed++; return false; }
       if (r[4] !== 'upload' && names.has(normName_(r[2]))) { replaced++; return false; }
       return true;
-    });
+    }).map(r => [r[0], r[1], r[2], r[3], r[4], r[5], r[6] || '']);
     let id = nextId_(data);
     const now = stamp_();
-    const all = keep.concat(incoming.map(r => [id++, r.unit, String(r.name).trim(), r.role, 'upload', now]));
-    sh.getRange(2, 1, Math.max(sh.getLastRow() - 1, 1), 6).clearContent();
-    if (all.length) sh.getRange(2, 1, all.length, 6).setValues(all);
-    return { added: incoming.length, replaced, removed };
+    const all = keep.concat(incoming.map(r => [id++, r.unit, r.name, r.role, 'upload', now, r.dept]));
+    sh.getRange(2, 1, Math.max(sh.getLastRow() - 1, 1), 7).clearContent();
+    if (all.length) sh.getRange(2, 1, all.length, 7).setValues(all);
+    return { added: incoming.length, replaced, removed, bound: incoming.filter(r => r.unit).length, unbound: incoming.filter(r => !r.unit).length };
   });
 }
 
-// ===== ผูกชื่อแผนกที่ใช้ในไฟล์รายชื่อ กับหน่วยงานในระบบ (ADMIN) =====
-// เช่น ไฟล์ HR เขียน "ศัลยกรรมชาย" แต่ในระบบคือ A4 ผูกครั้งเดียว อัปโหลดครั้งต่อไปจับคู่ให้เอง
+// ===== ผูกชื่อแผนกในไฟล์รายชื่อ กับหน่วยงานในระบบ (ADMIN) =====
+// เช่น ไฟล์ HR เขียน "ศูนย์อายุรกรรม" แต่ในระบบคือ OPD1 ผูกครั้งเดียว รายชื่อทั้งแผนกย้ายเข้าหน่วยงานนั้น
+// และการอัปโหลดครั้งต่อไปจัดเข้าให้เอง  unit = '' คือยกเลิกการผูก
 function getAliases(token) {
   if (auth_(token).role !== 'admin') throw new Error('เฉพาะผู้ดูแลระบบ');
   return sheet_(SH_ALIASES).getDataRange().getValues().slice(1)
@@ -306,27 +327,23 @@ function getAliases(token) {
     .map(r => ({ alias: String(r[0]).trim(), unit: String(r[1]).trim() }));
 }
 
-function saveAliases(token, items) {
+function saveBindings(token, items) {
   if (auth_(token).role !== 'admin') throw new Error('เฉพาะผู้ดูแลระบบ');
   const codes = allUnitCodes_();
-  const add = (items || []).filter(x => x && String(x.alias || '').trim() && codes.indexOf(x.unit) >= 0)
-    .map(x => ({ alias: String(x.alias).trim(), unit: x.unit }));
+  const list = (items || []).filter(x => x && String(x.alias || '').trim() && (x.unit === '' || codes.indexOf(x.unit) >= 0))
+    .map(x => ({ alias: String(x.alias).trim(), unit: x.unit, key: normAlias_(x.alias) }));
+  const unitOf = {}; list.forEach(x => { unitOf[x.key] = x.unit; });
   withLock_(() => {
-    const sh = sheet_(SH_ALIASES), keys = new Set(add.map(x => normAlias_(x.alias)));
-    const keep = sh.getDataRange().getValues().slice(1).filter(r => String(r[0]).trim() && !keys.has(normAlias_(r[0])))
+    const as = sheet_(SH_ALIASES);
+    const keep = as.getDataRange().getValues().slice(1).filter(r => String(r[0]).trim() && !(normAlias_(r[0]) in unitOf))
       .map(r => [String(r[0]).trim(), String(r[1]).trim()]);
-    const all = keep.concat(add.map(x => [x.alias, x.unit]));
-    sh.getRange(2, 1, Math.max(sh.getLastRow() - 1, 1), 2).clearContent();
-    if (all.length) sh.getRange(2, 1, all.length, 2).setValues(all);
-  });
-  return getAliases(token);
-}
+    const all = keep.concat(list.filter(x => x.unit).map(x => [x.alias, x.unit]));
+    as.getRange(2, 1, Math.max(as.getLastRow() - 1, 1), 2).clearContent();
+    if (all.length) as.getRange(2, 1, all.length, 2).setValues(all);
 
-function deleteAlias(token, alias) {
-  if (auth_(token).role !== 'admin') throw new Error('เฉพาะผู้ดูแลระบบ');
-  withLock_(() => {
-    const sh = sheet_(SH_ALIASES), k = normAlias_(alias);
-    deleteRows_(sh, r => normAlias_(r[0]) === k);
+    const st = staffSheet_(), data = st.getDataRange().getValues();
+    const units = data.slice(1).map(r => [r[4] === 'upload' && (normAlias_(r[6] || r[1]) in unitOf) ? unitOf[normAlias_(r[6] || r[1])] : r[1]]);
+    if (units.length) st.getRange(2, 2, units.length, 1).setValues(units);
   });
   return getAliases(token);
 }
