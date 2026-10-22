@@ -1,68 +1,77 @@
 /**
- * Daily Report — ระบบรายงานยอดประจำวันแยกตามแผนก
+ * Daily Report — ระบบรายงานยอดประจำวันแยกตามหน่วยงาน
  * Google Apps Script (ผูกกับ Google Sheets)
+ *
+ * หน่วยงานกรอกยอดของตนเอง → ข้อมูลรวมที่ผู้จัดการ → พิมพ์สรุปเป็น A4
  */
 
-// ===== ตั้งค่าแผนกและรายการที่ต้องรายงาน =====
-// แต่ละแผนกมีรายการต่างกันได้ แก้ไข/เพิ่มได้ที่นี่
-// group = หมวด (ผู้ป่วย / หัตถการ / อื่นๆ), unit = หน่วยนับ
-const DEPARTMENTS = {
-  OPD: {
-    name: 'ผู้ป่วยนอก (OPD)',
-    items: [
-      { key: 'opd_new', label: 'ผู้ป่วยใหม่', group: 'ผู้ป่วย', unit: 'ราย' },
-      { key: 'opd_old', label: 'ผู้ป่วยเก่า', group: 'ผู้ป่วย', unit: 'ราย' },
-      { key: 'opd_refer_out', label: 'ส่งต่อ (Refer out)', group: 'ผู้ป่วย', unit: 'ราย' },
-      { key: 'vaccine', label: 'ฉีดวัคซีน', group: 'หัตถการ', unit: 'ราย' },
-      { key: 'med_cert', label: 'ตรวจสุขภาพ/ใบรับรองแพทย์', group: 'หัตถการ', unit: 'ราย' }
-    ]
-  },
-  ER: {
-    name: 'ห้องฉุกเฉิน (ER)',
-    items: [
-      { key: 'er_total', label: 'ผู้ป่วยทั้งหมด', group: 'ผู้ป่วย', unit: 'ราย' },
-      { key: 'er_triage_1_2', label: 'Triage ระดับ 1–2', group: 'ผู้ป่วย', unit: 'ราย' },
-      { key: 'er_admit', label: 'Admit', group: 'ผู้ป่วย', unit: 'ราย' },
-      { key: 'er_cpr', label: 'CPR', group: 'หัตถการ', unit: 'ครั้ง' },
-      { key: 'er_suture', label: 'เย็บแผล', group: 'หัตถการ', unit: 'ราย' }
-    ]
-  },
-  IPD: {
-    name: 'ผู้ป่วยใน (IPD)',
-    items: [
-      { key: 'ipd_census', label: 'ยอดผู้ป่วยคงพยาบาล', group: 'ผู้ป่วย', unit: 'ราย' },
-      { key: 'ipd_admit', label: 'รับใหม่', group: 'ผู้ป่วย', unit: 'ราย' },
-      { key: 'ipd_discharge', label: 'จำหน่าย', group: 'ผู้ป่วย', unit: 'ราย' },
-      { key: 'ipd_dead', label: 'เสียชีวิต', group: 'ผู้ป่วย', unit: 'ราย' }
-    ]
-  },
-  ENDO: {
-    name: 'ส่องกล้อง',
-    items: [
-      { key: 'egd', label: 'EGD', group: 'หัตถการ', unit: 'ราย' },
-      { key: 'colono', label: 'Colonoscopy', group: 'หัตถการ', unit: 'ราย' }
-    ]
-  },
-  XRAY: {
-    name: 'รังสีวิทยา',
-    items: [
-      { key: 'xray', label: 'X-ray', group: 'หัตถการ', unit: 'ราย' },
-      { key: 'ct', label: 'CT scan', group: 'หัตถการ', unit: 'ราย' },
-      { key: 'ca_score', label: 'Calcium score', group: 'หัตถการ', unit: 'ราย' }
-    ]
-  }
-};
+// ===== รายการที่ต้องรายงาน (ตัวอย่าง — รอรูปแบบรายงานจริง) =====
+// key = รหัสรายการ (ห้ามซ้ำในหน่วยงานเดียวกัน), unit = หน่วยนับ
+const OPD_ITEMS = [
+  { key: 'total', label: 'ผู้ป่วยทั้งหมด', unit: 'ราย' },
+  { key: 'new', label: 'ผู้ป่วยใหม่', unit: 'ราย' },
+  { key: 'admit', label: 'Admit', unit: 'ราย' },
+  { key: 'refer', label: 'Refer out', unit: 'ราย' }
+];
+const IPD_ITEMS = [
+  { key: 'carried', label: 'ยกมา', unit: 'ราย' },
+  { key: 'admit', label: 'รับใหม่', unit: 'ราย' },
+  { key: 'tr_in', label: 'รับย้าย', unit: 'ราย' },
+  { key: 'discharge', label: 'จำหน่าย', unit: 'ราย' },
+  { key: 'tr_out', label: 'ย้ายออก', unit: 'ราย' },
+  { key: 'dead', label: 'เสียชีวิต', unit: 'ราย' },
+  { key: 'remain', label: 'คงพยาบาล', unit: 'ราย' }
+];
+const LR_ITEMS = [
+  { key: 'nl', label: 'คลอดปกติ', unit: 'ราย' },
+  { key: 'cs', label: 'ผ่าคลอด', unit: 'ราย' },
+  { key: 'nb', label: 'ทารกแรกเกิด', unit: 'ราย' }
+];
+const HD_ITEMS = [
+  { key: 'hd', label: 'ฟอกเลือด (HD)', unit: 'ราย' },
+  { key: 'hd_new', label: 'ผู้ป่วยรายใหม่', unit: 'ราย' }
+];
+const OR_ITEMS = [
+  { key: 'total', label: 'ผ่าตัดทั้งหมด', unit: 'ราย' },
+  { key: 'elective', label: 'Elective', unit: 'ราย' },
+  { key: 'emergency', label: 'Emergency', unit: 'ราย' },
+  { key: 'cancel', label: 'งดผ่าตัด', unit: 'ราย' }
+];
 
-const INCIDENT_TYPES = [
-  'ความคลาดเคลื่อนทางยา', 'ผู้ป่วยพลัดตกหกล้ม', 'การระบุตัวผู้ป่วยผิด',
+// ===== กลุ่มและหน่วยงาน =====
+// items = รายการของทั้งกลุ่ม, overrides = หน่วยงานที่รายการต่างจากกลุ่ม
+const GROUPS = [
+  {
+    key: 'OPD', name: 'ผู้ป่วยนอก', items: OPD_ITEMS,
+    units: ['OPD1', 'OPD3', 'ER', 'HPC', 'OBG-IVF', 'PC', 'EENT', 'Dent']
+  },
+  {
+    key: 'IPD', name: 'ผู้ป่วยใน', items: IPD_ITEMS,
+    units: ['A4', 'A5', 'A6', 'B3', 'B4', 'B5', 'C3', 'C4', 'C5']
+  },
+  {
+    key: 'SPU', name: 'Special Unit', items: IPD_ITEMS,
+    units: ['ICU', 'LR-NB', 'ไตเทียม', 'OR'],
+    overrides: { 'LR-NB': LR_ITEMS, 'ไตเทียม': HD_ITEMS, 'OR': OR_ITEMS }
+  }
+];
+
+const PROBLEM_TYPES = [
+  'ความคลาดเคลื่อนทางยา', 'ผู้ป่วยพลัดตกหกล้ม', 'การระบุตัวผู้ป่วยผิด', 'อัตรากำลังไม่เพียงพอ',
   'เครื่องมือ/อุปกรณ์ขัดข้อง', 'ข้อร้องเรียน', 'ความเสี่ยงด้านการติดเชื้อ', 'อื่นๆ'
 ];
-const SEVERITY = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
+const SEVERITY = ['-', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
 
 const SHEET_COUNTS = 'ยอดประจำวัน';
-const SHEET_INCIDENTS = 'เหตุการณ์ผิดปกติ';
-const HEAD_COUNTS = ['บันทึกเมื่อ', 'วันที่', 'รหัสแผนก', 'แผนก', 'ผู้รายงาน', 'หมวด', 'รายการ', 'จำนวน', 'หน่วย', 'หมายเหตุ'];
-const HEAD_INCIDENTS = ['บันทึกเมื่อ', 'วันที่', 'เวลาเกิดเหตุ', 'รหัสแผนก', 'แผนก', 'ผู้รายงาน', 'ประเภท', 'ระดับความรุนแรง', 'รายละเอียด', 'การแก้ไขเบื้องต้น'];
+const SHEET_PROBLEMS = 'ปัญหาประจำวัน';
+const HEAD_COUNTS = ['บันทึกเมื่อ', 'วันที่', 'กลุ่ม', 'หน่วยงาน', 'ผู้รายงาน', 'รหัสรายการ', 'รายการ', 'จำนวน', 'หน่วย', 'หมายเหตุ'];
+const HEAD_PROBLEMS = ['บันทึกเมื่อ', 'วันที่', 'เวลา', 'กลุ่ม', 'หน่วยงาน', 'ผู้รายงาน', 'ประเภท', 'ระดับความรุนแรง', 'รายละเอียด', 'การแก้ไขเบื้องต้น'];
+
+// หน่วยงานทั้งหมด เรียงตามกลุ่ม: { code, group, groupName, items }
+const UNITS = GROUPS.flatMap(g => g.units.map(u => ({
+  code: u, group: g.key, groupName: g.name,
+  items: (g.overrides && g.overrides[u]) || g.items
+})));
 
 // ===== Web app =====
 function doGet() {
@@ -72,72 +81,86 @@ function doGet() {
 }
 
 function getConfig() {
-  return { departments: DEPARTMENTS, incidentTypes: INCIDENT_TYPES, severity: SEVERITY };
+  return {
+    groups: GROUPS.map(g => ({ key: g.key, name: g.name })),
+    units: UNITS,
+    problemTypes: PROBLEM_TYPES,
+    severity: SEVERITY,
+    url: ScriptApp.getService().getUrl()
+  };
 }
 
-// ===== บันทึกยอด (ส่งซ้ำวัน+แผนกเดิม = แทนที่ของเดิม) =====
+// ===== ยอดเดิมของหน่วยงาน (แสดงเมื่อเปิดแก้ไข) =====
+function getUnitReport(date, code) {
+  const rows = getSheet_(SHEET_COUNTS, HEAD_COUNTS).getDataRange().getValues().slice(1)
+    .filter(r => fmtDate_(r[1]) === date && r[3] === code);
+  if (!rows.length) return null;
+  const values = {};
+  rows.forEach(r => { values[r[5]] = r[7]; });
+  return { reporter: rows[0][4], note: rows[0][9], values };
+}
+
+// ===== บันทึกยอด (ส่งซ้ำวัน+หน่วยงานเดิม = แทนที่ของเดิม) =====
 function submitCounts(p) {
-  const dept = DEPARTMENTS[p.dept];
-  if (!dept) throw new Error('ไม่พบแผนก');
+  const u = findUnit_(p.unit);
   if (!p.date || !p.reporter) throw new Error('กรุณากรอกวันที่และผู้รายงาน');
 
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
     const sh = getSheet_(SHEET_COUNTS, HEAD_COUNTS);
-    deleteRows_(sh, r => fmtDate_(r[1]) === p.date && r[2] === p.dept);
+    deleteRows_(sh, r => fmtDate_(r[1]) === p.date && r[3] === u.code);
 
     const now = new Date();
-    const rows = dept.items.map(it => [
-      now, p.date, p.dept, dept.name, p.reporter, it.group, it.label,
+    const rows = u.items.map(it => [
+      now, p.date, u.groupName, u.code, p.reporter, it.key, it.label,
       Number(p.values[it.key]) || 0, it.unit, p.note || ''
     ]);
     sh.getRange(sh.getLastRow() + 1, 1, rows.length, HEAD_COUNTS.length).setValues(rows);
-    return { ok: true, saved: rows.length };
+    return { ok: true };
   } finally {
     lock.releaseLock();
   }
 }
 
-// ===== บันทึกเหตุการณ์ผิดปกติ =====
-function submitIncident(p) {
-  const dept = DEPARTMENTS[p.dept];
-  if (!dept) throw new Error('ไม่พบแผนก');
+// ===== บันทึกปัญหา/เหตุการณ์ผิดปกติ =====
+function submitProblem(p) {
+  const u = findUnit_(p.unit);
   if (!p.date || !p.reporter || !p.type || !p.detail) throw new Error('กรุณากรอกข้อมูลให้ครบ');
 
-  const sh = getSheet_(SHEET_INCIDENTS, HEAD_INCIDENTS);
-  sh.appendRow([new Date(), p.date, p.time || '', p.dept, dept.name, p.reporter,
-    p.type, p.severity || '', p.detail, p.action || '']);
+  getSheet_(SHEET_PROBLEMS, HEAD_PROBLEMS).appendRow([
+    new Date(), p.date, p.time || '', u.groupName, u.code, p.reporter,
+    p.type, p.severity || '-', p.detail, p.action || ''
+  ]);
   return { ok: true };
 }
 
-// ===== สรุปรายวัน =====
+// ===== สรุปรายวันสำหรับผู้จัดการ =====
 function getSummary(date) {
-  const counts = getSheet_(SHEET_COUNTS, HEAD_COUNTS).getDataRange().getValues().slice(1)
-    .filter(r => fmtDate_(r[1]) === date);
-  const incidents = getSheet_(SHEET_INCIDENTS, HEAD_INCIDENTS).getDataRange().getValues().slice(1)
-    .filter(r => fmtDate_(r[1]) === date);
+  const reports = {};
+  getSheet_(SHEET_COUNTS, HEAD_COUNTS).getDataRange().getValues().slice(1)
+    .filter(r => fmtDate_(r[1]) === date)
+    .forEach(r => {
+      const rep = reports[r[3]] || (reports[r[3]] = { reporter: r[4], note: r[9], values: {} });
+      rep.values[r[5]] = r[7];
+    });
 
-  const byDept = {};
-  Object.keys(DEPARTMENTS).forEach(k => {
-    byDept[k] = { name: DEPARTMENTS[k].name, reported: false, reporter: '', items: [], incidents: [] };
-  });
-  counts.forEach(r => {
-    const d = byDept[r[2]];
-    if (!d) return;
-    d.reported = true;
-    d.reporter = r[4];
-    d.items.push({ group: r[5], label: r[6], value: r[7], unit: r[8] });
-  });
-  incidents.forEach(r => {
-    const d = byDept[r[3]];
-    if (!d) return;
-    d.incidents.push({ time: String(r[2]), type: r[6], severity: r[7], detail: r[8], action: r[9] });
-  });
-  return byDept;
+  const order = UNITS.map(u => u.code);
+  const problems = getSheet_(SHEET_PROBLEMS, HEAD_PROBLEMS).getDataRange().getValues().slice(1)
+    .filter(r => fmtDate_(r[1]) === date)
+    .map(r => ({ time: fmtTime_(r[2]), unit: r[4], reporter: r[5], type: r[6], severity: r[7], detail: r[8], action: r[9] }))
+    .sort((a, b) => order.indexOf(a.unit) - order.indexOf(b.unit) || a.time.localeCompare(b.time));
+
+  return { reports, problems };
 }
 
 // ===== helpers =====
+function findUnit_(code) {
+  const u = UNITS.find(x => x.code === code);
+  if (!u) throw new Error('ไม่พบหน่วยงาน');
+  return u;
+}
+
 function getSheet_(name, header) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sh = ss.getSheetByName(name);
@@ -146,6 +169,7 @@ function getSheet_(name, header) {
     sh.appendRow(header);
     sh.setFrozenRows(1);
     sh.getRange(1, 1, 1, header.length).setFontWeight('bold');
+    sh.getRange('B:C').setNumberFormat('@'); // เก็บวันที่/เวลาเป็นข้อความ
   }
   return sh;
 }
@@ -159,5 +183,10 @@ function deleteRows_(sh, match) {
 
 function fmtDate_(v) {
   if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  return String(v);
+}
+
+function fmtTime_(v) {
+  if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(), 'HH:mm');
   return String(v);
 }
