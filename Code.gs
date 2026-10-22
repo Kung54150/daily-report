@@ -16,13 +16,15 @@ const SH_STAFF = 'ทะเบียนเจ้าหน้าที่';
 const SH_STATS = 'สถิติ';
 const SH_ROOMS = 'ห้อง';
 const SH_ALIASES = 'ชื่อแผนกในไฟล์';
+const ATT_MAX_BYTES = 6 * 1024 * 1024; // ไฟล์แนบสูงสุดต่อไฟล์
+const ATT_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'application/pdf': 'pdf' };
 const ROOMS_PER_IPD = 25; // ห้องเริ่มต้นของแต่ละตึกผู้ป่วยใน เช่น A401 ถึง A425 (แก้ไขได้ในชีต 'ห้อง')
 const INC_FIELDS = ['type', 'severity', 'patient', 'age', 'hn', 'time', 'doctor', 'bp', 'pr', 'rr', 'temp', 'spo2', 'o2mode', 'o2flow', 'detail', 'action'];
 const HEADERS = {
   [SH_USERS]: ['หน่วยงาน', 'รหัสผ่าน'],
   [SH_REPORTS]: ['วันที่', 'หน่วยงาน', 'ผู้รายงาน', 'แก้ไขล่าสุด', 'ข้อมูล (JSON)'],
   [SH_INCIDENTS]: ['วันที่', 'หน่วยงาน', 'ประเภท', 'ระดับความรุนแรง', 'ชื่อ-สกุลผู้ป่วย', 'อายุ', 'HN', 'เวลามารับบริการ', 'แพทย์เจ้าของไข้',
-    'BP (mmHg)', 'PR (/min)', 'RR (/min)', 'T (°C)', 'O2 sat (%)', 'O2', 'O2 ที่ให้', 'รายละเอียด', 'การแก้ไขเบื้องต้น', 'ผู้รายงาน'],
+    'BP (mmHg)', 'PR (/min)', 'RR (/min)', 'T (°C)', 'O2 sat (%)', 'O2', 'O2 ที่ให้', 'รายละเอียด', 'การแก้ไขเบื้องต้น', 'ผู้รายงาน', 'ไฟล์แนบ'],
   // ยอดมาตรฐานแบบแถวยาว ใช้ทำ Pivot / Looker Studio ภายหลัง
   [SH_STATS]: ['วันที่', 'กลุ่ม', 'หน่วยงาน', 'หมวด', 'รายการ', 'จำนวน', 'ตึก'],
   [SH_STAFF]: ['id', 'หน่วยงาน', 'ชื่อ-สกุล', 'ตำแหน่ง', 'ที่มา', 'แก้ไขล่าสุด', 'แผนกในไฟล์'],
@@ -131,7 +133,12 @@ function saveReport(token, rep) {
     reduce: rep.reduce || {},
     notes: String(rep.notes || ''),
     incidents: (rep.incidents || []).filter(i => i && String(i.detail || '').trim())
-      .map(i => { const o = {}; INC_FIELDS.forEach(k => { o[k] = String(i[k] == null ? '' : i[k]); }); return o; })
+      .map(i => {
+        const o = {}; INC_FIELDS.forEach(k => { o[k] = String(i[k] == null ? '' : i[k]); });
+        o.files = (i.files || []).filter(x => x && x.id).slice(0, 5)
+          .map(x => ({ id: String(x.id), name: String(x.name || '').slice(0, 80), mime: String(x.mime || ''), size: Number(x.size) || 0 }));
+        return o;
+      })
   };
   const unitInfo = buildConfig_().units.find(u => u.code === me.unit);
   const stats = statRows_(unitInfo, clean);
@@ -142,10 +149,11 @@ function saveReport(token, rep) {
     sh.appendRow([clean.date, clean.unit, clean.reporter, clean.updatedAt, JSON.stringify(clean)]);
 
     const inc = sheet_(SH_INCIDENTS);
+    ensureHeaders_(inc, HEADERS[SH_INCIDENTS]);
     deleteRows_(inc, r => fmtDate_(r[0]) === clean.date && r[1] === clean.unit);
     if (clean.incidents.length) {
-      inc.getRange(inc.getLastRow() + 1, 1, clean.incidents.length, INC_FIELDS.length + 3).setValues(clean.incidents.map(i =>
-        [clean.date, clean.unit].concat(INC_FIELDS.map(k => i[k]), [clean.reporter])));
+      inc.getRange(inc.getLastRow() + 1, 1, clean.incidents.length, INC_FIELDS.length + 4).setValues(clean.incidents.map(i =>
+        [clean.date, clean.unit].concat(INC_FIELDS.map(k => i[k]), [clean.reporter, i.files.map(x => x.name).join(', ')])));
     }
 
     const st = sheet_(SH_STATS);
@@ -171,6 +179,46 @@ function statRows_(u, rep) {
   ['RN', 'PN', 'NA'].forEach(r => { if (Number(rep.reduce[r])) rows.push(row('ลดอัตรากำลัง (ชม.)', r, Number(rep.reduce[r]))); });
   rep.incidents.forEach(i => rows.push(row('เหตุการณ์ผิดปกติ', i.type, 1)));
   return rows;
+}
+
+// ===== ไฟล์แนบของเหตุการณ์ผิดปกติ (เก็บในโฟลเดอร์ Google Drive ของเจ้าของระบบ ไม่เปิดสาธารณะ) =====
+// ดูไฟล์ผ่านระบบนี้เท่านั้น (ต้องเข้าสู่ระบบ) ไฟล์ที่ถูกเอาออกจากรายงานยังค้างในโฟลเดอร์ ลบเองใน Drive ได้
+function attFolder_() {
+  const props = PropertiesService.getScriptProperties();
+  const id = props.getProperty('attFolderId');
+  let folder = null;
+  if (id) { try { folder = DriveApp.getFolderById(id); } catch (e) { folder = null; } }
+  if (!folder) { folder = DriveApp.createFolder('daily-report-attachments'); props.setProperty('attFolderId', folder.getId()); }
+  return folder;
+}
+
+// เรียกครั้งเดียวเพื่ออนุญาตสิทธิ์ Google Drive (หรือเปิดลิงก์ /exec ด้วยบัญชีเจ้าของแล้วกดอนุญาต)
+function authorizeDrive() { return attFolder_().getName(); }
+
+function uploadAttachment(token, f) {
+  const me = auth_(token);
+  if (me.role !== 'unit') throw new Error('เฉพาะหน่วยงานที่แนบไฟล์ได้');
+  const ext = ATT_TYPES[f && f.mime];
+  if (!ext) throw new Error('แนบได้เฉพาะไฟล์ JPG, PNG หรือ PDF');
+  const bytes = Utilities.base64Decode(String(f.data || ''));
+  if (!bytes.length) throw new Error('ไฟล์ว่าง');
+  if (bytes.length > ATT_MAX_BYTES) throw new Error('ไฟล์ใหญ่เกิน 6 MB');
+  const name = String(f.name || 'file').replace(/[\\\/:*?"<>|]+/g, '_').slice(0, 80);
+  const file = attFolder_().createFile(Utilities.newBlob(bytes, f.mime, me.unit + '_' + Utilities.getUuid().slice(0, 8) + '_' + name));
+  return { id: file.getId(), name, mime: f.mime, size: bytes.length };
+}
+
+function getAttachment(token, id) {
+  auth_(token);
+  const folderId = attFolder_().getId();
+  let file;
+  try { file = DriveApp.getFileById(String(id)); } catch (e) { throw new Error('ไม่พบไฟล์แนบ'); }
+  const parents = file.getParents();
+  let inside = false;
+  while (parents.hasNext()) { if (parents.next().getId() === folderId) inside = true; }
+  if (!inside) throw new Error('ไม่พบไฟล์แนบ');
+  const blob = file.getBlob();
+  return { name: file.getName().replace(/^.*?_[0-9a-f]{8}_/, ''), mime: blob.getContentType(), data: Utilities.base64Encode(blob.getBytes()) };
 }
 
 // ===== ห้องพัก (ชีต 'ห้อง': หน่วยงาน, เลขห้อง, ชื่อ/ประเภท) แก้ในเว็บหรือในชีตก็ได้ =====
