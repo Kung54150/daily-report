@@ -49,7 +49,8 @@ const TM_ = (key, label) => ({ key, label, type: 'time' });
 const IPD_CENSUS = {
   title: 'ยอดผู้ป่วย',
   fields: [
-    N_('carried', 'ยอดยกมา'), N_('admit', 'รับใหม่'),
+    // snap: 'first' = รวมทั้งวันใช้ค่าของเวรแรก (ยอดยกมา)  'last' = ใช้ค่าของเวรสุดท้าย (ยอดคงพยาบาล ประเภทผู้ป่วย ห้อง)
+    Object.assign(N_('carried', 'ยอดยกมา'), { snap: 'first' }), N_('admit', 'รับใหม่'),
     // note = ต้องระบุที่มา/ปลายทางเป็นข้อความเมื่อมียอด (เก็บในช่อง <key>_note)
     Object.assign(N_('tr_in', 'รับย้าย'), { note: 'รับย้ายจากที่ไหน' }),
     Object.assign(N_('tr_out', 'ย้ายไป'), { note: 'ย้ายไปที่ไหน' }),
@@ -76,6 +77,26 @@ const PED_MIX = [
 // ===== แบบฟอร์มรายหน่วยงาน =====
 const FORMS = {
   // ----- ผู้ป่วยนอก -----
+  // ER ตามตัวอย่างรายงาน (กรอกแยกเวร Day / Night)
+  ER: { std: { total: 'total', admit: 'admit', refer: 'refer_out' }, sections: [
+    { title: 'ยอดผู้รับบริการ', fields: [
+      Object.assign(N_('total', 'ยอดผู้รับบริการทั้งหมด'), { calc: { plus: ['opd', 'admit'], minus: [] } }),
+      N_('opd', 'OPD Case'), N_('admit', 'Admit')
+    ] },
+    { title: 'OPD Case แบ่งตามประเภท (Triage)', sum: 'รวม (ควรเท่ากับยอดผู้รับบริการทั้งหมด)', fields: [
+      N_('resus', 'Resuscitation'), N_('emerg', 'Emergency'), N_('urgent', 'Urgency'), N_('semi', 'Semi-urgent'), N_('nonurg', 'Non Urgency')
+    ] },
+    { title: 'รายการอื่นๆ', fields: [
+      N_('refer_out', 'Refer out'), N_('ama', 'AMA'), N_('refer_in', 'Refer In'), N_('wound', 'ทำแผล'), N_('ward_send', 'Ward ส่ง'),
+      N_('fu', 'F/U (ER-OPD)'), N_('set_or', 'Set OR (รวม cath lab)'), N_('cpr', 'CPR / CODE8'), N_('delivery', 'คลอด (BBA)'), N_('code3', 'Code 3'),
+      N_('wait_admit', 'ฝากรอ admit'), N_('left_wo', 'เคสที่ไม่รอตรวจ'), N_('als', 'ออกเหตุระดับ ALS'), N_('bls', 'ออกเหตุระดับ BLS'), N_('traffic', 'เหตุจราจร')
+    ] },
+    { title: 'ผู้สูงอายุ > 60 ปี', fields: [N_('elder_er', 'ผู้สูงอายุ ER'), N_('elder_opd', 'ในจำนวนนี้ OPD'), N_('elder_admit', 'ในจำนวนนี้ Admit')] },
+    { title: 'Trauma HI', fields: [N_('trauma_hi', 'ยอด Trauma HI'), N_('trauma_admit', 'ในจำนวนนี้ Admit')] },
+    { title: 'เคสหลัง 22.00 น. (ใช้กับเวร Night)', fields: [
+      N_('late_total', 'ทั้งหมด'), N_('late_opd', 'OPD'), Object.assign(N_('late_admit', 'Admit'), { pctOf: 'late_total' })
+    ] }
+  ] },
   OPD1: { std: { total: 'total', admit: ['med_admit'] }, sections: [
     { title: 'ยอดรวม', fields: [N_('total', 'ยอด Total (Med+Psy)')] },
     { title: 'ผู้ป่วยอายุรกรรม', fields: [N_('med', 'ผู้ป่วยอายุรกรรม'), N_('med_appt', 'เป็นนัด'), N_('med_admit', 'Admit'), N_('med_elder', 'ผู้สูงอายุ')] },
