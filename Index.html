@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root { --pri:#0f766e; --bg:#f4f6f8; --card:#fff; --line:#e2e8f0; --muted:#64748b; --warn:#b91c1c; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:'Sarabun',sans-serif; background:var(--bg); color:#1e293b; }
+  header { background:var(--pri); color:#fff; padding:14px 16px; font-size:18px; font-weight:600; }
+  nav { display:flex; background:#fff; border-bottom:1px solid var(--line); }
+  nav button { flex:1; border:0; background:none; padding:12px 4px; font:inherit; color:var(--muted); border-bottom:3px solid transparent; cursor:pointer; }
+  nav button.on { color:var(--pri); border-color:var(--pri); font-weight:600; }
+  main { max-width:720px; margin:0 auto; padding:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:14px; }
+  label { display:block; font-size:14px; color:var(--muted); margin:10px 0 4px; }
+  input, select, textarea { width:100%; padding:9px 10px; font:inherit; border:1px solid var(--line); border-radius:8px; }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .item { display:grid; grid-template-columns:1fr 110px; gap:10px; align-items:center; padding:6px 0; border-bottom:1px dashed var(--line); }
+  .grp { margin-top:14px; font-weight:600; color:var(--pri); }
+  .btn { width:100%; margin-top:16px; padding:12px; border:0; border-radius:8px; background:var(--pri); color:#fff; font:inherit; font-weight:600; cursor:pointer; }
+  .btn:disabled { opacity:.6; }
+  .msg { margin-top:10px; font-size:14px; }
+  .hide { display:none; }
+  .badge { font-size:12px; padding:2px 8px; border-radius:99px; background:#dcfce7; color:#166534; }
+  .badge.no { background:#fee2e2; color:var(--warn); }
+  .inc { border-left:3px solid var(--warn); padding:6px 10px; margin-top:8px; background:#fef2f2; font-size:14px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  td { padding:4px 0; border-bottom:1px solid var(--line); }
+  td:last-child { text-align:right; }
+</style>
+</head>
+<body>
+<header>รายงานยอดประจำวัน</header>
+<nav>
+  <button data-tab="counts" class="on">กรอกยอด</button>
+  <button data-tab="incident">เหตุการณ์ผิดปกติ</button>
+  <button data-tab="summary">สรุปรายวัน</button>
+</nav>
+<main>
+  <!-- กรอกยอด -->
+  <section id="counts">
+    <div class="card">
+      <div class="row">
+        <div><label>วันที่</label><input type="date" id="c_date"></div>
+        <div><label>แผนก</label><select id="c_dept"></select></div>
+      </div>
+      <label>ผู้รายงาน</label><input id="c_reporter" placeholder="ชื่อ-สกุล">
+      <div id="c_items"></div>
+      <label>หมายเหตุ</label><textarea id="c_note" rows="2"></textarea>
+      <button class="btn" id="c_send">บันทึกยอด</button>
+      <div class="msg" id="c_msg"></div>
+    </div>
+  </section>
+
+  <!-- เหตุการณ์ผิดปกติ -->
+  <section id="incident" class="hide">
+    <div class="card">
+      <div class="row">
+        <div><label>วันที่</label><input type="date" id="i_date"></div>
+        <div><label>เวลาเกิดเหตุ</label><input type="time" id="i_time"></div>
+      </div>
+      <div class="row">
+        <div><label>แผนก</label><select id="i_dept"></select></div>
+        <div><label>ผู้รายงาน</label><input id="i_reporter"></div>
+      </div>
+      <div class="row">
+        <div><label>ประเภทเหตุการณ์</label><select id="i_type"></select></div>
+        <div><label>ระดับความรุนแรง</label><select id="i_sev"></select></div>
+      </div>
+      <label>รายละเอียดเหตุการณ์</label><textarea id="i_detail" rows="3"></textarea>
+      <label>การแก้ไขเบื้องต้น</label><textarea id="i_action" rows="2"></textarea>
+      <button class="btn" id="i_send">รายงานเหตุการณ์</button>
+      <div class="msg" id="i_msg"></div>
+    </div>
+  </section>
+
+  <!-- สรุป -->
+  <section id="summary" class="hide">
+    <div class="card"><label>วันที่</label><input type="date" id="s_date"></div>
+    <div id="s_out"></div>
+  </section>
+</main>
+
+<script>
+let CFG;
+const $ = id => document.getElementById(id);
+const today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+const opts = (arr, fn) => arr.map(fn).join('');
+
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b));
+  document.querySelectorAll('main section').forEach(s => s.classList.toggle('hide', s.id !== b.dataset.tab));
+  if (b.dataset.tab === 'summary') loadSummary();
+});
+
+google.script.run.withSuccessHandler(cfg => {
+  CFG = cfg;
+  const deptOpts = opts(Object.keys(cfg.departments), k => `<option value="${k}">${esc(cfg.departments[k].name)}</option>`);
+  $('c_dept').innerHTML = $('i_dept').innerHTML = deptOpts;
+  $('i_type').innerHTML = opts(cfg.incidentTypes, t => `<option>${esc(t)}</option>`);
+  $('i_sev').innerHTML = opts(cfg.severity, s => `<option>${s}</option>`);
+  $('c_date').value = $('i_date').value = $('s_date').value = today();
+  ['c_reporter', 'i_reporter'].forEach(id => { try { $(id).value = localStorage.getItem('reporter') || ''; } catch (e) {} });
+  renderItems();
+}).getConfig();
+
+$('c_dept').onchange = renderItems;
+$('s_date').onchange = loadSummary;
+
+function renderItems() {
+  const items = CFG.departments[$('c_dept').value].items;
+  let html = '', grp = '';
+  items.forEach(it => {
+    if (it.group !== grp) { grp = it.group; html += `<div class="grp">${esc(grp)}</div>`; }
+    html += `<div class="item"><span>${esc(it.label)} <small>(${esc(it.unit)})</small></span>
+             <input type="number" min="0" inputmode="numeric" data-key="${it.key}" value="0"></div>`;
+  });
+  $('c_items').innerHTML = html;
+}
+
+function rememberReporter(name) { try { localStorage.setItem('reporter', name); } catch (e) {} }
+
+function send(btn, msg, fn, payload, onOk) {
+  btn.disabled = true; msg.textContent = 'กำลังบันทึก...'; msg.style.color = '';
+  google.script.run
+    .withSuccessHandler(() => { btn.disabled = false; msg.textContent = '✓ บันทึกเรียบร้อย'; msg.style.color = 'green'; onOk && onOk(); })
+    .withFailureHandler(e => { btn.disabled = false; msg.textContent = e.message; msg.style.color = 'var(--warn)'; })[fn](payload);
+}
+
+$('c_send').onclick = () => {
+  const values = {};
+  document.querySelectorAll('#c_items input').forEach(i => values[i.dataset.key] = i.value);
+  rememberReporter($('c_reporter').value);
+  send($('c_send'), $('c_msg'), 'submitCounts', {
+    date: $('c_date').value, dept: $('c_dept').value, reporter: $('c_reporter').value.trim(),
+    note: $('c_note').value, values
+  });
+};
+
+$('i_send').onclick = () => {
+  rememberReporter($('i_reporter').value);
+  send($('i_send'), $('i_msg'), 'submitIncident', {
+    date: $('i_date').value, time: $('i_time').value, dept: $('i_dept').value,
+    reporter: $('i_reporter').value.trim(), type: $('i_type').value, severity: $('i_sev').value,
+    detail: $('i_detail').value.trim(), action: $('i_action').value.trim()
+  }, () => { $('i_detail').value = $('i_action').value = ''; });
+};
+
+function loadSummary() {
+  $('s_out').innerHTML = '<div class="card">กำลังโหลด...</div>';
+  google.script.run.withSuccessHandler(data => {
+    $('s_out').innerHTML = Object.keys(data).map(k => {
+      const d = data[k];
+      const rows = d.items.map(i => `<tr><td>${esc(i.label)}</td><td>${i.value} ${esc(i.unit)}</td></tr>`).join('');
+      const inc = d.incidents.map(i => `<div class="inc"><b>${esc(i.type)}</b> (ระดับ ${esc(i.severity)}) ${esc(i.time)}<br>${esc(i.detail)}</div>`).join('');
+      return `<div class="card"><b>${esc(d.name)}</b>
+        <span class="badge ${d.reported ? '' : 'no'}">${d.reported ? 'รายงานแล้ว · ' + esc(d.reporter) : 'ยังไม่รายงาน'}</span>
+        ${rows ? `<table>${rows}</table>` : ''}${inc}</div>`;
+    }).join('');
+  }).withFailureHandler(e => { $('s_out').innerHTML = `<div class="card">${esc(e.message)}</div>`; })
+    .getSummary($('s_date').value);
+}
+</script>
+</body>
+</html>
