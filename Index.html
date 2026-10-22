@@ -972,7 +972,8 @@ function loadXLSX() {
   if (window.XLSX) return Promise.resolve();
   return new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https:\/\/cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload = res; s.onerror = () => rej(new Error('โหลดตัวอ่าน Excel ไม่ได้')); document.head.appendChild(s); });
 }
-function normUnit(s) { return String(s || '').toUpperCase().replace(/ตึก|หอผู้ป่วย|หอ|แผนก|หน่วยงาน|ชั้น|\s|[-_.\/()]/g, ''); }
+function normUnit(s) { return String(s || '').toUpperCase().replace(/ผู้ป่วยใน|ผู้ป่วยนอก|ตึก|หอผู้ป่วย|หอ|แผนก|หน่วยงาน|ชั้น|\s|[-_.\/()]/g, ''); }
+const cleanName = s => String(s || '').replace(/\s+/g, ' ').trim();
 function mapRole(raw) {
   const t = String(raw || '').trim(), up = t.toUpperCase().replace(/[\s.]/g, '');
   if (up === 'RN' || up === 'PN' || up === 'NA') return up;
@@ -982,30 +983,52 @@ function mapRole(raw) {
   if (/พยาบาล|^พว\.?$/.test(t)) return 'RN';
   return S.cfg.roleAliases[t] || S.cfg.roleAliases[t.toLowerCase()] || (S.cfg.roles.indexOf(t) >= 0 ? t : 'อื่นๆ');
 }
+const SUGGEST = [
+  [/อุบัติเหตุ/, 'ER'], [/อายุรกรรม/, 'OPD1'], [/ศัลยกรรม/, 'OPD3'], [/สูตินรีเวช|สูติ/, 'OBG-IVF'],
+  [/กุมารเวช|เด็กสุขภาพดี|พัฒนาการเด็ก/, 'PC'], [/ตา\s*หู\s*คอ/, 'EENT'], [/ทันตกรรม/, 'Dent'],
+  [/ห้องผ่าตัด/, 'OR'], [/ห้องคลอด|ทารกแรกเกิด/, 'LR-NB'], [/ผู้ป่วยวิกฤต/, 'ICU'], [/ส่งเสริมสุขภาพ/, 'HPC']
+];
+function suggestUnit(raw) {
+  const hit = SUGGEST.find(x => x[0].test(raw));
+  return hit && S.cfg.units.some(u => u.code === hit[1]) ? hit[1] : '';
+}
+function findHeader(rows) {
+  const lim = Math.min(rows.length, 15);
+  for (let i = 0; i < lim; i++) {
+    const h = rows[i].map(c => String(c == null ? '' : c).replace(/\s/g, ''));
+    const cn = h.findIndex(x => (/ชื่อ/.test(x) && !/เล่น/.test(x)) || /^name$/i.test(x));
+    const cu = h.findIndex(x => /แผนก|หน่วย|ตึก|^unit$|^ward$/i.test(x));
+    const cr = h.findIndex(x => /ตำแหน่ง|role|position/i.test(x));
+    if (cn >= 0 && cu >= 0 && cr >= 0) return { row: i, cu, cn, cr };
+  }
+  return null;
+}
 async function readRoster(file) {
-  let rows;
+  let sheets;
   if (/\.csv$/i.test(file.name)) {
-    rows = (await file.text()).replace(/^\ufeff/, '').split(/\r?\n/).filter(l => l.trim()).map(l => l.split(',').map(c => c.trim().replace(/^"|"$/g, '')));
+    sheets = [(await file.text()).replace(/^\ufeff/, '').split(/\r?\n/).filter(l => l.trim()).map(l => l.split(',').map(c => c.trim().replace(/^"|"$/g, '')))];
   } else {
     await loadXLSX();
     const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
-    rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' }).map(r => r.map(c => String(c).trim()));
+    sheets = wb.SheetNames.map(n => XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, defval: '' }).map(r => r.map(c => String(c).trim())));
   }
+  let rows = null, cu = 0, cn = 1, cr = 2;
+  for (const sh of sheets) {
+    const f = findHeader(sh);
+    if (f) { rows = sh.slice(f.row + 1); cu = f.cu; cn = f.cn; cr = f.cr; break; }
+  }
+  if (!rows) rows = sheets[0] || [];
   rows = rows.filter(r => r.some(c => String(c).trim()));
-  if (!rows.length) throw new Error('ไฟล์ว่าง');
-  const head = rows[0].map(h => String(h).replace(/\s/g, ''));
-  const col = re => head.findIndex(h => re.test(h));
-  let cu = col(/หน่วย|แผนก|ตึก|unit|ward/i), cn = col(/ชื่อ|name/i), cr = col(/ตำแหน่ง|role|position/i);
-  if (cu < 0 || cn < 0 || cr < 0) { cu = 0; cn = 1; cr = 2; } else rows = rows.slice(1);
+  if (!rows.length) throw new Error('ไม่พบข้อมูลในไฟล์');
   const byNorm = {}; S.cfg.units.forEach(u => { byNorm[normUnit(u.code)] = u.code; });
   (S.aliases || []).forEach(a => { byNorm[normUnit(a.alias)] = a.unit; });
   const ok = [], bad = [], unknown = {}, pending = [];
   rows.forEach((r, i) => {
-    const rawUnit = String(r[cu] || '').trim(), unit = byNorm[normUnit(rawUnit)];
-    const name = String(r[cn] || '').trim();
+    const rawUnit = cleanName(r[cu]), unit = byNorm[normUnit(rawUnit)];
+    const name = cleanName(r[cn]);
     if (unit && name) ok.push({ unit, name, role: mapRole(r[cr]) });
     else if (name && rawUnit) { unknown[rawUnit] = (unknown[rawUnit] || 0) + 1; pending.push({ rawUnit, name, role: mapRole(r[cr]) }); }
-    else if (name || rawUnit) bad.push(i + 2);
+    else if (name || rawUnit) bad.push(i + 1);
   });
   return { ok, bad, unknown, pending };
 }
@@ -1203,7 +1226,7 @@ function drawUpPreview() {
   const skipped = pend.length - extra.length;
   $('up_preview').innerHTML = `<p style="margin:10px 0 6px">พบ <b>${total}</b> รายชื่อ จาก ${Object.keys(byUnit).length} หน่วยงาน${bad.length ? ` \u00b7 <span style="color:var(--bad)">ข้ามแถวที่อ่านไม่ได้: ${bad.slice(0, 10).join(', ')}${bad.length > 10 ? '\u2026' : ''}</span>` : ''}</p>
     ${Object.keys(unknown).length ? `<div style="margin:8px 0"><div style="color:var(--bad);font-size:14px;margin-bottom:4px">ชื่อแผนกในไฟล์ที่ระบบยังไม่รู้จัก เลือกหน่วยงานที่ตรงกัน (ระบบจำการผูกไว้ให้ครั้งต่อไป)${skipped ? ` \u00b7 จะข้าม ${skipped} รายชื่อ` : ''}</div>
-      <div class="binding">${Object.entries(unknown).map(([k, n]) => `<span><b>${esc(k)}</b> <small class="muted">(${n} คน)</small></span><select data-bind="${esc(k)}"><option value="">\u2014 ไม่นำเข้า \u2014</option>${unitOptgroups(S.bind[k])}</select>`).join('')}</div></div>` : ''}
+      <div class="binding">${Object.entries(unknown).map(([k, n]) => `<span><b>${esc(k)}</b> <small class="muted">(${n} คน)${S.sugg && S.sugg[k] && S.bind[k] ? ' \u00b7 ระบบแนะนำ' : ''}</small></span><select data-bind="${esc(k)}"><option value="">\u2014 ไม่นำเข้า \u2014</option>${unitOptgroups(S.bind[k])}</select>`).join('')}</div></div>` : ''}
     <div class="chips" style="margin-bottom:10px">${Object.entries(byUnit).map(([k, n]) => `<span class="pill plain">${esc(k)} ${n}</span>`).join('')}</div>
     <button type="button" class="btn" id="up_go"${total ? '' : ' disabled'}>ยืนยันอัปโหลด</button>`;
   $('up_preview').querySelectorAll('[data-bind]').forEach(sel => sel.onchange = () => { S.bind[sel.dataset.bind] = sel.value; drawUpPreview(); });
@@ -1241,7 +1264,8 @@ function bindView() {
     $('up_preview').innerHTML = '<p class="muted">กำลังอ่านไฟล์...</p>';
     try {
       const { ok, bad, pending } = await readRoster(f);
-      S.upload = ok; S.pending = pending; S.bind = {}; S.upBad = bad;
+      S.upload = ok; S.pending = pending; S.bind = {}; S.sugg = {}; S.upBad = bad;
+      pending.forEach(p => { if (!(p.rawUnit in S.bind)) { const g = suggestUnit(p.rawUnit); S.bind[p.rawUnit] = g; if (g) S.sugg[p.rawUnit] = true; } });
       drawUpPreview();
     } catch (e) { $('up_preview').innerHTML = `<p style="color:var(--bad)">${esc(e.message)}</p>`; }
   };

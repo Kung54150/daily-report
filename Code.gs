@@ -333,7 +333,7 @@ function deleteAlias(token, alias) {
 
 // ตัดคำนำหน้า ช่องว่าง เครื่องหมาย ออกก่อนเทียบชื่อแผนก (ต้องตรงกับ normUnit ใน Index.html)
 function normAlias_(s) {
-  return String(s || '').toUpperCase().replace(/ตึก|หอผู้ป่วย|หอ|แผนก|หน่วยงาน|ชั้น|\s|[-_.\/()]/g, '');
+  return String(s || '').toUpperCase().replace(/ผู้ป่วยใน|ผู้ป่วยนอก|ตึก|หอผู้ป่วย|หอ|แผนก|หน่วยงาน|ชั้น|\s|[-_.\/()]/g, '');
 }
 
 // ===== helpers =====
