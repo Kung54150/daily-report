@@ -42,6 +42,12 @@ function setup() {
   return codes.length;
 }
 
+// เปิดหน้าเว็บครั้งแรกแล้วยังไม่มีชีตผู้ใช้ → ติดตั้งให้เอง (ไม่ต้องกดเรียกใช้ setup)
+function ensureSetup_() {
+  if (SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SH_USERS)) return;
+  withLock_(() => { if (!SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SH_USERS)) setup(); });
+}
+
 // ===== Web app =====
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('Index')
@@ -52,6 +58,7 @@ function doGet() {
 
 // ===== เข้าสู่ระบบ =====
 function getLoginInfo() {
+  ensureSetup_();
   return { groups: GROUPS.map(g => ({ name: g.name, units: g.units })), hint: LOGIN_HINT };
 }
 
