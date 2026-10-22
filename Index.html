@@ -139,6 +139,18 @@
   .frow .tin { justify-self: end; }
   .frow[hidden] { display: none; }
   .notein { width: 100%; }
+  .atts { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+  .att { display: inline-flex; align-items: center; gap: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--sunk); max-width: 100%; }
+  .att > button.open { border: 0; background: transparent; padding: 6px 8px; cursor: pointer; color: var(--accent); font-weight: 600; text-align: left; overflow-wrap: anywhere; }
+  .att small { color: var(--muted); padding-right: 4px; white-space: nowrap; }
+  .att .x { width: 28px; height: 28px; margin-right: 3px; }
+  .viewer { position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,.82); display: flex; flex-direction: column; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .viewer .vbar { display: flex; gap: 8px; align-items: center; padding: 10px 14px; color: #fff; }
+  .viewer .vbar b { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .viewer .vbar a, .viewer .vbar button { color: #fff; border: 1px solid rgba(255,255,255,.6); border-radius: 8px; padding: 6px 12px; background: transparent; text-decoration: none; cursor: pointer; font-size: 14px; }
+  .viewer .vbody { flex: 1; overflow: auto; display: grid; place-items: center; padding: 8px; }
+  .viewer img { max-width: 100%; max-height: 100%; object-fit: contain; background: #fff; }
+  .viewer .vpdf { color: #fff; text-align: center; display: grid; gap: 12px; justify-items: center; }
   .rm small { display: block; font-size: 10px; opacity: .75; line-height: 1.1; }
   .rrow { display: grid; grid-template-columns: 1fr 1.4fr 36px; gap: 6px; margin-bottom: 6px; align-items: center; }
   .rrow .btn { grid-column: 1 / -1; justify-self: start; }
@@ -231,6 +243,11 @@
   .a4 td.miss, .a4 .miss { color: #b42318; }
   .a4 { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .a4 + .a4 { margin-top: 16px; }
+  .a4 .attrow td { border-top: 0; }
+  .a4 .attbox { display: flex; flex-wrap: wrap; gap: 3mm; align-items: flex-start; }
+  .a4 .attbox figure { margin: 0; break-inside: avoid; }
+  .a4 .attbox img { display: block; max-width: 70mm; max-height: 75mm; border: .5pt solid #999; }
+  .a4 .attbox figcaption { font-size: 8pt; color: #444; max-width: 70mm; overflow-wrap: anywhere; }
   .a4 .sign { margin-top: 14px; text-align: right; }
   .a4 + .a4 { margin-top: 16px; }
   .a4 .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm; margin: 4px 0 2px; }
@@ -355,6 +372,10 @@ setTimeout(function () {
     <button class="btn ghost" id="sb_cancel" type="button">ยกเลิก</button>
     <button class="btn" id="sb_save" type="button">บันทึกรายงาน</button>
   </div></div>
+</div>
+<div class="viewer" id="viewer" hidden>
+  <div class="vbar"><b id="v_title"></b><a id="v_dl" href="#" download>ดาวน์โหลด</a><button type="button" id="v_close">ปิด</button></div>
+  <div class="vbody" id="v_body"></div>
 </div>
 <div class="toast" id="toast" hidden></div>
 
@@ -493,6 +514,7 @@ function render() {
   else if (S.tab === 'staff') v.innerHTML = renderStaff();
   if (S.tab === 'mine' && S.editing) mountForm();
   bindView();
+  if (S.tab === 'print') hydratePrint();
 }
 
 /* ===== หน่วยงานของฉัน ===== */
@@ -626,7 +648,8 @@ function renderReportView(u, r) {
         <div class="muted" style="font-size:14px">${i.time ? `มารับบริการ ${esc(i.time)} น.` : ''}${i.time && i.doctor ? ' \u00b7 ' : ''}${i.doctor ? `แพทย์เจ้าของไข้ ${esc(i.doctor)}` : ''}</div>
         ${vitals(i).length || i.o2mode ? `<div class="vsline">${vitals(i).map(([k, x, unit]) => `<span><small>${k}</small> ${esc(x)} <small>${unit}</small></span>`).join('')}${i.o2mode ? `<span><small>O2</small> ${esc(o2Text(i))}</span>` : ''}</div>` : ''}
         <div class="pre" style="margin-top:6px">${esc(i.detail)}</div>
-        ${i.action ? `<div class="muted pre" style="font-size:14px;margin-top:4px">การแก้ไขเบื้องต้น: ${esc(i.action)}</div>` : ''}</div>`).join('')
+        ${i.action ? `<div class="muted pre" style="font-size:14px;margin-top:4px">การแก้ไขเบื้องต้น: ${esc(i.action)}</div>` : ''}
+        ${(i.files || []).length ? `<div class="atts">${i.files.map(f => attChip(f, false)).join('')}</div>` : ''}</div>`).join('')
       : '<div class="card muted">ไม่มีเหตุการณ์ผิดปกติ</div>';
   }
   return subTabs(r) + body;
@@ -794,6 +817,8 @@ $('view').addEventListener('click', e => {
     if (sel.indexOf(r) >= 0) { setRooms(key, sel.filter(x => x !== r)); renderRoomPickers(); } else addRooms(key, r);
     return;
   }
+  const ad = e.target.closest('[data-attdel]');
+  if (ad) { const [ii, kk] = ad.dataset.attdel.split(':').map(Number); S.draft.incidents[ii].files.splice(kk, 1); S.dirty = true; renderIncidents(); return; }
   const ab = e.target.closest('[data-roomadd]');
   if (ab) { const inp = document.querySelector(`[data-roomtext="${ab.dataset.roomadd}"]`); addRooms(ab.dataset.roomadd, inp.value); }
 });
@@ -881,6 +906,108 @@ function renderStaffPicker() {
 }
 
 /* เหตุการณ์ผิดปกติ: ข้อมูลผู้ป่วย -> V/S -> รายละเอียด */
+/* ===== ไฟล์แนบของเหตุการณ์ผิดปกติ (JPG / PNG / PDF) ===== */
+const ATT_MAX_FILES = 5, PDF_MAX = 5 * 1024 * 1024;
+S.att = {};
+const fmtSize = n => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+const readB64 = file => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = () => rej(new Error('อ่านไฟล์ไม่ได้')); r.readAsDataURL(file); });
+function b64Blob(b64, mime) { const bin = atob(b64), arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); return new Blob([arr], { type: mime }); }
+async function prepAttachment(file) {
+  if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
+    if (file.size > PDF_MAX) throw new Error(file.name + ': PDF ใหญ่เกิน 5 MB');
+    return { name: file.name, mime: 'application/pdf', data: await readB64(file) };
+  }
+  if (/^image\/(jpeg|png)$/.test(file.type) || /\.(jpe?g|png)$/i.test(file.name)) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error(file.name + ': เปิดรูปไม่ได้')); im.src = url; });
+      const sc = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * sc); c.height = Math.round(img.naturalHeight * sc);
+      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+      return { name: file.name.replace(/\.[^.]+$/, '') + '.jpg', mime: 'image/jpeg', data: c.toDataURL('image/jpeg', 0.82).split(',')[1] };
+    } finally { URL.revokeObjectURL(url); }
+  }
+  throw new Error(file.name + ': แนบได้เฉพาะ JPG, PNG หรือ PDF');
+}
+async function getAtt(id) { if (!S.att[id]) S.att[id] = await api('getAttachment', S.token, id); return S.att[id]; }
+const attChip = (f, editable, i, k) => `<span class="att"><button type="button" class="open" data-attview="${esc(f.id)}" data-attname="${esc(f.name)}" data-attmime="${esc(f.mime)}">${f.mime === 'application/pdf' ? 'PDF' : 'รูป'} ${esc(f.name)}</button><small>${fmtSize(f.size || 0)}</small>${editable ? `<button type="button" class="x" data-attdel="${i}:${k}" aria-label="เอาไฟล์ออก">\u00d7</button>` : ''}</span>`;
+
+$('view').addEventListener('change', async e => {
+  const t = e.target;
+  if (!(S.editing && t.dataset && t.dataset.fileadd !== undefined)) return;
+  const i = +t.dataset.fileadd, x = S.draft.incidents[i], files = Array.from(t.files);
+  t.value = ''; x.files = x.files || [];
+  for (const f of files) {
+    if (x.files.length >= ATT_MAX_FILES) { toast('แนบได้สูงสุด ' + ATT_MAX_FILES + ' ไฟล์ต่อเหตุการณ์'); break; }
+    try {
+      toast('กำลังอัปโหลด ' + f.name + ' ...');
+      const p = await prepAttachment(f);
+      const r = await api('uploadAttachment', S.token, p);
+      S.att[r.id] = { name: r.name, mime: r.mime, data: p.data };
+      x.files.push({ id: r.id, name: r.name, mime: r.mime, size: r.size }); S.dirty = true;
+      renderIncidents(); toast('แนบไฟล์แล้ว: ' + r.name);
+    } catch (err) { toast(err.message); }
+  }
+});
+
+async function openAtt(id, name) {
+  $('viewer').hidden = false; $('v_title').textContent = name; $('v_dl').removeAttribute('href');
+  $('v_body').innerHTML = '<div class="vpdf">กำลังโหลดไฟล์...</div>';
+  try {
+    const f = await getAtt(id), url = URL.createObjectURL(b64Blob(f.data, f.mime));
+    if (S.viewUrl) URL.revokeObjectURL(S.viewUrl);
+    S.viewUrl = url; $('v_dl').href = url; $('v_dl').download = f.name;
+    $('v_body').innerHTML = f.mime.indexOf('image/') === 0 ? `<img alt="${esc(f.name)}" src="${url}">`
+      : `<div class="vpdf"><div>ไฟล์ PDF: ${esc(f.name)}</div><a class="btn" style="text-decoration:none" target="_blank" rel="noopener" href="${url}">เปิด PDF ในแท็บใหม่</a></div>`;
+  } catch (e) { $('v_body').innerHTML = `<div class="vpdf" style="color:#fecaca">${esc(e.message)}</div>`; }
+}
+$('v_close').onclick = () => { $('viewer').hidden = true; $('v_body').innerHTML = ''; };
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('viewer').hidden) $('v_close').click(); });
+document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-attview]'); if (b) openAtt(b.dataset.attview, b.dataset.attname); });
+
+/* พิมพ์: ใส่ภาพไฟล์แนบลงในรายงาน (รูปใส่ตรงๆ ส่วน PDF แปลงหน้าแรกๆ เป็นภาพ) */
+function loadPdfJs() {
+  if (window.pdfjsLib) return Promise.resolve();
+  if (!S.pdfjsP) S.pdfjsP = new Promise((res, rej) => {
+    const s = document.createElement('script'); s.src = 'https:\/\/cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js';
+    s.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https:\/\/cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js'; res(); };
+    s.onerror = () => { S.pdfjsP = null; rej(new Error('โหลดตัวแสดง PDF ไม่ได้')); };
+    document.head.appendChild(s);
+  });
+  return S.pdfjsP;
+}
+async function pdfPages(b64, max) {
+  await loadPdfJs();
+  const bin = atob(b64), arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  const doc = await window.pdfjsLib.getDocument({ data: arr }).promise, pages = [];
+  for (let p = 1; p <= Math.min(doc.numPages, max); p++) {
+    const page = await doc.getPage(p), vp = page.getViewport({ scale: 1.4 }), c = document.createElement('canvas');
+    c.width = vp.width; c.height = vp.height;
+    await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+    pages.push(c.toDataURL('image/jpeg', 0.85));
+  }
+  return { pages, total: doc.numPages };
+}
+S.pendingAtt = 0;
+async function hydratePrint() {
+  const figs = Array.from(document.querySelectorAll('figure[data-attfile]'));
+  S.pendingAtt = figs.length;
+  await Promise.all(figs.map(async fig => {
+    const cap = fig.querySelector('figcaption');
+    try {
+      const f = await getAtt(fig.dataset.attfile);
+      if (f.mime.indexOf('image/') === 0) fig.insertAdjacentHTML('afterbegin', `<img alt="" src="data:${f.mime};base64,${f.data}">`);
+      else {
+        const r = await pdfPages(f.data, 3);
+        fig.insertAdjacentHTML('afterbegin', r.pages.map(u => `<img alt="" src="${u}">`).join(''));
+        if (r.total > r.pages.length) cap.textContent += ` (แสดง ${r.pages.length} จาก ${r.total} หน้า ดูไฟล์เต็มในระบบ)`;
+      }
+    } catch (err) { cap.textContent += ' \u2014 แสดงไฟล์ไม่ได้: ' + err.message; }
+    S.pendingAtt--;
+  }));
+}
+
 function renderIncidents() {
   const d = S.draft;
   const vin = (i, k, label, unit, mode, ph) => `<label class="vs"><span>${label}</span><input data-inc="${i}:${k}" value="${esc(d.incidents[i][k] || '')}" inputmode="${mode}" placeholder="${ph || ''}"><small>${unit}</small></label>`;
@@ -914,7 +1041,12 @@ function renderIncidents() {
       </div>
     </fieldset>
     <label class="f">รายละเอียดเหตุการณ์</label><textarea data-inc="${i}:detail" rows="3">${esc(x.detail)}</textarea>
-    <label class="f">การแก้ไขเบื้องต้น</label><textarea data-inc="${i}:action" rows="2">${esc(x.action)}</textarea></div>`).join('')
+    <label class="f">การแก้ไขเบื้องต้น</label><textarea data-inc="${i}:action" rows="2">${esc(x.action)}</textarea>
+    <fieldset><legend>ไฟล์แนบ (JPG / PNG / PDF)</legend>
+      <div class="atts">${(x.files || []).map((f, k) => attChip(f, true, i, k)).join('') || '<span class="muted" style="font-size:13px">ยังไม่มีไฟล์แนบ</span>'}</div>
+      <input type="file" data-fileadd="${i}" multiple accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf">
+      <div class="muted" style="font-size:12px;margin-top:4px">แนบได้สูงสุด 5 ไฟล์ \u00b7 รูปถูกย่ออัตโนมัติ \u00b7 PDF ไม่เกิน 5 MB \u00b7 กดชื่อไฟล์เพื่อดู \u00b7 ผู้จัดการพิมพ์รวมกับรายงานได้</div>
+    </fieldset></div>`).join('')
     || '<div class="card muted">ไม่มีเหตุการณ์ผิดปกติ \u2014 ถ้ามี กดปุ่มด้านล่างเพื่อเพิ่ม</div>';
   $('fm_incs').querySelectorAll('[data-delinc]').forEach(b => b.onclick = () => { d.incidents.splice(+b.dataset.delinc, 1); S.dirty = true; renderIncidents(); showSub(); });
 }
@@ -1101,7 +1233,6 @@ function printHead(sub) {
   return `<h1>รายงานยอดประจำวัน${sub ? ' \u00b7 ' + sub : ''}</h1><div class="d">${esc(thaiDate(S.date, true))}</div>
     <div class="st">ส่งรายงานแล้ว ${S.cfg.units.length - missing.length}/${S.cfg.units.length} หน่วยงาน${missing.length ? ` \u00b7 <span class="m">ยังไม่รายงาน: ${missing.map(esc).join(', ')}</span>` : ''}</div>`;
 }
-const bar = (n, max) => `<span class="bar"><i style="width:${max ? Math.round(n / max * 100) : 0}%"></i></span>`;
 
 function printOverview() {
   const reps = S.day.reports, L = S.cfg.stdLabels;
@@ -1125,28 +1256,33 @@ function printOverview() {
     <div class="${allIncs.length ? 'alert' : ''}"><b>${allIncs.length}</b>เหตุการณ์ผิดปกติ</div></div>`;
 
   // ผู้ป่วยนอก
-  const opdMax = Math.max(1, ...opd.map(u => (sv(u) || {}).total || 0));
-  h += `<h2>ผู้ป่วยนอก</h2><table class="stat"><thead><tr><th>หน่วยงาน</th>${S.cfg.stdOpd.map(k => `<th>${L[k]}</th>`).join('')}<th class="w">สัดส่วนผู้ป่วย</th></tr></thead>
-    ${opd.map(u => { const s = sv(u); return s ? `<tr><td>${esc(u.code)}</td>${S.cfg.stdOpd.map(k => `<td class="n">${k in s ? s[k] : '\u2013'}</td>`).join('')}<td>${bar(s.total || 0, opdMax)}</td></tr>`
-      : `<tr><td>${esc(u.code)}</td><td colspan="${S.cfg.stdOpd.length + 1}" class="miss">ยังไม่รายงาน</td></tr>`; }).join('')}
-    <tr class="tot"><td>รวม</td>${S.cfg.stdOpd.map(k => `<td class="n">${sum(opd, k)}</td>`).join('')}<td></td></tr></table>`;
+  const sc3 = u => { const r = reps[u.code]; const st = r ? (r.staff || []).filter(x => x.tag !== 'ออกหน่วย') : []; return ['RN', 'PN', 'NA'].map(k => st.filter(x => x.role === k).length); };
+  const ssum = (list, i) => list.reduce((a, u) => a + (reps[u.code] ? sc3(u)[i] : 0), 0);
+  const staffTd = u => sc3(u).map(n => `<td class="n">${n || '\u2013'}</td>`).join('');
+  const staffSumTd = list => [0, 1, 2].map(i => `<td class="n">${ssum(list, i)}</td>`).join('');
+  const staffTh = '<th>RN</th><th>PN</th><th>NA</th>';
+  h += `<h2>ผู้ป่วยนอก</h2><table class="stat"><thead><tr><th>หน่วยงาน</th>${S.cfg.stdOpd.map(k => `<th>${L[k]}</th>`).join('')}${staffTh}</tr></thead>
+    ${opd.map(u => { const s = sv(u); return s ? `<tr><td>${esc(u.code)}</td>${S.cfg.stdOpd.map(k => `<td class="n">${k in s ? s[k] : '\u2013'}</td>`).join('')}${staffTd(u)}</tr>`
+      : `<tr><td>${esc(u.code)}</td><td colspan="${S.cfg.stdOpd.length + 3}" class="miss">ยังไม่รายงาน</td></tr>`; }).join('')}
+    <tr class="tot"><td>รวม</td>${S.cfg.stdOpd.map(k => `<td class="n">${sum(opd, k)}</td>`).join('')}${staffSumTd(opd)}</tr></table>
+    <div class="foot">RN / PN / NA = จำนวนเจ้าหน้าที่ที่ปฏิบัติงานตามรายงานของแต่ละหน่วยงาน (ไม่นับผู้ที่ออกไปปฏิบัติงานหน่วยอื่น)</div>`;
 
   // ผู้ป่วยใน
-  const ipdRow = u => { const s = sv(u); return s ? `<tr><td>${esc(u.code)}</td>${S.cfg.stdIpd.map(k => `<td class="n${k === 'remain' ? ' b' : ''}">${s[k] || '\u2013'}</td>`).join('')}</tr>`
-      : `<tr><td>${esc(u.code)}</td><td colspan="${S.cfg.stdIpd.length}" class="miss">ยังไม่รายงาน</td></tr>`; };
+  const ipdRow = u => { const s = sv(u); return s ? `<tr><td>${esc(u.code)}</td>${S.cfg.stdIpd.map(k => `<td class="n${k === 'remain' ? ' b' : ''}">${s[k] || '\u2013'}</td>`).join('')}${staffTd(u)}</tr>`
+      : `<tr><td>${esc(u.code)}</td><td colspan="${S.cfg.stdIpd.length + 3}" class="miss">ยังไม่รายงาน</td></tr>`; };
   const ipdBlocks = S.cfg.sections.filter(sc => sc.group === 'IPD').map(sc => ({ name: sc.sub, list: sc.units.map(unitCfg) }));
   const icuLike = ipd.filter(u => u.group !== 'IPD');
   if (icuLike.length) ipdBlocks.push({ name: 'Special Unit', list: icuLike });
-  h += `<h2>ผู้ป่วยใน</h2><table class="stat"><thead><tr><th>ตึก</th>${S.cfg.stdIpd.map(k => `<th>${L[k]}</th>`).join('')}</tr></thead>
-    ${ipdBlocks.map(bk => bk.list.map(ipdRow).join('') + `<tr class="sub"><td>รวม ${esc(bk.name)}</td>${S.cfg.stdIpd.map(k => `<td class="n">${sum(bk.list, k)}</td>`).join('')}</tr>`).join('')}
-    <tr class="tot"><td>รวมทั้งหมด</td>${S.cfg.stdIpd.map(k => `<td class="n">${sum(ipd, k)}</td>`).join('')}</tr></table>`;
+  h += `<h2>ผู้ป่วยใน</h2><table class="stat"><thead><tr><th>ตึก</th>${S.cfg.stdIpd.map(k => `<th>${L[k]}</th>`).join('')}${staffTh}</tr></thead>
+    ${ipdBlocks.map(bk => bk.list.map(ipdRow).join('') + `<tr class="sub"><td>รวม ${esc(bk.name)}</td>${S.cfg.stdIpd.map(k => `<td class="n">${sum(bk.list, k)}</td>`).join('')}${staffSumTd(bk.list)}</tr>`).join('')}
+    <tr class="tot"><td>รวมทั้งหมด</td>${S.cfg.stdIpd.map(k => `<td class="n">${sum(ipd, k)}</td>`).join('')}${staffSumTd(ipd)}</tr></table>`;
 
   // ประเภทผู้ป่วยคงพยาบาล + Special Unit
   const cats = {};
   ipd.forEach(u => reps[u.code] && Object.entries(categoryValues(u, reps[u.code].values)).forEach(([k, n]) => cats[k] = (cats[k] || 0) + n));
-  const catList = Object.entries(cats).sort((a, b) => b[1] - a[1]), catMax = Math.max(1, ...catList.map(x => x[1]));
+  const catList = Object.entries(cats).sort((a, b) => b[1] - a[1]);
   h += `<div class="two"><div><h2>ประเภทผู้ป่วยคงพยาบาล (รวมทุกตึก)</h2>
-    ${catList.length ? `<table class="stat">${catList.map(([k, n]) => `<tr><td>${esc(k)}</td><td class="n b">${n}</td><td class="w">${bar(n, catMax)}</td></tr>`).join('')}</table>` : '<div class="miss">ไม่มีข้อมูล</div>'}</div>
+    ${catList.length ? `<table class="stat">${catList.map(([k, n]) => `<tr><td>${esc(k)}</td><td class="n b">${n}</td></tr>`).join('')}</table>` : '<div class="miss">ไม่มีข้อมูล</div>'}</div>
     <div><h2>Special Unit</h2><table class="stat">${spu.map(u => { const s = sv(u); return `<tr><td>${esc(u.code)}</td>${s ? `<td class="n b">${s.total}</td><td>${esc(u.form.sections[0].title)}</td>` : '<td colspan="2" class="miss">ยังไม่รายงาน</td>'}</tr>`; }).join('')}</table></div></div>`;
 
   // อัตรากำลัง
@@ -1178,7 +1314,7 @@ function incTable(incs) {
       <td>${esc(i.patient || '-')}${i.age ? `<br>อายุ ${esc(i.age)} ปี` : ''}${i.hn ? `<br>HN ${esc(i.hn)}` : ''}${i.time ? `<br>มา ${esc(i.time)} น.` : ''}${i.doctor ? `<br>แพทย์ ${esc(i.doctor)}` : ''}</td>
       <td>${vitals(i).map(([k, x, unit]) => `${k} ${esc(x)}${unit === '%' ? '%' : unit === '\u00b0C' ? '\u00b0C' : ''}`).join('<br>')}${i.o2mode ? `<br>O2: ${esc(o2Text(i))}` : ''}</td>
       <td>${esc(i.type)}<br>ระดับ ${esc(i.severity || '-')}</td>
-      <td>${esc(i.detail)}${i.action ? `<br><i>แก้ไข: ${esc(i.action)}</i>` : ''}</td></tr>`).join('')}</table>`;
+      <td>${esc(i.detail)}${i.action ? `<br><i>แก้ไข: ${esc(i.action)}</i>` : ''}</td></tr>${(i.files || []).length ? `<tr class="attrow"><td></td><td colspan="4"><div class="attbox">${i.files.map(f => `<figure data-attfile="${esc(f.id)}"><figcaption>ไฟล์แนบ: ${esc(f.name)}</figcaption></figure>`).join('')}</div></td></tr>` : ''}`).join('')}</table>`;
 }
 
 function printUnits() {
@@ -1322,7 +1458,7 @@ function bindView() {
     const a = b.dataset.act;
     if (a === 'edit') startEdit();
     else if (a === 'back') go('all');
-    else if (a === 'print') window.print();
+    else if (a === 'print') { if (S.pendingAtt > 0) toast('กำลังโหลดไฟล์แนบ รอสักครู่แล้วกดพิมพ์อีกครั้ง'); else window.print(); }
     else if (a === 'tpl') downloadTemplate();
     else if (a === 'bindsave') saveBindingsNow();
     else if (a === 'rooms') roomEditor($('adm_room_editor'), b.dataset.runit, () => render());
