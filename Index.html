@@ -3,301 +3,1034 @@
 <head>
 <base target="_top">
 <meta charset="utf-8">
-<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>รายงานยอดประจำวัน</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=Sarabun:wght@400;600&display=swap">
 <style>
-  :root { --pri:#0f766e; --bg:#f4f6f8; --card:#fff; --line:#e2e8f0; --muted:#64748b; --warn:#b91c1c; }
-  * { box-sizing:border-box; }
-  body { margin:0; font-family:'Sarabun',sans-serif; background:var(--bg); color:#1e293b; }
-  header { background:var(--pri); color:#fff; padding:14px 16px; font-size:18px; font-weight:600; }
-  header small { font-weight:400; opacity:.85; }
-  nav { display:flex; background:#fff; border-bottom:1px solid var(--line); }
-  nav button { flex:1; border:0; background:none; padding:12px 4px; font:inherit; color:var(--muted); border-bottom:3px solid transparent; cursor:pointer; }
-  nav button.on { color:var(--pri); border-color:var(--pri); font-weight:600; }
-  main { max-width:760px; margin:0 auto; padding:16px; }
-  main.wide { max-width:1000px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:14px; }
-  label { display:block; font-size:14px; color:var(--muted); margin:10px 0 4px; }
-  input, select, textarea { width:100%; padding:9px 10px; font:inherit; border:1px solid var(--line); border-radius:8px; background:#fff; }
-  .row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-  .item { display:grid; grid-template-columns:1fr 110px; gap:10px; align-items:center; padding:6px 0; border-bottom:1px dashed var(--line); }
-  .btn { width:100%; margin-top:16px; padding:12px; border:0; border-radius:8px; background:var(--pri); color:#fff; font:inherit; font-weight:600; cursor:pointer; }
-  .btn:disabled { opacity:.6; }
-  .btn.sm { width:auto; margin:0; padding:9px 16px; }
-  .msg { margin-top:10px; font-size:14px; }
-  .info { font-size:13px; color:#92400e; background:#fef3c7; padding:6px 10px; border-radius:6px; margin-top:10px; }
-  .hide { display:none !important; }
-  .toolbar { display:flex; gap:10px; align-items:end; }
-  .toolbar > div { flex:1; }
-  .links { font-size:13px; }
-  .links a { display:inline-block; margin:2px 8px 2px 0; color:var(--pri); }
-
-  /* ===== รายงาน A4 ===== */
-  #report { background:#fff; border:1px solid var(--line); padding:12mm; font-size:10.5pt; }
-  #report h1 { font-size:15pt; text-align:center; margin:0; }
-  #report .date { text-align:center; margin:2px 0 10px; }
-  #report h2 { font-size:12pt; margin:12px 0 4px; border-bottom:2px solid #1e293b; }
-  #report h3 { font-size:10.5pt; margin:8px 0 2px; }
-  #report table { width:100%; border-collapse:collapse; margin-bottom:4px; }
-  #report th, #report td { border:1px solid #94a3b8; padding:2px 5px; }
-  #report th { background:#f1f5f9; font-weight:600; }
-  #report td.n { text-align:center; }
-  #report tr.total td { font-weight:600; background:#f8fafc; }
-  #report .miss { color:var(--warn); }
-  #report .status { font-size:10pt; }
-  #report .sign { margin-top:20px; display:flex; justify-content:flex-end; text-align:center; }
-
-  @page { size:A4 portrait; margin:10mm; }
-  @media print {
-    header, nav, .noprint { display:none !important; }
-    body { background:#fff; }
-    main, main.wide { max-width:none; padding:0; }
-    #report { border:0; padding:0; }
-    #report tr { page-break-inside:avoid; }
-    #report h2, #report h3, #report thead { page-break-after:avoid; }
+  /* Layout: แถบหัว + แท็บ + วันที่ติดด้านบน, เนื้อหาคอลัมน์เดียวบนมือถือ, 2 คอลัมน์บนจอกว้าง */
+  :root {
+    --bg: #eef3f3; --surface: #ffffff; --sunk: #f5f8f8; --line: #d5e0e0; --fg: #15282a; --muted: #5b7073;
+    --accent: #0e6f6a; --accent-ink: #ffffff; --accent-soft: #dcefed;
+    --ok: #1d7a3e; --ok-soft: #e1f3e7; --warn: #a15c00; --warn-soft: #fbefdc; --bad: #b42318; --bad-soft: #fde7e5;
+    --font: 'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif; --print: 'Sarabun', 'IBM Plex Sans Thai', sans-serif;
+    --r: 10px;
   }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #0f1a1b; --surface: #172526; --sunk: #1d2e2f; --line: #2c4143; --fg: #e3eeee; --muted: #93a9ab;
+    --accent: #4fc1b8; --accent-ink: #062523; --accent-soft: #1b3a38;
+    --ok: #5fd08a; --ok-soft: #173326; --warn: #f0b04f; --warn-soft: #3a2d15; --bad: #ff8a80; --bad-soft: #3d1c1a; color-scheme: dark;
+  } }
+  :root[data-theme="dark"] {
+    --bg: #0f1a1b; --surface: #172526; --sunk: #1d2e2f; --line: #2c4143; --fg: #e3eeee; --muted: #93a9ab;
+    --accent: #4fc1b8; --accent-ink: #062523; --accent-soft: #1b3a38;
+    --ok: #5fd08a; --ok-soft: #173326; --warn: #f0b04f; --warn-soft: #3a2d15; --bad: #ff8a80; --bad-soft: #3d1c1a; color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--fg); font: 15px/1.55 var(--font); -webkit-text-size-adjust: 100%; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  [hidden] { display: none !important; }
+  .wrap { max-width: 980px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ===== Login ===== */
+  #login { min-height: 100vh; display: grid; place-items: center; padding-block: 24px; }
+  .login-card { width: 100%; max-width: 380px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 24px; display: grid; gap: 12px; }
+  .login-card h1 { margin: 0; font-size: 22px; text-wrap: balance; }
+  .login-card p { margin: 0; color: var(--muted); font-size: 14px; }
+  .hint { font-size: 13px; background: var(--accent-soft); border-radius: 8px; padding: 8px 10px; }
+
+  /* ===== Top bar ===== */
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--accent); }
+  .top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--accent); color: var(--accent-ink); }
+  .top .wrap { display: flex; align-items: center; gap: 10px; padding-block: 10px; }
+  .top .title { font-weight: 600; flex: 1; min-width: 0; line-height: 1.25; }
+  .top .title small { display: block; font-weight: 400; opacity: .85; font-size: 12px; }
+  .unit-pill { background: var(--accent-ink); color: var(--accent); font-weight: 700; padding: 3px 10px; border-radius: 99px; font-size: 14px; white-space: nowrap; }
+  .top button { background: transparent; border: 1px solid currentColor; color: inherit; border-radius: 8px; padding: 4px 10px; font-size: 13px; cursor: pointer; opacity: .9; }
+  .tabs { background: var(--surface); border-bottom: 1px solid var(--line); position: sticky; top: calc(env(safe-area-inset-top, 0px) + 52px); z-index: 4; }
+  .tabs .wrap { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+  .tabs button { flex: 0 0 auto; background: none; border: 0; border-bottom: 3px solid transparent; padding: 11px 12px; color: var(--muted); cursor: pointer; white-space: nowrap; }
+  .tabs button.on { color: var(--accent); border-color: var(--accent); font-weight: 600; }
+  .datebar { display: flex; align-items: center; gap: 8px; padding-block: 12px; }
+  .datebar input { flex: 0 1 180px; }
+  .datebar .dlabel { color: var(--muted); font-size: 14px; flex: 1; min-width: 0; }
+  .iconbtn { width: 38px; height: 38px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; flex: 0 0 auto; }
+
+  /* ===== Common ===== */
+  main { padding-bottom: 96px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; margin-bottom: 12px; }
+  .card > h3 { margin: 0 0 8px; font-size: 15px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .card > h3 .sub { font-weight: 400; color: var(--muted); font-size: 13px; }
+  label.f { display: block; font-size: 13px; color: var(--muted); margin: 8px 0 4px; }
+  input, select, textarea { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); min-width: 0; }
+  input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 16px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); font-weight: 600; cursor: pointer; }
+  .btn.ghost { background: transparent; color: var(--accent); }
+  .btn.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
+  .btn.sm { padding: 6px 12px; font-size: 14px; }
+  .btn:disabled { opacity: .55; cursor: default; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .muted { color: var(--muted); }
+  .pill { display: inline-block; font-size: 12px; padding: 1px 9px; border-radius: 99px; font-weight: 500; white-space: nowrap; }
+  .pill.ok { background: var(--ok-soft); color: var(--ok); }
+  .pill.no { background: var(--bad-soft); color: var(--bad); }
+  .pill.warn { background: var(--warn-soft); color: var(--warn); }
+  .pill.plain { background: var(--sunk); color: var(--muted); }
+  .note { font-size: 13px; background: var(--warn-soft); color: var(--warn); border-radius: 8px; padding: 8px 10px; margin-bottom: 12px; }
+  .toast { position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 18px; border-radius: 99px; z-index: 20; font-size: 14px; max-width: calc(100% - 32px); }
+
+  /* ===== Form ===== */
+  .frow { display: grid; grid-template-columns: 1fr 96px; gap: 10px; align-items: center; padding: 5px 0; border-bottom: 1px dashed var(--line); }
+  .frow:last-child { border-bottom: 0; }
+  .frow.text { grid-template-columns: 1fr; }
+  .frow .lab small { color: var(--muted); }
+  .frow input[type=number] { text-align: center; }
+  .frow .calc { text-align: center; font-weight: 700; padding: 9px 0; background: var(--accent-soft); border-radius: 8px; }
+  .sumline { display: flex; justify-content: space-between; padding-top: 8px; margin-top: 4px; border-top: 2px solid var(--line); font-weight: 600; }
+  .grid-scroll { overflow-x: auto; }
+  table.g { border-collapse: collapse; width: 100%; min-width: 360px; }
+  table.g th, table.g td { border: 1px solid var(--line); padding: 4px; text-align: center; font-size: 14px; }
+  table.g th { background: var(--sunk); font-weight: 600; }
+  table.g td:first-child, table.g th:first-child { text-align: left; }
+  table.g input { padding: 6px 2px; text-align: center; }
+  .savebar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--surface); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .savebar .wrap { display: flex; gap: 10px; align-items: center; padding-block: 10px; }
+  .savebar .msg { flex: 1; min-width: 0; font-size: 13px; color: var(--muted); }
+
+  /* staff picker */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { border: 1px solid var(--line); background: var(--sunk); border-radius: 99px; padding: 5px 11px; cursor: pointer; font-size: 14px; }
+  .chip b { font-size: 11px; color: var(--muted); margin-left: 4px; }
+  .chip.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .chip.on b { color: inherit; opacity: .8; }
+  .duty { display: grid; grid-template-columns: 1fr 64px 108px 32px; gap: 6px; align-items: center; padding: 5px 0; border-bottom: 1px dashed var(--line); }
+  .duty .nm { min-width: 0; overflow-wrap: anywhere; }
+  .duty select { padding: 6px; font-size: 14px; }
+  .x { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--bad); cursor: pointer; }
+  .counts { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+  .counts span { background: var(--accent-soft); color: var(--accent); border-radius: 6px; padding: 2px 9px; font-weight: 600; font-size: 14px; }
+  .addrow { display: grid; grid-template-columns: 1fr 84px auto; gap: 6px; margin-top: 10px; }
+
+  /* sub tabs */
+  .subtabs { display: flex; gap: 4px; background: var(--sunk); border: 1px solid var(--line); border-radius: 10px; padding: 4px; margin-bottom: 12px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 98px); z-index: 3; }
+  .subtabs button { flex: 1 1 0; min-width: 0; border: 0; background: transparent; border-radius: 7px; padding: 8px 4px; cursor: pointer; color: var(--muted); font-size: 14px; line-height: 1.25; }
+  .subtabs button.on { background: var(--surface); color: var(--accent); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .subtabs .c { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 99px; background: var(--bad-soft); color: var(--bad); font-size: 11px; font-weight: 700; margin-left: 3px; }
+  .subtabs .c.z { background: var(--line); color: var(--muted); }
+  fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px 10px; margin: 8px 0 0; min-width: 0; }
+  legend { font-size: 13px; font-weight: 600; color: var(--accent); padding: 0 4px; }
+  .g3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .unitin { position: relative; }
+  .unitin input { padding-right: 52px; }
+  .unitin span { position: absolute; right: 8px; bottom: 10px; font-size: 12px; color: var(--muted); pointer-events: none; }
+  .vs { font-size: 14px; display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 4px 0; }
+  .vs b { font-variant-numeric: tabular-nums; }
+  .pt { font-size: 14px; margin: 4px 0; }
+
+  /* แท็บย่อยของหน่วยงาน */
+  .seg { display: flex; gap: 4px; background: var(--sunk); border: 1px solid var(--line); border-radius: 10px; padding: 4px; margin-bottom: 12px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 98px); z-index: 3; }
+  .seg button { flex: 1 1 0; min-width: 0; border: 0; background: transparent; border-radius: 7px; padding: 8px 6px; cursor: pointer; color: var(--muted); font-weight: 500; line-height: 1.25; }
+  .seg button small { display: block; font-size: 11px; font-weight: 600; opacity: .9; }
+  .seg button.on { background: var(--surface); color: var(--accent); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .seg button.alert small { color: var(--bad); }
+  fieldset { border: 1px solid var(--line); border-radius: 8px; margin: 12px 0 0; padding: 4px 12px 12px; min-width: 0; }
+  legend { font-size: 13px; font-weight: 600; color: var(--accent); padding: 0 6px; }
+  .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .vsgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); gap: 8px; margin-top: 8px; }
+  .vs { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 8px; padding: 2px 8px; background: var(--surface); }
+  .vs span { font-weight: 600; font-size: 14px; }
+  .vs input { border: 0; padding: 7px 2px; text-align: center; background: transparent; }
+  .vs small { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .o2row { display: grid; grid-template-columns: auto 130px 1fr; gap: 8px; align-items: center; margin-top: 8px; }
+  .inc-view .pt { margin-top: 6px; }
+  .vsline { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .vsline span { background: var(--sunk); border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; font-size: 14px; font-variant-numeric: tabular-nums; }
+  .vsline small { color: var(--muted); }
+
+  /* incidents */
+  .inc, .inc-view { border-left: 4px solid var(--bad); }
+  .inc-head { display: flex; justify-content: space-between; align-items: center; font-weight: 600; }
+  .addinc { width: 100%; border: 2px dashed var(--line); background: transparent; color: var(--accent); padding: 12px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+
+  /* ===== Read view ===== */
+  .kv { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; }
+  .kv .v { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .kv .full { grid-column: 1 / -1; }
+  .kv .total { border-top: 1px solid var(--line); padding-top: 3px; }
+  .pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .view-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; align-items: start; }
+  .view-grid .card { margin: 0; }
+  .meta { font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+
+  /* ===== All units ===== */
+  .ulist { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-bottom: 18px; }
+  .ucard { text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; cursor: pointer; display: grid; gap: 4px; }
+  .ucard:hover { border-color: var(--accent); }
+  .ucard .code { font-weight: 700; font-size: 16px; display: flex; justify-content: space-between; gap: 6px; align-items: center; }
+  .ucard > .pill { justify-self: start; }
+  .ucard .big { font-size: 13px; color: var(--muted); }
+  .ucard.mine { outline: 2px solid var(--accent); }
+  h2.grp { font-size: 14px; letter-spacing: .03em; color: var(--muted); margin: 6px 0 8px; font-weight: 600; }
+  .progress { height: 8px; background: var(--sunk); border-radius: 99px; overflow: hidden; margin: 6px 0 14px; }
+  .progress i { display: block; height: 100%; background: var(--ok); }
+
+  /* ===== Staff registry ===== */
+  .srow { display: grid; grid-template-columns: 1fr 70px auto; gap: 8px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--line); }
+  .srow .acts { display: flex; gap: 4px; }
+  .srow.edit { grid-template-columns: 1fr 84px auto; }
+
+  /* ===== A4 print ===== */
+  .a4-scroll { overflow-x: auto; }
+  .a4 { width: 210mm; min-height: 297mm; margin: 0 auto; background: #fff; color: #111; padding: 12mm 12mm; font: 10pt/1.4 var(--print); box-shadow: 0 2px 12px rgba(0,0,0,.15); }
+  .a4 h1 { font-size: 15pt; margin: 0; text-align: center; }
+  .a4 .d { text-align: center; margin-bottom: 6px; }
+  .a4 .st { font-size: 9.5pt; margin-bottom: 6px; }
+  .a4 .st .m { color: #b42318; }
+  .a4 h2 { font-size: 11.5pt; margin: 8px 0 4px; border-bottom: 1.5pt solid #111; }
+  .a4 .cols { columns: 2; column-gap: 8mm; }
+  .a4 .ub { break-inside: avoid; border: .5pt solid #999; padding: 3px 6px; margin-bottom: 5px; }
+  .a4 .ub b.c { font-size: 10.5pt; }
+  .a4 .ub .ln { font-size: 9pt; }
+  .a4 .ub .miss { color: #b42318; }
+  .a4 table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+  .a4 th, .a4 td { border: .5pt solid #777; padding: 2px 4px; vertical-align: top; }
+  .a4 th { background: #eee; }
+  .a4 .kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin: 6px 0 4px; }
+  .a4 .kpis div { border: .5pt solid #999; padding: 3px 4px; text-align: center; font-size: 8.5pt; line-height: 1.25; }
+  .a4 .kpis b { display: block; font-size: 15pt; line-height: 1.2; }
+  .a4 .kpis .alert b { color: #b42318; }
+  .a4 table.stat td.n { text-align: center; font-variant-numeric: tabular-nums; }
+  .a4 table.stat td.b { font-weight: 700; }
+  .a4 table.stat tr.tot td { font-weight: 700; background: #f2f2f2; }
+  .a4 table.stat .w { width: 34%; }
+  .a4 .bar { display: block; height: 8px; background: #eee; }
+  .a4 .bar i { display: block; height: 100%; background: #0e6f6a; }
+  .a4 .two { display: grid; grid-template-columns: 1.3fr 1fr; gap: 6mm; }
+  .a4 .chipsp { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; font-size: 9pt; }
+  .a4 .chipsp span { border: .5pt solid #999; padding: 0 5px; }
+  .a4 td.miss, .a4 .miss { color: #b42318; }
+  .a4 { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .a4 + .a4 { margin-top: 16px; }
+  .a4 .sign { margin-top: 14px; text-align: right; }
+  .a4 + .a4 { margin-top: 16px; }
+  .a4 .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm; margin: 4px 0 2px; }
+  .a4 .kpi { border: .5pt solid #999; border-radius: 4px; padding: 2mm 3mm; }
+  .a4 .kpi .l { font-size: 8.5pt; color: #444; }
+  .a4 .kpi .n { font-size: 17pt; font-weight: 600; line-height: 1.15; font-variant-numeric: tabular-nums; }
+  .a4 .kpi .s { font-size: 8pt; color: #555; }
+  .a4 .bars { display: grid; grid-template-columns: 22mm 1fr 14mm; gap: 1.2mm 2mm; align-items: center; font-size: 9pt; }
+  .a4 .bars .t { height: 3.6mm; background: #e9eeee; border-radius: 1px; }
+  .a4 .bars .t i { display: block; height: 100%; background: #0e6f6a; border-radius: 0 2px 2px 0; }
+  .a4 .bars .v { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .a4 .bars .miss { grid-column: 2 / 4; color: #b42318; font-size: 8.5pt; }
+  .a4 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; }
+  .a4 td.n, .a4 th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  .a4 tr.sub td { background: #f3f5f5; font-weight: 600; }
+  .a4 tr.tot td { background: #e4e9e9; font-weight: 700; }
+  .a4 .foot { font-size: 8pt; color: #555; margin-top: 3px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button { border: 0; background: var(--surface); padding: 8px 12px; cursor: pointer; color: var(--muted); }
+  .seg button.on { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  @page { size: A4 portrait; margin: 0; }
+  @media print {
+    body { background: #fff; }
+    body::before, .top, .tabs, .datebar, .savebar, .noprint, .toast, #login { display: none !important; }
+    main, .wrap { padding: 0 !important; max-width: none; }
+    .a4 { box-shadow: none; margin: 0; width: auto; min-height: 0; }
+    .a4 + .a4 { margin-top: 0; break-before: page; }
+    .a4 thead { display: table-header-group; }
+    .a4 + .a4 { margin-top: 0; break-before: page; }
+  }
+  @media (max-width: 480px) {
+    .datebar .dlabel { display: none; }
+    .row2 { grid-template-columns: 1fr; }
+    .duty { grid-template-columns: 1fr 58px 96px 32px; }
+    .row3 { grid-template-columns: 1fr 1fr; }
+    .o2row { grid-template-columns: auto 1fr; }
+    .o2row input { grid-column: 1 / -1; }
+  }
+  @media (prefers-reduced-motion: no-preference) { .chip, .btn, .ucard { transition: background .15s, border-color .15s; } }
 </style>
 </head>
 <body>
-<header>รายงานยอดประจำวัน <small id="h_unit"></small></header>
-<nav>
-  <button data-tab="counts" class="on">กรอกยอด</button>
-  <button data-tab="problem">รายงานปัญหา</button>
-  <button data-tab="summary" id="tab_summary">สรุป / พิมพ์</button>
-</nav>
-<main>
-  <!-- กรอกยอด -->
-  <section id="counts">
-    <div class="card">
-      <div class="row">
-        <div><label>วันที่</label><input type="date" id="c_date"></div>
-        <div><label>หน่วยงาน</label><select id="c_unit" class="unit-select"></select></div>
-      </div>
-      <label>ผู้รายงาน</label><input id="c_reporter" placeholder="ชื่อ-สกุล">
-      <div id="c_existing" class="info hide">มีข้อมูลของวันนี้แล้ว — บันทึกใหม่จะแทนที่ของเดิม</div>
-      <div id="c_items"></div>
-      <label>หมายเหตุ</label><textarea id="c_note" rows="2"></textarea>
-      <button class="btn" id="c_send">บันทึกยอด</button>
-      <div class="msg" id="c_msg"></div>
-    </div>
-  </section>
 
-  <!-- รายงานปัญหา -->
-  <section id="problem" class="hide">
-    <div class="card">
-      <div class="row">
-        <div><label>วันที่</label><input type="date" id="p_date"></div>
-        <div><label>เวลา</label><input type="time" id="p_time"></div>
-      </div>
-      <div class="row">
-        <div><label>หน่วยงาน</label><select id="p_unit" class="unit-select"></select></div>
-        <div><label>ผู้รายงาน</label><input id="p_reporter"></div>
-      </div>
-      <div class="row">
-        <div><label>ประเภทปัญหา</label><select id="p_type"></select></div>
-        <div><label>ระดับความรุนแรง</label><select id="p_sev"></select></div>
-      </div>
-      <label>รายละเอียด</label><textarea id="p_detail" rows="3"></textarea>
-      <label>การแก้ไขเบื้องต้น</label><textarea id="p_action" rows="2"></textarea>
-      <button class="btn" id="p_send">ส่งรายงานปัญหา</button>
-      <div class="msg" id="p_msg"></div>
+<!-- ===== เข้าสู่ระบบ ===== -->
+<section id="login" class="wrap" hidden>
+  <form class="login-card" id="loginForm">
+    <h1>รายงานยอดประจำวัน</h1>
+    <p>เข้าสู่ระบบด้วยชื่อหน่วยงานและรหัสผ่านของหน่วยงาน</p>
+    <div>
+      <label class="f" for="l_unit">หน่วยงาน</label>
+      <select id="l_unit" required></select>
     </div>
-  </section>
+    <div>
+      <label class="f" for="l_pass">รหัสผ่าน</label>
+      <input id="l_pass" type="password" autocomplete="current-password" required>
+    </div>
+    <button class="btn" id="l_btn" type="submit">เข้าสู่ระบบ</button>
+    <div id="l_msg" class="muted" style="font-size:14px"></div>
+    <div id="l_hint" class="hint" hidden></div>
+  </form>
+</section>
 
-  <!-- สรุป / พิมพ์ (ผู้จัดการ) -->
-  <section id="summary" class="hide">
-    <div class="card noprint">
-      <div class="toolbar">
-        <div><label>วันที่</label><input type="date" id="s_date"></div>
-        <button class="btn sm" id="s_reload">รีเฟรช</button>
-        <button class="btn sm" id="s_print">พิมพ์ A4</button>
-      </div>
+<!-- ===== แอป ===== -->
+<div id="app" hidden>
+  <div class="top"><div class="wrap">
+    <span class="unit-pill" id="t_unit"></span>
+    <div class="title">รายงานยอดประจำวัน<small id="t_sub"></small></div>
+    <button id="t_logout" type="button">ออกจากระบบ</button>
+  </div></div>
+  <nav class="tabs"><div class="wrap" id="tabs"></div></nav>
+  <main class="wrap">
+    <div class="datebar noprint" id="datebar">
+      <button class="iconbtn" id="d_prev" type="button" aria-label="วันก่อนหน้า">‹</button>
+      <input type="date" id="d_date">
+      <button class="iconbtn" id="d_next" type="button" aria-label="วันถัดไป">›</button>
+      <span class="dlabel" id="d_label"></span>
     </div>
-    <div id="report">กำลังโหลด...</div>
-    <div class="card noprint links" style="margin-top:14px">
-      <b>ลิงก์สำหรับแต่ละหน่วยงาน</b> (เปิดแล้วล็อกหน่วยงานให้อัตโนมัติ)
-      <div id="s_links"></div>
-    </div>
-  </section>
-</main>
+    <div id="view"></div>
+  </main>
+  <div class="savebar" id="savebar" hidden><div class="wrap">
+    <span class="msg" id="sb_msg"></span>
+    <button class="btn ghost" id="sb_cancel" type="button">ยกเลิก</button>
+    <button class="btn" id="sb_save" type="button">บันทึกรายงาน</button>
+  </div></div>
+</div>
+<div class="toast" id="toast" hidden></div>
 
 <script>
-let CFG, UNIT_LOCK = '';
-const $ = id => document.getElementById(id);
-const today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
-const thaiDate = d => new Date(d + 'T00:00:00').toLocaleDateString('th-TH', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
-const unitOf = code => CFG.units.find(u => u.code === code);
-
-function showTab(tab) {
-  document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x.dataset.tab === tab));
-  document.querySelectorAll('main section').forEach(s => s.classList.toggle('hide', s.id !== tab));
-  document.querySelector('main').classList.toggle('wide', tab === 'summary');
-  if (tab === 'summary') loadSummary();
+/* ===== เรียกฝั่งเซิร์ฟเวอร์ (Apps Script) ===== */
+function api(fn, ...args) {
+  return new Promise((resolve, reject) => {
+    if (window.google && google.script && google.script.run) {
+      google.script.run.withSuccessHandler(resolve).withFailureHandler(e => reject(e && e.message ? e : new Error(String(e))))[fn](...args);
+    } else if (window.MockAPI) {
+      Promise.resolve().then(() => window.MockAPI[fn](...args)).then(r => resolve(JSON.parse(JSON.stringify(r === undefined ? null : r))), reject);
+    } else reject(new Error('ไม่พบเซิร์ฟเวอร์'));
+  });
 }
-document.querySelectorAll('nav button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
 
-// ?unit=A4 → ล็อกหน่วยงาน ซ่อนหน้าสรุป | ?view=manager → เปิดหน้าสรุป
-google.script.url.getLocation(loc => {
-  const prm = loc.parameter || {};
-  google.script.run.withSuccessHandler(cfg => {
-    CFG = cfg;
-    init(prm);
-  }).getConfig();
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const todayStr = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+const shiftDate = (s, n) => { const d = new Date(s + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+const thaiDate = (s, long) => new Date(s + 'T12:00:00').toLocaleDateString('th-TH', long ? { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' } : { weekday: 'short', day: 'numeric', month: 'short', year: '2-digit' });
+const store = { get(k) { try { return JSON.parse(localStorage.getItem('dr.' + k)); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem('dr.' + k, JSON.stringify(v)); } catch (e) {} } };
+const num = v => (v === '' || v == null || isNaN(v)) ? 0 : Number(v);
+const show = v => (v === '' || v == null) ? '–' : esc(v);
+
+function toast(t) { const el = $('toast'); el.textContent = t; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => el.hidden = true, 2600); }
+
+const S = { token: null, me: null, cfg: null, date: todayStr(), day: {}, staff: [], tab: 'mine', sub: 'patient', viewUnit: null, editing: false, draft: null };
+const unitCfg = code => S.cfg.units.find(u => u.code === code);
+const groupName = key => S.cfg.groups.find(g => g.key === key).name;
+
+/* ===== เริ่มต้น / เข้าสู่ระบบ ===== */
+(async function boot() {
+  S.token = store.get('token');
+  try {
+    if (S.token) { const b = await api('getBoot', S.token); return startApp(b); }
+  } catch (e) { store.set('token', null); }
+  showLogin();
+})();
+
+async function showLogin() {
+  $('app').hidden = true; $('login').hidden = false;
+  if ($('l_unit').options.length) return;
+  const info = await api('getLoginInfo');
+  $('l_unit').innerHTML = info.groups.map(g => `<optgroup label="${esc(g.name)}">${g.units.map(u => `<option>${esc(u)}</option>`).join('')}</optgroup>`).join('')
+    + '<optgroup label="ผู้ดูแลระบบ"><option value="ADMIN">ผู้จัดการ / Admin</option></optgroup>';
+  const last = store.get('lastUnit'); if (last) $('l_unit').value = last;
+  if (info.hint) { $('l_hint').hidden = false; $('l_hint').textContent = info.hint; }
+}
+
+$('loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  $('l_btn').disabled = true; $('l_msg').textContent = 'กำลังตรวจสอบ...';
+  try {
+    const r = await api('login', $('l_unit').value, $('l_pass').value);
+    store.set('token', r.token); store.set('lastUnit', $('l_unit').value);
+    S.token = r.token; $('l_pass').value = ''; $('l_msg').textContent = '';
+    startApp(await api('getBoot', S.token));
+  } catch (err) { $('l_msg').textContent = err.message; }
+  $('l_btn').disabled = false;
 });
 
-function init(prm) {
-  const optgroups = CFG.groups.map(g =>
-    `<optgroup label="${esc(g.name)}">` +
-    CFG.units.filter(u => u.group === g.key).map(u => `<option value="${esc(u.code)}">${esc(u.code)}</option>`).join('') +
-    '</optgroup>').join('');
-  document.querySelectorAll('.unit-select').forEach(s => s.innerHTML = optgroups);
-  $('p_type').innerHTML = CFG.problemTypes.map(t => `<option>${esc(t)}</option>`).join('');
-  $('p_sev').innerHTML = CFG.severity.map(s => `<option>${s}</option>`).join('');
-  $('c_date').value = $('p_date').value = $('s_date').value = today();
+$('t_logout').onclick = async () => {
+  try { await api('logout', S.token); } catch (e) {}
+  store.set('token', null); S.token = null; showLogin();
+};
 
-  let saved = {};
-  try { saved = JSON.parse(localStorage.getItem('daily-report') || '{}'); } catch (e) {}
-  $('c_reporter').value = $('p_reporter').value = saved.reporter || '';
+async function startApp(b) {
+  S.me = b.me; S.cfg = b.config;
+  $('login').hidden = true; $('app').hidden = false;
+  const admin = S.me.role === 'admin';
+  $('t_unit').textContent = admin ? 'ADMIN' : S.me.unit;
+  $('t_sub').textContent = admin ? 'ผู้จัดการ · ดูได้ทุกหน่วยงาน' : groupName(unitCfg(S.me.unit).group);
+  const tabs = admin
+    ? [['all', 'ทุกหน่วยงาน'], ['print', 'สรุป / พิมพ์ A4'], ['staff', 'ทะเบียนเจ้าหน้าที่']]
+    : [['mine', 'หน่วยงานของฉัน'], ['all', 'ทุกหน่วยงาน'], ['staff', 'ทะเบียนเจ้าหน้าที่']];
+  $('tabs').innerHTML = tabs.map(([k, t]) => `<button type="button" data-tab="${k}">${t}</button>`).join('');
+  $('tabs').querySelectorAll('button').forEach(btn => btn.onclick = () => go(btn.dataset.tab));
+  S.tab = tabs[0][0];
+  await loadStaff();
+  await loadDay();
+}
 
-  if (prm.unit && unitOf(prm.unit)) {
-    UNIT_LOCK = prm.unit;
-    document.querySelectorAll('.unit-select').forEach(s => { s.value = UNIT_LOCK; s.disabled = true; });
-    $('h_unit').textContent = '· ' + UNIT_LOCK;
-    $('tab_summary').classList.add('hide');
-  } else if (saved.unit && unitOf(saved.unit)) {
-    document.querySelectorAll('.unit-select').forEach(s => s.value = saved.unit);
+$('d_date').onchange = () => { if ($('d_date').value) { S.date = $('d_date').value; loadDay(); } };
+$('d_prev').onclick = () => { S.date = shiftDate(S.date, -1); loadDay(); };
+$('d_next').onclick = () => { S.date = shiftDate(S.date, 1); loadDay(); };
+
+async function loadDay() {
+  if (S.editing && S.dirty) { $('d_date').value = S.date = S.draft.date; toast('บันทึกหรือยกเลิกรายงานก่อนเปลี่ยนวันที่'); return; }
+  S.editing = false;
+  $('d_date').value = S.date; $('d_label').textContent = thaiDate(S.date, true);
+  $('view').innerHTML = '<div class="card muted">กำลังโหลด...</div>';
+  try { S.day = await api('getDay', S.token, S.date); } catch (e) { return handleErr(e); }
+  render();
+}
+async function loadStaff() { try { S.staff = await api('listStaff', S.token); } catch (e) { handleErr(e); } }
+
+function handleErr(e) {
+  if (/เข้าสู่ระบบ/.test(e.message)) { store.set('token', null); showLogin(); }
+  toast(e.message);
+}
+
+function go(tab, unit) {
+  if (S.editing && S.dirty && !leaveGuard()) return;
+  S.editing = false; S.dirty = false;
+  S.tab = tab; S.viewUnit = unit || null;
+  render(); window.scrollTo(0, 0);
+}
+// ไม่มี confirm() ในบางเบราว์เซอร์ฝังตัว → กดซ้ำเพื่อยืนยัน
+function leaveGuard() {
+  if (S.leaveArmed) { S.leaveArmed = false; return true; }
+  S.leaveArmed = true; toast('ยังไม่ได้บันทึก — กดอีกครั้งเพื่อออกโดยไม่บันทึก');
+  setTimeout(() => S.leaveArmed = false, 3000); return false;
+}
+
+function render() {
+  $('tabs').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tab === S.tab));
+  $('savebar').hidden = !S.editing;
+  $('datebar').hidden = S.tab === 'staff';
+  const v = $('view');
+  if (S.tab === 'mine') v.innerHTML = S.editing ? '' : renderMine();
+  else if (S.tab === 'all') v.innerHTML = S.viewUnit ? renderUnitDetail(S.viewUnit) : renderAll();
+  else if (S.tab === 'print') v.innerHTML = renderPrint();
+  else if (S.tab === 'staff') v.innerHTML = renderStaff();
+  if (S.tab === 'mine' && S.editing) mountForm();
+  bindView();
+}
+
+/* ===== หน่วยงานของฉัน ===== */
+function renderMine() {
+  const rep = S.day.reports[S.me.unit];
+  const u = unitCfg(S.me.unit);
+  if (!rep) {
+    return `${u.form.draft ? draftNote() : ''}<div class="card"><h3>ยังไม่ได้ส่งรายงานของ ${esc(thaiDate(S.date))}</h3>
+      <p class="muted" style="margin:0 0 12px">กรอกยอดผู้ป่วย อัตรากำลัง และเหตุการณ์ผิดปกติของหน่วยงาน ${esc(u.code)}</p>
+      <button class="btn" data-act="edit" type="button">เริ่มกรอกรายงาน</button></div>`;
   }
-
-  $('s_links').innerHTML = CFG.units.map(u =>
-    `<a href="${esc(CFG.url)}?unit=${encodeURIComponent(u.code)}" target="_blank">${esc(u.code)}</a>`).join('');
-
-  renderItems();
-  if (prm.view === 'manager' && !UNIT_LOCK) showTab('summary');
+  return `<div class="meta">ส่งโดย ${esc(rep.reporter)} · แก้ไขล่าสุด ${esc(rep.updatedAt)}</div>
+    <div style="margin-bottom:12px"><button class="btn" data-act="edit" type="button">แก้ไขรายงาน</button></div>
+    ${renderReportView(u, rep)}`;
 }
+const draftNote = () => '<div class="note">แบบฟอร์มของหน่วยงานนี้เป็นตัวอย่าง รอปรับตามรูปแบบรายงานจริง</div>';
 
-function remember(unit, reporter) {
-  try { localStorage.setItem('daily-report', JSON.stringify({ unit, reporter })); } catch (e) {}
-}
-
-// ===== กรอกยอด =====
-$('c_unit').onchange = () => { $('p_unit').value = $('c_unit').value; renderItems(); };
-$('c_date').onchange = renderItems;
-
-function renderItems() {
-  const u = unitOf($('c_unit').value);
-  $('c_items').innerHTML = u.items.map(it =>
-    `<div class="item"><span>${esc(it.label)} <small>(${esc(it.unit)})</small></span>
-     <input type="number" min="0" inputmode="numeric" data-key="${esc(it.key)}" value="0"></div>`).join('');
-  $('c_existing').classList.add('hide');
-  $('c_note').value = '';
-  $('c_msg').textContent = '';
-  const date = $('c_date').value, code = u.code;
-  google.script.run.withSuccessHandler(rep => {
-    if (!rep || $('c_date').value !== date || $('c_unit').value !== code) return;
-    $('c_existing').classList.remove('hide');
-    document.querySelectorAll('#c_items input').forEach(i => { if (i.dataset.key in rep.values) i.value = rep.values[i.dataset.key]; });
-    $('c_note').value = rep.note || '';
-  }).getUnitReport(date, code);
-}
-
-function send(btn, msg, fn, payload, onOk) {
-  btn.disabled = true; msg.textContent = 'กำลังบันทึก...'; msg.style.color = '';
-  google.script.run
-    .withSuccessHandler(() => { btn.disabled = false; msg.textContent = '✓ บันทึกเรียบร้อย'; msg.style.color = 'green'; onOk && onOk(); })
-    .withFailureHandler(e => { btn.disabled = false; msg.textContent = e.message; msg.style.color = 'var(--warn)'; })[fn](payload);
-}
-
-$('c_send').onclick = () => {
-  const values = {};
-  document.querySelectorAll('#c_items input').forEach(i => values[i.dataset.key] = i.value);
-  remember($('c_unit').value, $('c_reporter').value.trim());
-  send($('c_send'), $('c_msg'), 'submitCounts', {
-    date: $('c_date').value, unit: $('c_unit').value, reporter: $('c_reporter').value.trim(),
-    note: $('c_note').value.trim(), values
-  }, () => $('c_existing').classList.remove('hide'));
-};
-
-// ===== รายงานปัญหา =====
-$('p_send').onclick = () => {
-  remember($('p_unit').value, $('p_reporter').value.trim());
-  send($('p_send'), $('p_msg'), 'submitProblem', {
-    date: $('p_date').value, time: $('p_time').value, unit: $('p_unit').value,
-    reporter: $('p_reporter').value.trim(), type: $('p_type').value, severity: $('p_sev').value,
-    detail: $('p_detail').value.trim(), action: $('p_action').value.trim()
-  }, () => { $('p_detail').value = $('p_action').value = $('p_time').value = ''; });
-};
-
-// ===== สรุป / พิมพ์ =====
-$('s_date').onchange = loadSummary;
-$('s_reload').onclick = loadSummary;
-$('s_print').onclick = () => window.print();
-
-function loadSummary() {
-  const date = $('s_date').value;
-  $('report').innerHTML = 'กำลังโหลด...';
-  google.script.run
-    .withSuccessHandler(data => { if ($('s_date').value === date) $('report').innerHTML = renderReport(date, data); })
-    .withFailureHandler(e => { $('report').textContent = e.message; })
-    .getSummary(date);
-}
-
-function renderReport(date, data) {
-  const reported = CFG.units.filter(u => data.reports[u.code]);
-  const missing = CFG.units.filter(u => !data.reports[u.code]);
-  let html = `<h1>รายงานยอดประจำวัน</h1><div class="date">${thaiDate(date)}</div>
-    <div class="status">รายงานแล้ว ${reported.length}/${CFG.units.length} หน่วยงาน` +
-    (missing.length ? ` · <span class="miss">ยังไม่รายงาน: ${missing.map(u => esc(u.code)).join(', ')}</span>` : '') + '</div>';
-
-  CFG.groups.forEach(g => {
-    html += `<h2>${esc(g.name)}</h2>`;
-    // หน่วยงานที่รายการเหมือนกันอยู่ตารางเดียวกัน
-    const sets = [];
-    CFG.units.filter(u => u.group === g.key).forEach(u => {
-      const sig = u.items.map(i => i.key).join(',');
-      let s = sets.find(x => x.sig === sig);
-      if (!s) sets.push(s = { sig, items: u.items, units: [] });
-      s.units.push(u);
+/* ===== ทุกหน่วยงาน ===== */
+function renderAll() {
+  const reps = S.day.reports, total = S.cfg.units.length;
+  const done = S.cfg.units.filter(u => reps[u.code]).length;
+  let html = `<div class="card"><h3>ส่งรายงานแล้ว <span class="num">${done}/${total}</span> หน่วยงาน</h3>
+    <div class="progress"><i style="width:${done / total * 100}%"></i></div>
+    <div class="muted" style="font-size:13px">แตะที่หน่วยงานเพื่อดูรายละเอียด${S.me.role === 'admin' ? '' : ' · แก้ไขได้เฉพาะหน่วยงานของตนเอง'}</div></div>`;
+  S.cfg.groups.forEach(g => {
+    html += `<h2 class="grp">${esc(g.name)}</h2><div class="ulist">`;
+    S.cfg.units.filter(u => u.group === g.key).forEach(u => {
+      const r = reps[u.code];
+      const incN = r ? (r.incidents || []).length : 0;
+      html += `<button type="button" class="ucard${u.code === S.me.unit ? ' mine' : ''}" data-unit="${esc(u.code)}">
+        <span class="code">${esc(u.code)} ${r ? '<span class="pill ok">ส่งแล้ว</span>' : '<span class="pill no">ยังไม่ส่ง</span>'}</span>
+        <span class="big num">${r ? esc(headline(u, r)) : '&nbsp;'}</span>
+        ${incN ? `<span class="pill warn">เหตุการณ์ผิดปกติ ${incN}</span>` : ''}</button>`;
     });
-    sets.forEach(s => {
-      if (sets.length > 1 && s.units.length === 1) html += `<h3>${esc(s.units[0].code)}</h3>`;
-      html += renderTable(s.items, s.units, data.reports);
-    });
+    html += '</div>';
   });
+  return html;
+}
+// ตัวเลขหลักบนการ์ด: คงพยาบาล หรือช่องแรก
+function headline(u, r) {
+  const f = allFields(u).find(f => f.calc) || allFields(u).find(f => !f.type);
+  if (!f) return '';
+  return `${f.label} ${fieldValue(u, r.values, f)}`;
+}
+function renderUnitDetail(code) {
+  const u = unitCfg(code), r = S.day.reports[code];
+  return `<div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+      <button class="btn ghost sm" data-act="back" type="button">‹ ทุกหน่วยงาน</button>
+      <b style="font-size:18px">${esc(code)}</b><span class="muted">${esc(groupName(u.group))}</span></div>
+    ${r ? `<div class="meta">ส่งโดย ${esc(r.reporter)} · แก้ไขล่าสุด ${esc(r.updatedAt)}</div>${renderReportView(u, r)}`
+        : '<div class="card muted">หน่วยงานนี้ยังไม่ส่งรายงานของวันนี้</div>'}`;
+}
 
-  html += '<h2>ปัญหา / เหตุการณ์ผิดปกติ</h2>';
-  html += data.problems.length
-    ? '<table><thead><tr><th>หน่วยงาน</th><th>เวลา</th><th>ประเภท</th><th>ระดับ</th><th>รายละเอียด</th><th>การแก้ไขเบื้องต้น</th></tr></thead>' +
-      data.problems.map(p => `<tr><td>${esc(p.unit)}</td><td class="n">${esc(p.time)}</td><td>${esc(p.type)}</td>
-        <td class="n">${esc(p.severity)}</td><td>${esc(p.detail)}</td><td>${esc(p.action)}</td></tr>`).join('') + '</table>'
-    : '<div>ไม่มีรายงานปัญหา</div>';
+/* ===== ค่าที่คำนวณ ===== */
+const allFields = u => u.form.sections.flatMap(s => s.type === 'grid' ? [] : s.fields);
+function fieldValue(u, vals, f) {
+  if (f.calc) return f.calc.plus.reduce((a, k) => a + num(vals[k]), 0) - f.calc.minus.reduce((a, k) => a + num(vals[k]), 0);
+  return vals[f.key];
+}
+const sectionSum = (s, vals) => s.fields.filter(f => !f.type && !f.calc).reduce((a, f) => a + num(vals[f.key]), 0);
+const roleCounts = staff => S.cfg.roles.map(r => [r, staff.filter(s => s.role === r && s.tag !== 'ออกหน่วย').length]).filter(x => x[1]);
+// ยอดมาตรฐาน / ประเภทผู้ป่วย (สำเนาเดียวกับ Schema.gs)
+function fieldNum(form, vals, key) {
+  for (const s of form.sections) for (const f of (s.fields || [])) if (f.key === key && f.calc) return f.calc.plus.reduce((a, k) => a + num(vals[k]), 0) - f.calc.minus.reduce((a, k) => a + num(vals[k]), 0);
+  return num(vals[key]);
+}
+function stdValues(u, vals) {
+  const out = {};
+  Object.entries(u.form.std || {}).forEach(([k, spec]) => { out[k] = (Array.isArray(spec) ? spec : [spec]).reduce((a, key) => a + fieldNum(u.form, vals || {}, key), 0); });
+  return out;
+}
+function categoryValues(u, vals) {
+  const out = {};
+  u.form.sections.filter(s => s.categories).forEach(s => s.fields.forEach(f => {
+    const n = num((vals || {})[f.key]), c = S.cfg.categories[f.key] || f.label;
+    if (n) out[c] = (out[c] || 0) + n;
+  }));
+  return out;
+}
+const vitals = i => [['BP', i.bp, 'mmHg'], ['PR', i.pr, 'ครั้ง/min'], ['RR', i.rr, 'ครั้ง/min'], ['T', i.temp, '°C'], ['O2 sat', i.spo2, '%']].filter(x => x[1] !== '' && x[1] != null);
+const o2Text = i => i.o2mode ? (i.o2mode === 'Room air' ? 'Room air' : `${i.o2mode}${i.o2flow ? ' ' + i.o2flow : ''}`) : '';
 
-  html += `<div class="sign"><div>ลงชื่อ ......................................... ผู้สรุปรายงาน<br>
-    (.........................................)<br>พิมพ์เมื่อ ${new Date().toLocaleString('th-TH')}</div></div>`;
+/* ===== แท็บย่อยของหน่วยงาน ===== */
+const SUBS = [['patient', 'รายงานผู้ป่วย'], ['staff', 'อัตรากำลัง'], ['incident', 'เหตุการณ์ผิดปกติ']];
+function subTabs(r) {
+  const staffN = r ? roleCounts(r.staff || []).map(([k, n]) => k + ' ' + n).join(' ') : '';
+  const incN = r ? (r.incidents || []).length : 0;
+  const badge = { staff: staffN, incident: incN ? String(incN) : '' };
+  return `<div class="seg" role="tablist">${SUBS.map(([k, t]) => `<button type="button" role="tab" data-sub="${k}" class="${S.sub === k ? 'on' : ''}${k === 'incident' && incN ? ' alert' : ''}">${t}${badge[k] ? `<small>${esc(badge[k])}</small>` : ''}</button>`).join('')}</div>`;
+}
+
+/* ===== มุมมองอ่านอย่างเดียว ===== */
+function renderReportView(u, r) {
+  const v = r.values || {};
+  let body = '';
+  if (S.sub === 'patient') {
+    const cards = u.form.sections.map(s => {
+      if (s.type === 'grid') {
+        return `<div class="card"><h3>${esc(s.title)}</h3><div class="grid-scroll"><table class="g"><tr><th></th>${s.cols.map(c => `<th>${esc(c[1])}</th>`).join('')}<th>รวม</th></tr>
+          ${s.rows.map(rw => { const vals = s.cols.map(c => v[rw[0] + '_' + c[0]]); return `<tr><td>${esc(rw[1])}</td>${vals.map(x => `<td class="num">${show(x)}</td>`).join('')}<td class="num"><b>${vals.reduce((a, x) => a + num(x), 0)}</b></td></tr>`; }).join('')}</table></div></div>`;
+      }
+      const rows = s.fields.map(f => {
+        const val = fieldValue(u, v, f);
+        if (f.type === 'text') return `<div class="full"><span class="muted">${esc(f.label)}</span><br><span class="pre">${show(val)}</span></div>`;
+        let shown = show(val);
+        if (f.pctOf && num(v[f.pctOf])) shown += ` <span class="muted" style="font-weight:400">/${num(v[f.pctOf])} = ${(num(val) / num(v[f.pctOf]) * 100).toFixed(2)}%</span>`;
+        return `<div>${esc(f.label)}</div><div class="v">${shown}</div>`;
+      }).join('');
+      const sum = s.sum ? `<div class="total">${esc(s.sum)}</div><div class="total v">${sectionSum(s, v)}</div>` : '';
+      return `<div class="card"><h3>${esc(s.title)}</h3><div class="kv">${rows}${sum}</div></div>`;
+    });
+    if (u.form.total) cards.push(`<div class="card"><div class="kv"><div><b>${esc(u.form.total)}</b></div><div class="v">${u.form.sections.filter(s => s.sum).reduce((a, s) => a + sectionSum(s, v), 0)}</div></div></div>`);
+    if (r.notes) cards.push(`<div class="card"><h3>แจ้งเพื่อทราบ</h3><div class="pre">${esc(r.notes)}</div></div>`);
+    body = `<div class="view-grid">${cards.join('')}</div>`;
+  } else if (S.sub === 'staff') {
+    const staff = r.staff || [], rd = r.reduce || {};
+    body = `<div class="view-grid"><div class="card"><h3>อัตรากำลัง <span class="sub">เวร ${esc(r.shift || '-')}</span></h3>
+      <div class="counts">${roleCounts(staff).map(([k, n]) => `<span>${esc(k)} ${n}</span>`).join('') || '<span class="muted">ไม่ได้ระบุ</span>'}</div>
+      ${staff.map(s => `<div style="font-size:14px"><b style="display:inline-block;min-width:40px">${esc(s.role)}</b>${esc(s.name)}${s.tag ? ` <span class="pill plain">${esc(s.tag)}${s.tagNote ? ' ' + esc(s.tagNote) : ''}</span>` : ''}</div>`).join('')}</div>
+      <div class="card"><h3>ลดอัตรากำลัง</h3><div class="kv">
+        <div>RN</div><div class="v">${num(rd.RN)} ชม.</div><div>PN</div><div class="v">${num(rd.PN)} ชม.</div><div>NA</div><div class="v">${num(rd.NA)} ชม.</div>
+        <div class="total">รวม</div><div class="total v">${num(rd.RN) + num(rd.PN) + num(rd.NA)} ชม.</div></div>
+        ${rd.detail ? `<div class="pre muted" style="margin-top:6px;font-size:14px">${esc(rd.detail)}</div>` : ''}</div></div>`;
+  } else {
+    const incs = r.incidents || [];
+    body = incs.length ? incs.map((i, n) => `<div class="card inc-view">
+        <div class="inc-head"><span>${n + 1}. ${esc(i.type)}</span><span class="pill ${i.severity && i.severity !== '-' ? 'warn' : 'plain'}">ระดับ ${esc(i.severity || '-')}</span></div>
+        <div class="pt">${i.patient ? `<b>${esc(i.patient)}</b>` : '<span class="muted">ไม่ระบุชื่อผู้ป่วย</span>'}${i.age ? ` · อายุ ${esc(i.age)} ปี` : ''}${i.hn ? ` · HN ${esc(i.hn)}` : ''}</div>
+        <div class="muted" style="font-size:14px">${i.time ? `มารับบริการ ${esc(i.time)} น.` : ''}${i.time && i.doctor ? ' · ' : ''}${i.doctor ? `แพทย์เจ้าของไข้ ${esc(i.doctor)}` : ''}</div>
+        ${vitals(i).length || i.o2mode ? `<div class="vsline">${vitals(i).map(([k, x, unit]) => `<span><small>${k}</small> ${esc(x)} <small>${unit}</small></span>`).join('')}${i.o2mode ? `<span><small>O2</small> ${esc(o2Text(i))}</span>` : ''}</div>` : ''}
+        <div class="pre" style="margin-top:6px">${esc(i.detail)}</div>
+        ${i.action ? `<div class="muted pre" style="font-size:14px;margin-top:4px">การแก้ไขเบื้องต้น: ${esc(i.action)}</div>` : ''}</div>`).join('')
+      : '<div class="card muted">ไม่มีเหตุการณ์ผิดปกติ</div>';
+  }
+  return subTabs(r) + body;
+}
+
+/* ===== แบบฟอร์ม ===== */
+function startEdit() {
+  const rep = S.day.reports[S.me.unit];
+  S.draft = rep ? JSON.parse(JSON.stringify(rep)) : { date: S.date, unit: S.me.unit, values: {}, staff: [], shift: 'Day', reduce: {}, notes: '', incidents: [], reporter: store.get('reporter') || '' };
+  S.draft.date = S.date;
+  S.editing = true; S.dirty = false;
+  render(); window.scrollTo(0, 0);
+}
+
+function mountForm() {
+  const u = unitCfg(S.me.unit), d = S.draft, v = d.values;
+  const numInput = (key, extra) => `<input type="number" inputmode="numeric" min="0" step="1" data-v="${esc(key)}" value="${esc(v[key] ?? '')}" placeholder="–" ${extra || ''}>`;
+  let pat = (u.form.draft ? draftNote() : '') + `<div class="card"><div class="row2">
+      <div><label class="f" for="fm_reporter">ผู้รายงาน</label><input id="fm_reporter" value="${esc(d.reporter)}" placeholder="ชื่อผู้ส่งรายงาน"></div>
+      <div><label class="f">วันที่</label><input value="${esc(thaiDate(S.date, true))}" disabled></div></div></div>`;
+  u.form.sections.forEach((s, si) => {
+    pat += `<div class="card"><h3>${esc(s.title)}</h3>`;
+    if (s.type === 'grid') {
+      pat += `<div class="grid-scroll"><table class="g"><tr><th></th>${s.cols.map(c => `<th>${esc(c[1])}</th>`).join('')}<th>รวม</th></tr>
+        ${s.rows.map(rw => `<tr><td>${esc(rw[1])}</td>${s.cols.map(c => `<td>${numInput(rw[0] + '_' + c[0])}</td>`).join('')}<td class="num"><b data-rowsum="${si}:${esc(rw[0])}">0</b></td></tr>`).join('')}</table></div>`;
+    } else {
+      s.fields.forEach(f => {
+        if (f.type === 'text') pat += `<div class="frow text"><label class="lab" for="v_${esc(f.key)}">${esc(f.label)}</label><textarea id="v_${esc(f.key)}" data-v="${esc(f.key)}" rows="2">${esc(v[f.key] ?? '')}</textarea></div>`;
+        else if (f.type === 'time') pat += `<div class="frow"><span class="lab">${esc(f.label)}</span><input type="time" data-v="${esc(f.key)}" value="${esc(v[f.key] ?? '')}"></div>`;
+        else if (f.calc) pat += `<div class="frow"><span class="lab"><b>${esc(f.label)}</b> <small>(คำนวณอัตโนมัติ)</small></span><div class="calc num" data-calc="${esc(f.key)}">0</div></div>`;
+        else pat += `<div class="frow"><span class="lab">${esc(f.label)} <small>${esc(f.unit)}</small>${f.pctOf ? ` <small data-pct="${esc(f.key)}"></small>` : ''}</span>${numInput(f.key)}</div>`;
+      });
+      if (s.sum) pat += `<div class="sumline"><span>${esc(s.sum)}</span><span class="num" data-sum="${si}">0</span></div>`;
+    }
+    pat += '</div>';
+  });
+  if (u.form.total) pat += `<div class="card"><div class="sumline" style="border:0;margin:0;padding:0"><span>${esc(u.form.total)}</span><span class="num" id="fm_total">0</span></div></div>`;
+  pat += `<div class="card"><h3>แจ้งเพื่อทราบ</h3><textarea id="fm_notes" rows="3" placeholder="เช่น พรุ่งนี้แพทย์งดออกตรวจ / ไม่มีเอกสารค้างส่ง">${esc(d.notes || '')}</textarea></div>`;
+
+  const rd = d.reduce || {};
+  const staff = `<div class="card"><h3>อัตรากำลัง</h3>
+      <div class="row2"><div><label class="f" for="fm_shift">เวร</label><select id="fm_shift">${S.cfg.shifts.map(x => `<option${x === d.shift ? ' selected' : ''}>${x}</option>`).join('')}</select></div></div>
+      <div id="fm_staffbody"></div></div>
+    <div class="card"><h3>ลดอัตรากำลัง <span class="sub">(ชั่วโมง)</span></h3>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+        ${['RN', 'PN', 'NA'].map(k => `<div><label class="f" for="rd_${k}">${k}</label><input id="rd_${k}" type="number" inputmode="decimal" min="0" step="0.5" value="${esc(rd[k] ?? '')}" placeholder="0"></div>`).join('')}
+      </div>
+      <label class="f" for="rd_detail">รายละเอียด</label><textarea id="rd_detail" rows="2" placeholder="เช่น RN 15-19 น. / NA ขาด 1 คน 9-17 น.">${esc(rd.detail || '')}</textarea></div>`;
+
+  const inc = `<div id="fm_incs"></div><button type="button" class="addinc" id="fm_addinc">+ เพิ่มเหตุการณ์ผิดปกติ</button>`;
+
+  $('view').innerHTML = `<div id="fm_tabs"></div>
+    <div data-panel="patient">${pat}</div><div data-panel="staff">${staff}</div><div data-panel="incident">${inc}</div>`;
+  renderStaffPicker(); renderIncidents(); recalc(); showSub();
+  $('fm_addinc').onclick = () => {
+    d.incidents.push({ type: S.cfg.problemTypes[0], severity: '-', patient: '', age: '', hn: '', time: '', doctor: '', bp: '', pr: '', rr: '', temp: '', spo2: '', o2mode: 'Room air', o2flow: '', detail: '', action: '' });
+    S.dirty = true; renderIncidents(); showSub();
+    const cards = $('fm_incs').querySelectorAll('.inc'); cards[cards.length - 1].scrollIntoView({ block: 'start', behavior: 'smooth' });
+  };
+  $('sb_msg').textContent = S.day.reports[S.me.unit] ? 'กำลังแก้ไขรายงานที่ส่งแล้ว' : 'ยังไม่ได้บันทึก';
+}
+function showSub() {
+  $('fm_tabs').innerHTML = subTabs(S.draft);
+  document.querySelectorAll('[data-panel]').forEach(p => p.hidden = p.dataset.panel !== S.sub);
+  $('fm_tabs').querySelectorAll('[data-sub]').forEach(b => b.onclick = () => { S.sub = b.dataset.sub; showSub(); window.scrollTo(0, 0); });
+}
+
+$('view').addEventListener('input', e => { if (S.editing && S.tab === 'mine') onFormInput(e); });
+function onFormInput(e) {
+  const t = e.target, d = S.draft;
+  S.dirty = true;
+  if (t.dataset.v) { d.values[t.dataset.v] = t.type === 'number' ? (t.value === '' ? '' : Number(t.value)) : t.value; recalc(); }
+  else if (t.id === 'fm_reporter') d.reporter = t.value;
+  else if (t.id === 'fm_shift') d.shift = t.value;
+  else if (t.id.startsWith('rd_')) { d.reduce = d.reduce || {}; d.reduce[t.id.slice(3)] = t.id === 'rd_detail' ? t.value : (t.value === '' ? '' : Number(t.value)); }
+  else if (t.id === 'fm_notes') d.notes = t.value;
+  else if (t.dataset.inc) {
+    const [i, k] = t.dataset.inc.split(':'); d.incidents[i][k] = t.value;
+    if (k === 'o2mode') { const box = document.querySelector(`[data-o2flow="${i}"]`); box.hidden = t.value === 'Room air'; }
+  }
+  else if (t.dataset.duty) { const [i, k] = t.dataset.duty.split(':'); d.staff[i][k] = t.value; if (k === 'tag' || k === 'role') { renderStaffPicker(); showSub(); } }
+}
+
+function recalc() {
+  const u = unitCfg(S.me.unit), v = S.draft.values;
+  u.form.sections.forEach((s, si) => {
+    if (s.type === 'grid') s.rows.forEach(rw => { const el = document.querySelector(`[data-rowsum="${si}:${rw[0]}"]`); if (el) el.textContent = s.cols.reduce((a, c) => a + num(v[rw[0] + '_' + c[0]]), 0); });
+    else {
+      s.fields.forEach(f => {
+        if (f.calc) document.querySelector(`[data-calc="${f.key}"]`).textContent = fieldValue(u, v, f);
+        if (f.pctOf) { const el = document.querySelector(`[data-pct="${f.key}"]`); el.textContent = num(v[f.pctOf]) ? `= ${(num(v[f.key]) / num(v[f.pctOf]) * 100).toFixed(2)}%` : ''; }
+      });
+      if (s.sum) document.querySelector(`[data-sum="${si}"]`).textContent = sectionSum(s, v);
+    }
+  });
+  if (u.form.total) $('fm_total').textContent = u.form.sections.filter(s => s.sum).reduce((a, s) => a + sectionSum(s, v), 0);
+}
+
+/* อัตรากำลัง: เลือกชื่อจาก Drop down หรือพิมพ์ชื่อใหม่ */
+function renderStaffPicker() {
+  const d = S.draft, unit = S.me.unit;
+  const chosen = new Set(d.staff.map(s => s.name));
+  const mine = S.staff.filter(s => s.unit === unit && !chosen.has(s.name));
+  const others = S.staff.filter(s => s.unit !== unit && !chosen.has(s.name));
+  const opt = s => `<option value="${esc(s.id)}">${esc(s.name)} (${esc(s.role)}${s.unit !== unit ? ' · ' + esc(s.unit) : ''})</option>`;
+  $('fm_staffbody').innerHTML = `
+    <label class="f" for="ns_pick">เพิ่มผู้ปฏิบัติงานเวรนี้</label>
+    <select id="ns_pick">
+      <option value="">— เลือกชื่อเจ้าหน้าที่ —</option>
+      <optgroup label="ทะเบียน ${esc(unit)}">${mine.map(opt).join('')}</optgroup>
+      ${others.length ? `<optgroup label="หน่วยงานอื่น (มาช่วย)">${others.map(opt).join('')}</optgroup>` : ''}
+      <option value="__new">＋ พิมพ์ชื่อใหม่ (ไม่มีในรายการ)</option>
+    </select>
+    <div class="addrow" id="ns_newrow" hidden>
+      <input id="ns_name" placeholder="ชื่อ-สกุล">
+      <select id="ns_role">${S.cfg.roles.map(r => `<option>${esc(r)}</option>`).join('')}</select>
+      <button type="button" class="btn sm" id="ns_add">+ เพิ่ม</button>
+    </div>
+    <div class="muted" style="font-size:12px;margin-top:4px">ชื่อใหม่จะถูกเพิ่มเข้าทะเบียน ${esc(unit)} อัตโนมัติ · แก้ไข/ลบรายชื่อได้ที่แท็บ "ทะเบียนเจ้าหน้าที่"</div>
+    <div class="counts">${roleCounts(d.staff).map(([k, n]) => `<span>${esc(k)} ${n}</span>`).join('')}</div>
+    ${d.staff.map((s, i) => `<div class="duty"><span class="nm">${esc(s.name)}</span>
+      <select data-duty="${i}:role" aria-label="ตำแหน่ง">${S.cfg.roles.map(r => `<option${r === s.role ? ' selected' : ''}>${esc(r)}</option>`).join('')}</select>
+      <select data-duty="${i}:tag" aria-label="หน้าที่"><option value="">หน้าที่ –</option>${S.cfg.dutyTags.map(t => `<option${t === s.tag ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>
+      <button type="button" class="x" data-unpick="${i}" aria-label="เอาออก">×</button>
+      ${s.tag === 'ออกหน่วย' ? `<input style="grid-column:1/-1" data-duty="${i}:tagNote" value="${esc(s.tagNote || '')}" placeholder="ออกไปหน่วยงานใด เช่น C3">` : ''}</div>`).join('')
+      || '<p class="muted" style="margin:6px 0 0">ยังไม่ได้เลือกผู้ปฏิบัติงาน</p>'}`;
+
+  $('ns_pick').onchange = () => {
+    const val = $('ns_pick').value;
+    if (val === '__new') { $('ns_newrow').hidden = false; $('ns_name').focus(); return; }
+    const s = S.staff.find(x => String(x.id) === val);
+    if (s) { d.staff.push({ name: s.name, role: s.role, tag: '' }); S.dirty = true; renderStaffPicker(); showSub(); }
+  };
+  $('fm_staffbody').querySelectorAll('[data-unpick]').forEach(b => b.onclick = () => { d.staff.splice(+b.dataset.unpick, 1); S.dirty = true; renderStaffPicker(); showSub(); });
+  $('ns_add').onclick = async () => {
+    const name = $('ns_name').value.trim(), role = $('ns_role').value;
+    if (!name) return toast('พิมพ์ชื่อก่อน');
+    if (d.staff.some(s => s.name === name)) return toast('มีชื่อนี้ในเวรแล้ว');
+    d.staff.push({ name, role, tag: '' }); S.dirty = true;
+    if (!S.staff.some(s => s.unit === unit && s.name === name)) {
+      try { await api('saveStaff', S.token, { unit, name, role }); await loadStaff(); toast('เพิ่ม ' + name + ' เข้าทะเบียนแล้ว'); } catch (e) { toast(e.message); }
+    }
+    renderStaffPicker(); showSub();
+  };
+}
+
+/* เหตุการณ์ผิดปกติ: ข้อมูลผู้ป่วย → V/S → รายละเอียด */
+function renderIncidents() {
+  const d = S.draft;
+  const vin = (i, k, label, unit, mode, ph) => `<label class="vs"><span>${label}</span><input data-inc="${i}:${k}" value="${esc(d.incidents[i][k] || '')}" inputmode="${mode}" placeholder="${ph || ''}"><small>${unit}</small></label>`;
+  $('fm_incs').innerHTML = d.incidents.map((x, i) => `<div class="card inc">
+    <div class="inc-head"><span>เหตุการณ์ที่ ${i + 1}</span><button type="button" class="x" data-delinc="${i}" aria-label="ลบเหตุการณ์">×</button></div>
+    <div class="row2">
+      <div><label class="f">ประเภทเหตุการณ์</label><select data-inc="${i}:type">${S.cfg.problemTypes.map(t => `<option${t === x.type ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></div>
+      <div><label class="f">ระดับความรุนแรง</label><select data-inc="${i}:severity">${S.cfg.severity.map(t => `<option${t === x.severity ? ' selected' : ''}>${t}</option>`).join('')}</select></div>
+    </div>
+    <fieldset><legend>ข้อมูลผู้ป่วย</legend>
+      <label class="f">ชื่อ-สกุลผู้ป่วย</label><input data-inc="${i}:patient" value="${esc(x.patient)}">
+      <div class="row3">
+        <div><label class="f">อายุ (ปี)</label><input data-inc="${i}:age" inputmode="numeric" value="${esc(x.age)}"></div>
+        <div><label class="f">HN</label><input data-inc="${i}:hn" value="${esc(x.hn)}"></div>
+        <div><label class="f">เวลามารับบริการ</label><input type="time" data-inc="${i}:time" value="${esc(x.time)}"></div>
+      </div>
+      <label class="f">แพทย์เจ้าของไข้</label><input data-inc="${i}:doctor" value="${esc(x.doctor)}">
+    </fieldset>
+    <fieldset><legend>V/S</legend>
+      <div class="vsgrid">
+        ${vin(i, 'bp', 'BP', 'mmHg', 'text', '120/80')}
+        ${vin(i, 'pr', 'PR', 'ครั้ง/min', 'numeric')}
+        ${vin(i, 'rr', 'RR', 'ครั้ง/min', 'numeric')}
+        ${vin(i, 'temp', 'T', '°C', 'decimal', '37.0')}
+        ${vin(i, 'spo2', 'O2 sat', '%', 'numeric')}
+      </div>
+      <div class="o2row">
+        <label class="f" style="margin:0">O2</label>
+        <select data-inc="${i}:o2mode">${S.cfg.o2Modes.map(m => `<option${m === (x.o2mode || 'Room air') ? ' selected' : ''}>${m}</option>`).join('')}</select>
+        <input data-o2flow="${i}" data-inc="${i}:o2flow" value="${esc(x.o2flow)}" placeholder="ให้ O2 เท่าไหร่ เช่น 3 LPM / FiO2 40%"${(x.o2mode || 'Room air') === 'Room air' ? ' hidden' : ''}>
+      </div>
+    </fieldset>
+    <label class="f">รายละเอียดเหตุการณ์</label><textarea data-inc="${i}:detail" rows="3">${esc(x.detail)}</textarea>
+    <label class="f">การแก้ไขเบื้องต้น</label><textarea data-inc="${i}:action" rows="2">${esc(x.action)}</textarea></div>`).join('')
+    || '<div class="card muted">ไม่มีเหตุการณ์ผิดปกติ — ถ้ามี กดปุ่มด้านล่างเพื่อเพิ่ม</div>';
+  $('fm_incs').querySelectorAll('[data-delinc]').forEach(b => b.onclick = () => { d.incidents.splice(+b.dataset.delinc, 1); S.dirty = true; renderIncidents(); showSub(); });
+}
+
+$('sb_cancel').onclick = () => { if (S.dirty && !leaveGuard()) return; S.editing = false; S.dirty = false; render(); };
+$('sb_save').onclick = async () => {
+  const d = S.draft;
+  if (!d.reporter.trim()) { S.sub = 'patient'; showSub(); toast('กรุณากรอกชื่อผู้รายงาน'); $('fm_reporter').focus(); return; }
+  const bad = d.incidents.findIndex(i => !i.detail.trim());
+  if (bad >= 0) { S.sub = 'incident'; showSub(); toast(`เหตุการณ์ที่ ${bad + 1} ยังไม่มีรายละเอียด`); return; }
+  $('sb_save').disabled = true; $('sb_msg').textContent = 'กำลังบันทึก...';
+  try {
+    await api('saveReport', S.token, d);
+    store.set('reporter', d.reporter);
+    S.editing = false; S.dirty = false;
+    S.day = await api('getDay', S.token, S.date);
+    render(); window.scrollTo(0, 0); toast('บันทึกรายงานแล้ว');
+  } catch (e) { $('sb_msg').textContent = e.message; handleErr(e); }
+  $('sb_save').disabled = false;
+};
+
+/* ===== ทะเบียนเจ้าหน้าที่ ===== */
+function renderStaff() {
+  const admin = S.me.role === 'admin';
+  const unit = admin ? (S.staffUnit || S.cfg.units[0].code) : S.me.unit;
+  const list = S.staff.filter(s => s.unit === unit);
+  let html = '';
+  if (admin) {
+    html += `<div class="card"><h3>อัปโหลดรายชื่อประจำเดือน</h3>
+      <p class="muted" style="margin:0 0 8px;font-size:14px">ไฟล์ Excel หรือ CSV มี 3 คอลัมน์: <b>หน่วยงาน</b>, <b>ชื่อ-สกุล</b>, <b>ตำแหน่ง</b> (RN/PN/NA หรือ พยาบาลวิชาชีพ/ผู้ช่วยพยาบาล/ผู้ช่วยเหลือผู้ป่วย)<br>
+      รายชื่อจากไฟล์จะแทนรายชื่อที่อัปโหลดครั้งก่อนของหน่วยงานในไฟล์ ถ้าชื่อซ้ำกับที่หน่วยงานพิมพ์เพิ่มเอง จะยึดข้อมูลจากไฟล์</p>
+      <input type="file" id="up_file" accept=".xlsx,.xls,.csv">
+      <div id="up_preview"></div></div>`;
+    html += `<div class="card"><label class="f" for="st_unit">หน่วยงาน</label><select id="st_unit">${S.cfg.groups.map(g => `<optgroup label="${esc(g.name)}">${S.cfg.units.filter(u => u.group === g.key).map(u => `<option${u.code === unit ? ' selected' : ''}>${esc(u.code)}</option>`).join('')}</optgroup>`).join('')}</select></div>`;
+  }
+  html += `<div class="card"><h3>ทะเบียนเจ้าหน้าที่ ${esc(unit)} <span class="sub">${list.length} คน · ${roleCounts(list).map(([k, n]) => `${k} ${n}`).join(' · ')}</span></h3>
+    ${list.map(s => S.editStaff === s.id
+      ? `<div class="srow edit"><input id="es_name" value="${esc(s.name)}"><select id="es_role">${S.cfg.roles.map(r => `<option${r === s.role ? ' selected' : ''}>${esc(r)}</option>`).join('')}</select>
+         <span class="acts"><button type="button" class="btn sm" data-sact="save" data-id="${s.id}">บันทึก</button><button type="button" class="btn ghost sm" data-sact="cancel">ยกเลิก</button></span></div>`
+      : `<div class="srow"><span>${esc(s.name)} ${s.source === 'upload' ? '<span class="pill plain">จากไฟล์</span>' : '<span class="pill warn">เพิ่มเอง</span>'}</span><b>${esc(s.role)}</b>
+         <span class="acts">${S.delStaff === s.id
+           ? `<button type="button" class="btn danger sm" data-sact="del" data-id="${s.id}">ยืนยันลบ</button>`
+           : `<button type="button" class="btn ghost sm" data-sact="edit" data-id="${s.id}">แก้ไข</button><button type="button" class="btn ghost sm" data-sact="askdel" data-id="${s.id}">ลบ</button>`}</span></div>`).join('')
+      || '<p class="muted">ยังไม่มีรายชื่อ</p>'}
+    <div class="addrow" style="margin-top:12px"><input id="as_name" placeholder="ชื่อ-สกุล"><select id="as_role">${S.cfg.roles.map(r => `<option>${esc(r)}</option>`).join('')}</select>
+      <button type="button" class="btn sm" data-sact="add" data-unit="${esc(unit)}">+ เพิ่ม</button></div></div>`;
   return html;
 }
 
-function renderTable(items, units, reports) {
-  const multi = units.length > 1;
-  let html = '<table><thead><tr>' + (multi ? '<th>หน่วยงาน</th>' : '') +
-    items.map(i => `<th>${esc(i.label)}</th>`).join('') + '<th>หมายเหตุ</th></tr></thead>';
-  const totals = items.map(() => 0);
-  units.forEach(u => {
-    const r = reports[u.code];
-    html += '<tr>' + (multi ? `<td>${esc(u.code)}</td>` : '');
-    if (!r) {
-      html += `<td class="n miss" colspan="${items.length + 1}">ยังไม่รายงาน</td>`;
-    } else {
-      items.forEach((it, k) => {
-        const v = Number(r.values[it.key]) || 0;
-        totals[k] += v;
-        html += `<td class="n">${v}</td>`;
-      });
-      html += `<td>${esc(r.note)}</td>`;
+async function staffAction(act, id, unit) {
+  try {
+    if (act === 'edit') { S.editStaff = +id; S.delStaff = null; }
+    else if (act === 'cancel') S.editStaff = null;
+    else if (act === 'askdel') { S.delStaff = +id; S.editStaff = null; setTimeout(() => { if (S.delStaff === +id) { S.delStaff = null; if (S.tab === 'staff') render(); } }, 4000); }
+    else if (act === 'del') { await api('deleteStaff', S.token, +id); S.delStaff = null; await loadStaff(); toast('ลบแล้ว'); }
+    else if (act === 'save') {
+      const s = S.staff.find(x => x.id === +id);
+      await api('saveStaff', S.token, { id: +id, unit: s.unit, name: $('es_name').value.trim(), role: $('es_role').value });
+      S.editStaff = null; await loadStaff(); toast('บันทึกแล้ว');
+    } else if (act === 'add') {
+      const name = $('as_name').value.trim(); if (!name) return toast('พิมพ์ชื่อก่อน');
+      await api('saveStaff', S.token, { unit, name, role: $('as_role').value }); await loadStaff(); toast('เพิ่ม ' + name + ' แล้ว');
     }
-    html += '</tr>';
+  } catch (e) { handleErr(e); }
+  render();
+}
+
+/* อ่านไฟล์รายชื่อ (Excel ใช้ SheetJS โหลดเมื่อจำเป็น) */
+function loadXLSX() {
+  if (window.XLSX) return Promise.resolve();
+  return new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload = res; s.onerror = () => rej(new Error('โหลดตัวอ่าน Excel ไม่ได้')); document.head.appendChild(s); });
+}
+async function readRoster(file) {
+  let rows;
+  if (/\.csv$/i.test(file.name)) {
+    rows = (await file.text()).split(/\r?\n/).filter(l => l.trim()).map(l => l.split(',').map(c => c.trim().replace(/^"|"$/g, '')));
+  } else {
+    await loadXLSX();
+    const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+    rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' }).map(r => r.map(c => String(c).trim()));
+  }
+  const head = rows[0].map(h => h.replace(/\s/g, ''));
+  const col = re => head.findIndex(h => re.test(h));
+  let cu = col(/หน่วย|แผนก|unit|ward/i), cn = col(/ชื่อ|name/i), cr = col(/ตำแหน่ง|role|position/i);
+  if (cu < 0 || cn < 0 || cr < 0) { cu = 0; cn = 1; cr = 2; } else rows = rows.slice(1);
+  const codes = S.cfg.units.map(u => u.code), ok = [], bad = [];
+  rows.forEach((r, i) => {
+    const unit = codes.find(c => c.toLowerCase() === String(r[cu] || '').toLowerCase());
+    const name = String(r[cn] || '').trim(), rawRole = String(r[cr] || '').trim();
+    const role = S.cfg.roles.includes(rawRole.toUpperCase()) ? rawRole.toUpperCase() : (S.cfg.roleAliases[rawRole.toLowerCase()] || S.cfg.roleAliases[rawRole] || (S.cfg.roles.includes(rawRole) ? rawRole : 'อื่นๆ'));
+    if (unit && name) ok.push({ unit, name, role }); else if (name || r[cu]) bad.push(i + 2);
   });
-  if (multi) html += '<tr class="total"><td>รวม</td>' + totals.map(t => `<td class="n">${t}</td>`).join('') + '<td></td></tr>';
-  return html + '</table>';
+  return { ok, bad };
+}
+
+/* ===== สรุป / พิมพ์ A4 ===== */
+function renderPrint() {
+  const scope = S.printScope || 'all';
+  const inFrame = !(window.google && google.script);
+  const sign = '<div class="sign">ลงชื่อ ........................................ ผู้สรุปรายงาน<br>(........................................)</div>';
+  const pages = scope === 'all'
+    ? [printUnits(), printOverview() + printIncidents() + sign]
+    : [printSingle(unitCfg(scope)) + sign];
+  return `<div class="noprint" style="display:flex;gap:10px;align-items:end;margin-bottom:12px;flex-wrap:wrap">
+      <div style="flex:0 1 260px"><label class="f" for="p_scope">พิมพ์</label>
+        <select id="p_scope"><option value="all">รายงานทั้งหมด (แยกหน่วยงาน + ภาพรวม + เหตุการณ์ผิดปกติ)</option>
+        ${S.cfg.groups.map(g => `<optgroup label="เฉพาะหน่วยงาน · ${esc(g.name)}">${S.cfg.units.filter(u => u.group === g.key).map(u => `<option value="${esc(u.code)}"${u.code === scope ? ' selected' : ''}>${esc(u.code)}</option>`).join('')}</optgroup>`).join('')}</select></div>
+      <button type="button" class="btn" data-act="print">พิมพ์ / บันทึกเป็น PDF</button>
+      <span class="muted" style="font-size:13px">${inFrame ? 'ในหน้าตัวอย่างนี้ปุ่มพิมพ์ใช้ไม่ได้ ในแอปจริงจะเปิดหน้าต่างพิมพ์ของเครื่อง' : 'ตั้งค่ากระดาษ A4 แนวตั้ง'}</span></div>
+    <div class="a4-scroll">${pages.map(p => `<div class="a4">${p}</div>`).join('')}</div>`;
+}
+function printHead(sub) {
+  const reps = S.day.reports, missing = S.cfg.units.filter(u => !reps[u.code]).map(u => u.code);
+  return `<h1>รายงานยอดประจำวัน${sub ? ' · ' + sub : ''}</h1><div class="d">${esc(thaiDate(S.date, true))}</div>
+    <div class="st">ส่งรายงานแล้ว ${S.cfg.units.length - missing.length}/${S.cfg.units.length} หน่วยงาน${missing.length ? ` · <span class="m">ยังไม่รายงาน: ${missing.map(esc).join(', ')}</span>` : ''}</div>`;
+}
+const bar = (n, max) => `<span class="bar"><i style="width:${max ? Math.round(n / max * 100) : 0}%"></i></span>`;
+
+function printOverview() {
+  const reps = S.day.reports, L = S.cfg.stdLabels;
+  const units = g => S.cfg.units.filter(u => u.group === g);
+  const sv = u => reps[u.code] ? stdValues(u, reps[u.code].values) : null;
+  const sum = (list, k) => list.reduce((a, u) => a + ((sv(u) || {})[k] || 0), 0);
+
+  const opd = units('OPD'), ipd = units('IPD').concat(units('SPU').filter(u => S.cfg.stdIpd.every(k => k in (u.form.std || {})))),
+    spu = units('SPU').filter(u => !ipd.includes(u));
+  const allIncs = S.cfg.units.flatMap(u => reps[u.code] ? reps[u.code].incidents || [] : []);
+  const staffAll = S.cfg.units.flatMap(u => reps[u.code] ? reps[u.code].staff || [] : []);
+  const reduceAll = S.cfg.units.reduce((a, u) => { const r = reps[u.code] && reps[u.code].reduce || {}; return a + num(r.RN) + num(r.PN) + num(r.NA); }, 0);
+
+  // ตัวเลขสรุป
+  let h = printHead('ภาพรวม') + `<div class="kpis">
+    <div><b>${sum(opd, 'total')}</b>ผู้ป่วยนอก (ราย)</div>
+    <div><b>${sum(opd, 'admit')}</b>Admit จาก OPD</div>
+    <div><b>${sum(ipd, 'remain')}</b>ผู้ป่วยในคงพยาบาล</div>
+    <div><b>${sum(ipd, 'admit')} / ${sum(ipd, 'dc')}</b>รับใหม่ / จำหน่าย</div>
+    <div><b>${roleCounts(staffAll).filter(x => ['RN', 'PN', 'NA'].includes(x[0])).map(x => x[1]).join(' / ') || 0}</b>RN / PN / NA ปฏิบัติงาน</div>
+    <div class="${allIncs.length ? 'alert' : ''}"><b>${allIncs.length}</b>เหตุการณ์ผิดปกติ</div></div>`;
+
+  // ผู้ป่วยนอก
+  const opdMax = Math.max(1, ...opd.map(u => (sv(u) || {}).total || 0));
+  h += `<h2>ผู้ป่วยนอก</h2><table class="stat"><thead><tr><th>หน่วยงาน</th>${S.cfg.stdOpd.map(k => `<th>${L[k]}</th>`).join('')}<th class="w">สัดส่วนผู้ป่วย</th></tr></thead>
+    ${opd.map(u => { const s = sv(u); return s ? `<tr><td>${esc(u.code)}</td>${S.cfg.stdOpd.map(k => `<td class="n">${k in s ? s[k] : '–'}</td>`).join('')}<td>${bar(s.total || 0, opdMax)}</td></tr>`
+      : `<tr><td>${esc(u.code)}</td><td colspan="${S.cfg.stdOpd.length + 1}" class="miss">ยังไม่รายงาน</td></tr>`; }).join('')}
+    <tr class="tot"><td>รวม</td>${S.cfg.stdOpd.map(k => `<td class="n">${sum(opd, k)}</td>`).join('')}<td></td></tr></table>`;
+
+  // ผู้ป่วยใน
+  h += `<h2>ผู้ป่วยใน</h2><table class="stat"><thead><tr><th>ตึก</th>${S.cfg.stdIpd.map(k => `<th>${L[k]}</th>`).join('')}</tr></thead>
+    ${ipd.map(u => { const s = sv(u); return s ? `<tr><td>${esc(u.code)}</td>${S.cfg.stdIpd.map(k => `<td class="n${k === 'remain' ? ' b' : ''}">${s[k] || '–'}</td>`).join('')}</tr>`
+      : `<tr><td>${esc(u.code)}</td><td colspan="${S.cfg.stdIpd.length}" class="miss">ยังไม่รายงาน</td></tr>`; }).join('')}
+    <tr class="tot"><td>รวม</td>${S.cfg.stdIpd.map(k => `<td class="n">${sum(ipd, k)}</td>`).join('')}</tr></table>`;
+
+  // ประเภทผู้ป่วยคงพยาบาล + Special Unit
+  const cats = {};
+  ipd.forEach(u => reps[u.code] && Object.entries(categoryValues(u, reps[u.code].values)).forEach(([k, n]) => cats[k] = (cats[k] || 0) + n));
+  const catList = Object.entries(cats).sort((a, b) => b[1] - a[1]), catMax = Math.max(1, ...catList.map(x => x[1]));
+  h += `<div class="two"><div><h2>ประเภทผู้ป่วยคงพยาบาล (รวมทุกตึก)</h2>
+    ${catList.length ? `<table class="stat">${catList.map(([k, n]) => `<tr><td>${esc(k)}</td><td class="n b">${n}</td><td class="w">${bar(n, catMax)}</td></tr>`).join('')}</table>` : '<div class="miss">ไม่มีข้อมูล</div>'}</div>
+    <div><h2>Special Unit</h2><table class="stat">${spu.map(u => { const s = sv(u); return `<tr><td>${esc(u.code)}</td>${s ? `<td class="n b">${s.total}</td><td>${esc(u.form.sections[0].title)}</td>` : '<td colspan="2" class="miss">ยังไม่รายงาน</td>'}</tr>`; }).join('')}</table></div></div>`;
+
+  // อัตรากำลัง
+  h += `<h2>อัตรากำลัง</h2><table class="stat"><thead><tr><th>กลุ่ม</th><th>RN</th><th>PN</th><th>NA</th><th>อื่นๆ</th><th>ลดอัตรากำลัง (ชม.)</th></tr></thead>
+    ${S.cfg.groups.map(g => {
+      const list = units(g.key).filter(u => reps[u.code]);
+      const st = list.flatMap(u => reps[u.code].staff || []).filter(s => s.tag !== 'ออกหน่วย');
+      const c = r => st.filter(s => s.role === r).length;
+      const red = list.reduce((a, u) => { const r = reps[u.code].reduce || {}; return a + num(r.RN) + num(r.PN) + num(r.NA); }, 0);
+      return `<tr><td>${esc(g.name)}</td><td class="n">${c('RN')}</td><td class="n">${c('PN')}</td><td class="n">${c('NA')}</td><td class="n">${st.length - c('RN') - c('PN') - c('NA')}</td><td class="n">${red}</td></tr>`;
+    }).join('')}
+    <tr class="tot"><td>รวม</td>${['RN', 'PN', 'NA'].map(r => `<td class="n">${staffAll.filter(s => s.role === r && s.tag !== 'ออกหน่วย').length}</td>`).join('')}<td class="n">${staffAll.filter(s => !['RN', 'PN', 'NA'].includes(s.role) && s.tag !== 'ออกหน่วย').length}</td><td class="n">${reduceAll}</td></tr></table>`;
+
+  return h;
+}
+
+function printIncidents() {
+  const reps = S.day.reports, incs = [];
+  S.cfg.units.forEach(u => (reps[u.code] ? reps[u.code].incidents || [] : []).forEach(i => incs.push(Object.assign({ unit: u.code }, i))));
+  const byType = {}; incs.forEach(i => byType[i.type] = (byType[i.type] || 0) + 1);
+  return `<h2>เหตุการณ์ผิดปกติ รวมทุกหน่วยงาน (${incs.length})</h2>` + (incs.length
+    ? `<div class="chipsp">${Object.entries(byType).map(([k, n]) => `<span>${esc(k)} <b>${n}</b></span>`).join('')}</div>${incTable(incs)}`
+    : '<div>ไม่มีรายงานเหตุการณ์ผิดปกติ</div>');
+}
+
+function incTable(incs) {
+  return `<table><thead><tr><th>หน่วยงาน</th><th>ผู้ป่วย</th><th>V/S</th><th>ประเภท / ระดับ</th><th>รายละเอียด / การแก้ไข</th></tr></thead>
+    ${incs.map(i => `<tr><td>${esc(i.unit)}</td>
+      <td>${esc(i.patient || '-')}${i.age ? `<br>อายุ ${esc(i.age)} ปี` : ''}${i.hn ? `<br>HN ${esc(i.hn)}` : ''}${i.time ? `<br>มา ${esc(i.time)} น.` : ''}${i.doctor ? `<br>แพทย์ ${esc(i.doctor)}` : ''}</td>
+      <td>${vitals(i).map(([k, x, unit]) => `${k} ${esc(x)}${unit === '%' ? '%' : unit === '°C' ? '°C' : ''}`).join('<br>')}${i.o2mode ? `<br>O2: ${esc(o2Text(i))}` : ''}</td>
+      <td>${esc(i.type)}<br>ระดับ ${esc(i.severity || '-')}</td>
+      <td>${esc(i.detail)}${i.action ? `<br><i>แก้ไข: ${esc(i.action)}</i>` : ''}</td></tr>`).join('')}</table>`;
+}
+
+function printUnits() {
+  const reps = S.day.reports, incs = [];
+  let body = printHead('แยกหน่วยงาน');
+  S.cfg.groups.forEach(g => {
+    body += `<h2>${esc(g.name)}</h2><div class="cols">`;
+    S.cfg.units.filter(u => u.group === g.key).forEach(u => {
+      const r = reps[u.code];
+      if (!r) { body += `<div class="ub"><b class="c">${esc(u.code)}</b> <span class="miss">ยังไม่รายงาน</span></div>`; return; }
+      (r.incidents || []).forEach(i => incs.push(Object.assign({ unit: u.code }, i)));
+      body += `<div class="ub"><b class="c">${esc(u.code)}</b>${printLines(u, r)}</div>`;
+    });
+    body += '</div>';
+  });
+  return body;
+}
+
+// รายงานเฉพาะหน่วยงานเดียว (ละเอียด)
+function printSingle(u) {
+  const r = S.day.reports[u.code];
+  let h = `<h1>รายงานยอดประจำวัน · ${esc(u.code)}</h1><div class="d">${esc(groupName(u.group))} · ${esc(thaiDate(S.date, true))}</div>`;
+  if (!r) return h + '<div class="miss" style="text-align:center;margin:20mm 0">หน่วยงานนี้ยังไม่ส่งรายงาน</div>';
+  const v = r.values || {};
+  h += `<div class="st">ผู้รายงาน ${esc(r.reporter)} · แก้ไขล่าสุด ${esc(r.updatedAt)}</div><h2>รายงานผู้ป่วย</h2><div class="cols">`;
+  u.form.sections.forEach(s => {
+    h += `<div class="ub"><b>${esc(s.title)}</b>`;
+    if (s.type === 'grid') {
+      h += `<table class="stat"><tr><th></th>${s.cols.map(c => `<th>${esc(c[1])}</th>`).join('')}<th>รวม</th></tr>${s.rows.map(rw => { const xs = s.cols.map(c => num(v[rw[0] + '_' + c[0]])); return `<tr><td>${esc(rw[1])}</td>${xs.map(x => `<td class="n">${x || '–'}</td>`).join('')}<td class="n b">${xs.reduce((a, x) => a + x, 0)}</td></tr>`; }).join('')}</table>`;
+    } else {
+      h += '<table class="stat">' + s.fields.map(f => {
+        const val = fieldValue(u, v, f);
+        if (f.type === 'text') return val ? `<tr><td colspan="2">${esc(f.label)}: ${esc(val)}</td></tr>` : '';
+        return `<tr><td>${esc(f.label)}</td><td class="n${f.calc ? ' b' : ''}">${show(val)}${f.pctOf && num(v[f.pctOf]) ? ` (${(num(val) / num(v[f.pctOf]) * 100).toFixed(1)}%)` : ''}</td></tr>`;
+      }).join('') + (s.sum ? `<tr class="tot"><td>${esc(s.sum)}</td><td class="n">${sectionSum(s, v)}</td></tr>` : '') + '</table>';
+    }
+    h += '</div>';
+  });
+  if (u.form.total) h += `<div class="ub"><b>${esc(u.form.total)} ${u.form.sections.filter(s => s.sum).reduce((a, s) => a + sectionSum(s, v), 0)}</b></div>`;
+  h += '</div>';
+  if (r.notes) h += `<div class="ln"><b>แจ้งเพื่อทราบ:</b> ${esc(r.notes).replace(/\n/g, ' / ')}</div>`;
+  const staff = r.staff || [], rd = r.reduce || {};
+  h += `<h2>อัตรากำลัง · เวร ${esc(r.shift || '-')} · ${roleCounts(staff).map(([k, n]) => `${esc(k)} ${n}`).join(', ') || 'ไม่ได้ระบุ'}</h2>
+    <div class="cols">${staff.map(s => `<div class="ln">${esc(s.role)} ${esc(s.name)}${s.tag ? ` (${esc(s.tag)}${s.tagNote ? ' ' + esc(s.tagNote) : ''})` : ''}</div>`).join('')}</div>`;
+  const rt = num(rd.RN) + num(rd.PN) + num(rd.NA);
+  if (rt || rd.detail) h += `<div class="ln" style="margin-top:3px"><b>ลดอัตรากำลัง ${rt} ชม.</b> (RN ${num(rd.RN)}, PN ${num(rd.PN)}, NA ${num(rd.NA)})${rd.detail ? ' · ' + esc(rd.detail).replace(/\n/g, ' / ') : ''}</div>`;
+  const incs = (r.incidents || []).map(i => Object.assign({ unit: u.code }, i));
+  return h + `<h2>เหตุการณ์ผิดปกติ (${incs.length})</h2>` + (incs.length ? incTable(incs) : '<div>ไม่มีเหตุการณ์ผิดปกติ</div>');
+}
+function printLines(u, r) {
+  const v = r.values || {}, out = [];
+  u.form.sections.forEach(s => {
+    if (s.type === 'grid') {
+      s.rows.forEach(rw => { const parts = s.cols.map(c => [c[1], num(v[rw[0] + '_' + c[0]])]).filter(x => x[1]); const t = parts.reduce((a, x) => a + x[1], 0); out.push(`${esc(rw[1])} ${t}${parts.length ? ` (${parts.map(x => esc(x[0]) + ' ' + x[1]).join(', ')})` : ''}`); });
+      return;
+    }
+    const items = s.fields.filter(f => f.type !== 'text').map(f => {
+      const val = fieldValue(u, v, f);
+      if (f.type === 'time') return val ? `${esc(f.label)} ${esc(val)}` : '';
+      if (!f.calc && !num(val)) return '';
+      return `${esc(f.label)} <b>${val}</b>${f.pctOf && num(v[f.pctOf]) ? ` (${(num(val) / num(v[f.pctOf]) * 100).toFixed(1)}%)` : ''}`;
+    }).filter(Boolean);
+    if (s.sum) items.push(`${esc(s.sum)} <b>${sectionSum(s, v)}</b>`);
+    if (items.length) out.push((u.form.sections.length > 1 ? `<u>${esc(s.title)}</u> ` : '') + items.join(', '));
+    s.fields.filter(f => f.type === 'text' && v[f.key]).forEach(f => out.push(`${esc(f.label)}: ${esc(v[f.key])}`));
+  });
+  if (u.form.total) out.push(`<b>${esc(u.form.total)} ${u.form.sections.filter(s => s.sum).reduce((a, s) => a + sectionSum(s, v), 0)}</b>`);
+  const rc = roleCounts(r.staff || []);
+  if (rc.length) out.push(`อัตรากำลัง (${esc(r.shift || '-')}): ${rc.map(([k, n]) => `${esc(k)} ${n}`).join(', ')}`);
+  const rd = r.reduce || {}, rt = num(rd.RN) + num(rd.PN) + num(rd.NA);
+  if (rt) out.push(`ลดอัตรากำลัง ${rt} ชม. (${['RN', 'PN', 'NA'].filter(k => num(rd[k])).map(k => `${k} ${num(rd[k])}`).join(', ')})`);
+  if (r.notes) out.push(`แจ้ง: ${esc(r.notes).replace(/\n/g, ' / ')}`);
+  if ((r.incidents || []).length) out.push(`<span class="miss">เหตุการณ์ผิดปกติ ${r.incidents.length} เรื่อง</span>`);
+  return out.map(l => `<div class="ln">${l}</div>`).join('');
+}
+
+/* ===== ผูกเหตุการณ์ของหน้าที่แสดงอยู่ ===== */
+function bindView() {
+  const v = $('view');
+  v.querySelectorAll('[data-act]').forEach(b => b.onclick = () => {
+    const a = b.dataset.act;
+    if (a === 'edit') startEdit();
+    else if (a === 'back') go('all');
+    else if (a === 'print') window.print();
+  });
+  v.querySelectorAll('[data-sub]').forEach(b => { if (!S.editing) b.onclick = () => { S.sub = b.dataset.sub; render(); }; });
+  if ($('p_scope')) $('p_scope').onchange = () => { S.printScope = $('p_scope').value; render(); };
+  v.querySelectorAll('[data-unit].ucard').forEach(b => b.onclick = () => (b.dataset.unit === S.me.unit ? go('mine') : go('all', b.dataset.unit)));
+  v.querySelectorAll('[data-sact]').forEach(b => b.onclick = () => staffAction(b.dataset.sact, b.dataset.id, b.dataset.unit));
+  if ($('st_unit')) $('st_unit').onchange = () => { S.staffUnit = $('st_unit').value; render(); };
+  if ($('up_file')) $('up_file').onchange = async () => {
+    const f = $('up_file').files[0]; if (!f) return;
+    $('up_preview').innerHTML = '<p class="muted">กำลังอ่านไฟล์...</p>';
+    try {
+      const { ok, bad } = await readRoster(f);
+      const byUnit = {}; ok.forEach(r => byUnit[r.unit] = (byUnit[r.unit] || 0) + 1);
+      S.upload = ok;
+      $('up_preview').innerHTML = `<p style="margin:10px 0 6px">พบ <b>${ok.length}</b> รายชื่อ จาก ${Object.keys(byUnit).length} หน่วยงาน${bad.length ? ` · <span style="color:var(--bad)">ข้ามแถวที่อ่านไม่ได้: ${bad.slice(0, 10).join(', ')}${bad.length > 10 ? '…' : ''}</span>` : ''}</p>
+        <div class="chips" style="margin-bottom:10px">${Object.entries(byUnit).map(([k, n]) => `<span class="pill plain">${esc(k)} ${n}</span>`).join('')}</div>
+        <button type="button" class="btn" id="up_go"${ok.length ? '' : ' disabled'}>ยืนยันอัปโหลด</button>`;
+      $('up_go').onclick = async () => {
+        $('up_go').disabled = true;
+        try { const r = await api('uploadStaff', S.token, S.upload); await loadStaff(); render(); toast(`อัปโหลดแล้ว ${r.added} รายชื่อ · แทนที่ชื่อซ้ำที่เพิ่มเอง ${r.replaced} รายการ`); }
+        catch (e) { handleErr(e); $('up_go').disabled = false; }
+      };
+    } catch (e) { $('up_preview').innerHTML = `<p style="color:var(--bad)">${esc(e.message)}</p>`; }
+  };
 }
 </script>
 </body>
