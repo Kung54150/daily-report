@@ -22,11 +22,11 @@ const ROOMS_PER_IPD = 25; // ห้องเริ่มต้นของแต
 const INC_FIELDS = ['type', 'severity', 'patient', 'age', 'hn', 'time', 'doctor', 'bp', 'pr', 'rr', 'temp', 'spo2', 'o2mode', 'o2flow', 'detail', 'action'];
 const HEADERS = {
   [SH_USERS]: ['หน่วยงาน', 'รหัสผ่าน'],
-  [SH_REPORTS]: ['วันที่', 'หน่วยงาน', 'ผู้รายงาน', 'แก้ไขล่าสุด', 'ข้อมูล (JSON)'],
+  [SH_REPORTS]: ['วันที่', 'หน่วยงาน', 'ผู้รายงาน', 'แก้ไขล่าสุด', 'ข้อมูล (JSON)', 'เวร'],
   [SH_INCIDENTS]: ['วันที่', 'หน่วยงาน', 'ประเภท', 'ระดับความรุนแรง', 'ชื่อ-สกุลผู้ป่วย', 'อายุ', 'HN', 'เวลามารับบริการ', 'แพทย์เจ้าของไข้',
-    'BP (mmHg)', 'PR (/min)', 'RR (/min)', 'T (°C)', 'O2 sat (%)', 'O2', 'O2 ที่ให้', 'รายละเอียด', 'การแก้ไขเบื้องต้น', 'ผู้รายงาน', 'ไฟล์แนบ'],
+    'BP (mmHg)', 'PR (/min)', 'RR (/min)', 'T (°C)', 'O2 sat (%)', 'O2', 'O2 ที่ให้', 'รายละเอียด', 'การแก้ไขเบื้องต้น', 'ผู้รายงาน', 'ไฟล์แนบ', 'เวร'],
   // ยอดมาตรฐานแบบแถวยาว ใช้ทำ Pivot / Looker Studio ภายหลัง
-  [SH_STATS]: ['วันที่', 'กลุ่ม', 'หน่วยงาน', 'หมวด', 'รายการ', 'จำนวน', 'ตึก'],
+  [SH_STATS]: ['วันที่', 'กลุ่ม', 'หน่วยงาน', 'หมวด', 'รายการ', 'จำนวน', 'ตึก', 'เวร'],
   [SH_STAFF]: ['id', 'หน่วยงาน', 'ชื่อ-สกุล', 'ตำแหน่ง', 'ที่มา', 'แก้ไขล่าสุด', 'แผนกในไฟล์'],
   [SH_ROOMS]: ['หน่วยงาน', 'เลขห้อง', 'ชื่อ/ประเภทห้อง (ไม่บังคับ)'],
   [SH_ALIASES]: ['ชื่อแผนกที่ใช้ในไฟล์', 'หน่วยงานในระบบ']
@@ -107,8 +107,18 @@ function getDay(token, date) {
   const reports = {};
   sheet_(SH_REPORTS).getDataRange().getValues().slice(1)
     .filter(r => fmtDate_(r[0]) === date)
-    .forEach(r => { reports[r[1]] = JSON.parse(r[4]); });
-  return { reports };
+    .forEach(r => {
+      const rep = JSON.parse(r[4]), sh = rowShift_(r[5], rep.shift);
+      rep.shift = sh;
+      (reports[r[1]] = reports[r[1]] || {})[sh] = rep;
+    });
+  return { reports }; // { หน่วยงาน: { Day: รายงาน, Night: รายงาน } }
+}
+
+// เวรของแถวข้อมูล: ค่าในคอลัมน์เวร หรือในรายงาน (ข้อมูลเก่าไม่มี = Day)
+function rowShift_(col, fromJson) {
+  const v = String(col || fromJson || '').trim();
+  return v === 'Night' ? 'Night' : 'Day';
 }
 
 function saveReport(token, rep) {
@@ -116,6 +126,7 @@ function saveReport(token, rep) {
   if (me.role !== 'unit' || rep.unit !== me.unit) throw new Error('แก้ไขได้เฉพาะรายงานของหน่วยงานตนเอง');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(rep.date)) throw new Error('วันที่ไม่ถูกต้อง');
   if (!String(rep.reporter || '').trim()) throw new Error('กรุณากรอกชื่อผู้รายงาน');
+  if (SHIFTS.indexOf(rep.shift) < 0) throw new Error('กรุณาเลือกเวร Day หรือ Night');
 
   const form = buildConfig_().units.find(u => u.code === me.unit).form;
   const keys = form.sections.flatMap(s => s.type === 'grid'
@@ -128,7 +139,7 @@ function saveReport(token, rep) {
     date: rep.date, unit: me.unit, reporter: String(rep.reporter).trim(),
     updatedAt: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm'),
     values,
-    shift: rep.shift || '',
+    shift: rep.shift,
     staff: (rep.staff || []).filter(s => s && s.name).map(s => ({ name: String(s.name), role: s.role || '', tag: s.tag || '', tagNote: s.tagNote || '' })),
     reduce: rep.reduce || {},
     notes: String(rep.notes || ''),
@@ -145,21 +156,23 @@ function saveReport(token, rep) {
 
   withLock_(() => {
     const sh = sheet_(SH_REPORTS);
-    deleteRows_(sh, r => fmtDate_(r[0]) === clean.date && r[1] === clean.unit);
-    sh.appendRow([clean.date, clean.unit, clean.reporter, clean.updatedAt, JSON.stringify(clean)]);
+    ensureHeaders_(sh, HEADERS[SH_REPORTS]);
+    const sameRep = r => fmtDate_(r[0]) === clean.date && r[1] === clean.unit && rowShift_(r[5], (String(r[4]).match(/"shift":"(\w+)"/) || [])[1]) === clean.shift;
+    deleteRows_(sh, sameRep);
+    sh.appendRow([clean.date, clean.unit, clean.reporter, clean.updatedAt, JSON.stringify(clean), clean.shift]);
 
     const inc = sheet_(SH_INCIDENTS);
     ensureHeaders_(inc, HEADERS[SH_INCIDENTS]);
-    deleteRows_(inc, r => fmtDate_(r[0]) === clean.date && r[1] === clean.unit);
+    deleteRows_(inc, r => fmtDate_(r[0]) === clean.date && r[1] === clean.unit && rowShift_(r[INC_FIELDS.length + 4]) === clean.shift);
     if (clean.incidents.length) {
-      inc.getRange(inc.getLastRow() + 1, 1, clean.incidents.length, INC_FIELDS.length + 4).setValues(clean.incidents.map(i =>
-        [clean.date, clean.unit].concat(INC_FIELDS.map(k => i[k]), [clean.reporter, i.files.map(x => x.name).join(', ')])));
+      inc.getRange(inc.getLastRow() + 1, 1, clean.incidents.length, INC_FIELDS.length + 5).setValues(clean.incidents.map(i =>
+        [clean.date, clean.unit].concat(INC_FIELDS.map(k => i[k]), [clean.reporter, i.files.map(x => x.name).join(', '), clean.shift])));
     }
 
     const st = sheet_(SH_STATS);
     ensureHeaders_(st, HEADERS[SH_STATS]);
-    deleteRows_(st, r => fmtDate_(r[0]) === clean.date && r[2] === clean.unit);
-    if (stats.length) st.getRange(st.getLastRow() + 1, 1, stats.length, 7).setValues(stats);
+    deleteRows_(st, r => fmtDate_(r[0]) === clean.date && r[2] === clean.unit && rowShift_(r[7]) === clean.shift);
+    if (stats.length) st.getRange(st.getLastRow() + 1, 1, stats.length, 8).setValues(stats);
   });
   return { ok: true };
 }
@@ -168,7 +181,7 @@ function saveReport(token, rep) {
 function statRows_(u, rep) {
   const g = GROUPS.find(x => x.key === u.group).name;
   const bld = String(u.sub || '').replace('ตึก ', '');
-  const row = (cat, item, n) => [rep.date, g, u.code, cat, item, n, bld];
+  const row = (cat, item, n) => [rep.date, g, u.code, cat, item, n, bld, rep.shift];
   const rows = [];
   Object.entries(stdValues_(u.form, rep.values)).forEach(([k, n]) => rows.push(row('ยอดผู้ป่วย', STD_LABELS[k], n)));
   Object.entries(categoryValues_(u.form, rep.values)).forEach(([k, n]) => rows.push(row('ประเภทผู้ป่วย', k, n)));
