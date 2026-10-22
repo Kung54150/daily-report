@@ -255,6 +255,25 @@
 </head>
 <body>
 
+<!-- ===== กำลังโหลด / แจ้งข้อผิดพลาด (ไม่ให้เป็นหน้าว่าง) ===== -->
+<div id="boot" class="wrap" style="padding-block:56px;text-align:center">
+  <div id="boot_msg" class="muted">กำลังโหลด...</div>
+  <button class="btn ghost sm" id="boot_retry" type="button" hidden style="margin-top:14px" onclick="location.reload()">ลองใหม่</button>
+</div>
+<script>
+function bootFail(m) {
+  var b = document.getElementById('boot'), t = document.getElementById('boot_msg'), r = document.getElementById('boot_retry');
+  if (!b || window.__ready) return;
+  b.hidden = false; r.hidden = false;
+  t.style.color = 'var(--bad)'; t.textContent = 'เปิดระบบไม่สำเร็จ: ' + m;
+}
+window.addEventListener('error', function (e) { bootFail(e.message || 'เกิดข้อผิดพลาดในหน้าเว็บ'); });
+window.addEventListener('unhandledrejection', function (e) { bootFail((e.reason && e.reason.message) || e.reason || 'เกิดข้อผิดพลาด'); });
+setTimeout(function () {
+  if (!window.__ready) bootFail(window.__scriptLoaded ? 'เซิร์ฟเวอร์ไม่ตอบสนอง ลองรีเฟรชหน้านี้' : 'ไฟล์ Index วางโค้ดไม่ครบ (ต้องมีครบถึงบรรทัดสุดท้าย)');
+}, 12000);
+</script>
+
 <!-- ===== เข้าสู่ระบบ ===== -->
 <section id="login" class="wrap" hidden>
   <form class="login-card" id="loginForm">
@@ -330,15 +349,20 @@ const groupName = key => S.cfg.groups.find(g => g.key === key).name;
 (async function boot() {
   S.token = store.get('token');
   try {
-    if (S.token) { const b = await api('getBoot', S.token); return startApp(b); }
-  } catch (e) { store.set('token', null); }
-  showLogin();
+    if (S.token) {
+      try { return await startApp(await api('getBoot', S.token)); }
+      catch (e) { if (!/เข้าสู่ระบบ/.test(e.message)) throw e; store.set('token', null); S.token = null; }
+    }
+    await showLogin();
+  } catch (e) { bootFail(e && e.message ? e.message : e); }
 })();
 
 async function showLogin() {
-  $('app').hidden = true; $('login').hidden = false;
+  $('app').hidden = true; $('login').hidden = false; $('boot').hidden = true; window.__ready = true;
   if ($('l_unit').options.length) return;
-  const info = await api('getLoginInfo');
+  let info;
+  try { info = await api('getLoginInfo'); }
+  catch (e) { $('l_msg').textContent = 'โหลดรายชื่อหน่วยงานไม่สำเร็จ: ' + e.message + ' (ลองรีเฟรชหน้านี้)'; return; }
   $('l_unit').innerHTML = info.groups.map(g => `<optgroup label="${esc(g.name)}">${g.units.map(u => `<option>${esc(u)}</option>`).join('')}</optgroup>`).join('')
     + '<optgroup label="ผู้ดูแลระบบ"><option value="ADMIN">ผู้จัดการ / Admin</option></optgroup>';
   const last = store.get('lastUnit'); if (last) $('l_unit').value = last;
@@ -364,7 +388,7 @@ $('t_logout').onclick = async () => {
 
 async function startApp(b) {
   S.me = b.me; S.cfg = b.config;
-  $('login').hidden = true; $('app').hidden = false;
+  $('login').hidden = true; $('boot').hidden = true; $('app').hidden = false; window.__ready = true;
   const admin = S.me.role === 'admin';
   $('t_unit').textContent = admin ? 'ADMIN' : S.me.unit;
   $('t_sub').textContent = admin ? 'ผู้จัดการ · ดูได้ทุกหน่วยงาน' : groupName(unitCfg(S.me.unit).group);
@@ -1032,6 +1056,7 @@ function bindView() {
     } catch (e) { $('up_preview').innerHTML = `<p style="color:var(--bad)">${esc(e.message)}</p>`; }
   };
 }
+window.__scriptLoaded = true;
 </script>
 </body>
 </html>
