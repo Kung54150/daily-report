@@ -16,6 +16,7 @@ const SH_STAFF = 'ทะเบียนเจ้าหน้าที่';
 const SH_STATS = 'สถิติ';
 const SH_ROOMS = 'ห้อง';
 const SH_ALIASES = 'ชื่อแผนกในไฟล์';
+const SH_TITLES = 'การจับคู่ตำแหน่ง';
 const ATT_MAX_BYTES = 6 * 1024 * 1024; // ไฟล์แนบสูงสุดต่อไฟล์
 const ATT_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'application/pdf': 'pdf' };
 const ROOMS_PER_IPD = 25; // ห้องเริ่มต้นของแต่ละตึกผู้ป่วยใน เช่น A401 ถึง A425 (แก้ไขได้ในชีต 'ห้อง')
@@ -27,9 +28,10 @@ const HEADERS = {
     'BP (mmHg)', 'PR (/min)', 'RR (/min)', 'T (°C)', 'O2 sat (%)', 'O2', 'O2 ที่ให้', 'รายละเอียด', 'การแก้ไขเบื้องต้น', 'ผู้รายงาน', 'ไฟล์แนบ', 'เวร'],
   // ยอดมาตรฐานแบบแถวยาว ใช้ทำ Pivot / Looker Studio ภายหลัง
   [SH_STATS]: ['วันที่', 'กลุ่ม', 'หน่วยงาน', 'หมวด', 'รายการ', 'จำนวน', 'ตึก', 'เวร'],
-  [SH_STAFF]: ['id', 'หน่วยงาน', 'ชื่อ-สกุล', 'ตำแหน่ง', 'ที่มา', 'แก้ไขล่าสุด', 'แผนกในไฟล์'],
+  [SH_STAFF]: ['id', 'หน่วยงาน', 'ชื่อ-สกุล', 'ตำแหน่ง', 'ที่มา', 'แก้ไขล่าสุด', 'แผนกในไฟล์', 'ตำแหน่งในไฟล์'],
   [SH_ROOMS]: ['หน่วยงาน', 'เลขห้อง', 'ชื่อ/ประเภทห้อง (ไม่บังคับ)'],
-  [SH_ALIASES]: ['ชื่อแผนกที่ใช้ในไฟล์', 'หน่วยงานในระบบ']
+  [SH_ALIASES]: ['ชื่อแผนกที่ใช้ในไฟล์', 'หน่วยงานในระบบ'],
+  [SH_TITLES]: ['ตำแหน่งในไฟล์', 'บทบาทในระบบ']
 };
 const ADMIN = 'ADMIN'; // ผู้ดูแลระบบ: ทุกอย่างของผู้จัดการ + อัปโหลด/ผูกรายชื่อเจ้าหน้าที่ + แก้ห้องทุกหน่วยงาน
 const MANAGER = 'MANAGER'; // ผู้จัดการ: ดูสรุป ติดตามรายแผนก และพิมพ์ A4 (ดูอย่างเดียว)
@@ -57,11 +59,16 @@ function ensureSetup_() {
   withLock_(() => { if (!SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SH_USERS)) setup(); });
 }
 
-// ระบบเดิมที่ติดตั้งก่อนมีผู้ใช้ MANAGER → เพิ่มแถวผู้จัดการให้เอง (ดูรหัสผ่านที่ชีต 'ผู้ใช้')
-function ensureManager_() {
+// ระบบเดิมที่ติดตั้งก่อนมี MANAGER หรือหน่วยงานใหม่ → เพิ่มแถวผู้ใช้ที่ขาดให้เอง (ดูรหัสผ่านที่ชีต 'ผู้ใช้')
+function ensureUsers_() {
   const sh = sheet_(SH_USERS);
-  if (sh.getDataRange().getValues().slice(1).some(r => String(r[0]) === MANAGER)) return;
-  withLock_(() => sh.appendRow([MANAGER, String(Math.floor(100000 + Math.random() * 900000))]));
+  const need = [ADMIN, MANAGER].concat(allUnitCodes_());
+  const have0 = sh.getDataRange().getValues().slice(1).map(r => String(r[0]));
+  if (!need.some(c => have0.indexOf(c) < 0)) return;
+  withLock_(() => {
+    const have = sh.getDataRange().getValues().slice(1).map(r => String(r[0]));
+    need.filter(c => have.indexOf(c) < 0).forEach(c => sh.appendRow([c, String(Math.floor(100000 + Math.random() * 900000))]));
+  });
 }
 
 // ===== Web app =====
@@ -75,7 +82,7 @@ function doGet() {
 // ===== เข้าสู่ระบบ =====
 function getLoginInfo() {
   ensureSetup_();
-  ensureManager_();
+  ensureUsers_();
   return { groups: GROUPS.map(g => ({ name: g.name, units: g.units, sections: subGroups_(g).map(s => ({ label: s.label, units: s.units })) })), hint: LOGIN_HINT };
 }
 
@@ -343,7 +350,7 @@ function staffSheet_() {
 function listStaff(token) {
   auth_(token);
   return staffSheet_().getDataRange().getValues().slice(1)
-    .map(r => ({ id: Number(r[0]), unit: String(r[1] || ''), name: r[2], role: r[3], source: r[4], fileDept: String(r[6] || '') }));
+    .map(r => ({ id: Number(r[0]), unit: String(r[1] || ''), name: r[2], role: r[3], source: r[4], fileDept: String(r[6] || ''), title: String(r[7] || '') }));
 }
 
 function saveStaff(token, s) {
@@ -365,7 +372,7 @@ function saveStaff(token, s) {
       return { id: Number(s.id) };
     }
     const id = nextId_(data);
-    sh.appendRow([id, s.unit, name, s.role, 'manual', now, '']);
+    sh.appendRow([id, s.unit, name, s.role, 'manual', now, '', '']);
     return { id };
   });
 }
@@ -399,7 +406,8 @@ function uploadStaff(token, rows) {
   });
   const incoming = (rows || []).filter(r => r && String(r.name || '').trim()).map(r => {
     const dept = String(r.dept || '').replace(/\s+/g, ' ').trim();
-    return { dept, name: String(r.name).replace(/\s+/g, ' ').trim(), role: r.role || '', unit: byNorm[normAlias_(dept)] || '' };
+    const title = String(r.title || '').replace(/\s+/g, ' ').trim();
+    return { dept, title, name: String(r.name).replace(/\s+/g, ' ').trim(), role: (title && titleMap_()[normTitle_(title)]) || r.role || '', unit: byNorm[normAlias_(dept)] || '' };
   });
   const depts = new Set(incoming.map(r => normAlias_(r.dept)));
   const names = new Set(incoming.map(r => normName_(r.name)));
@@ -411,12 +419,12 @@ function uploadStaff(token, rows) {
       if (r[4] === 'upload' && depts.has(normAlias_(r[6] || r[1]))) { removed++; return false; }
       if (r[4] !== 'upload' && names.has(normName_(r[2]))) { replaced++; return false; }
       return true;
-    }).map(r => [r[0], r[1], r[2], r[3], r[4], r[5], r[6] || '']);
+    }).map(r => [r[0], r[1], r[2], r[3], r[4], r[5], r[6] || '', r[7] || '']);
     let id = nextId_(data);
     const now = stamp_();
-    const all = keep.concat(incoming.map(r => [id++, r.unit, r.name, r.role, 'upload', now, r.dept]));
-    sh.getRange(2, 1, Math.max(sh.getLastRow() - 1, 1), 7).clearContent();
-    if (all.length) sh.getRange(2, 1, all.length, 7).setValues(all);
+    const all = keep.concat(incoming.map(r => [id++, r.unit, r.name, r.role, 'upload', now, r.dept, r.title]));
+    sh.getRange(2, 1, Math.max(sh.getLastRow() - 1, 1), 8).clearContent();
+    if (all.length) sh.getRange(2, 1, all.length, 8).setValues(all);
     return { added: incoming.length, replaced, removed, bound: incoming.filter(r => r.unit).length, unbound: incoming.filter(r => !r.unit).length };
   });
 }
@@ -450,6 +458,39 @@ function saveBindings(token, items) {
     if (units.length) st.getRange(2, 2, units.length, 1).setValues(units);
   });
   return getAliases(token);
+}
+
+// ===== จับคู่ตำแหน่งงานในไฟล์กับบทบาท (RN / PN / NA / นศ. / อื่นๆ) โดยผู้ดูแลระบบ =====
+// ตำแหน่งที่ระบบไม่รู้จักจะเป็น "อื่นๆ" แอดมินเลือกบทบาทเอง ครั้งเดียว รายชื่อเดิมที่มีตำแหน่งนี้และการอัปโหลดครั้งต่อไปใช้บทบาทที่เลือกทันที
+const normTitle_ = s => String(s || '').toLowerCase().replace(/\s+/g, '');
+function titleMap_() {
+  const m = {};
+  sheet_(SH_TITLES).getDataRange().getValues().slice(1).forEach(r => { if (String(r[0]).trim() && String(r[1]).trim()) m[normTitle_(r[0])] = String(r[1]).trim(); });
+  return m;
+}
+function getTitleBindings(token) {
+  if (auth_(token).role !== 'admin') throw new Error('เฉพาะผู้ดูแลระบบ');
+  return sheet_(SH_TITLES).getDataRange().getValues().slice(1)
+    .filter(r => String(r[0]).trim() && String(r[1]).trim()).map(r => ({ title: String(r[0]).trim(), role: String(r[1]).trim() }));
+}
+function saveTitleBindings(token, items) {
+  if (auth_(token).role !== 'admin') throw new Error('เฉพาะผู้ดูแลระบบ');
+  const list = (items || []).filter(x => x && String(x.title || '').trim() && ROLES.indexOf(x.role) >= 0)
+    .map(x => ({ title: String(x.title).replace(/\s+/g, ' ').trim(), role: x.role }));
+  const roleOf = {}; list.forEach(x => { roleOf[normTitle_(x.title)] = x.role; });
+  withLock_(() => {
+    const ts = sheet_(SH_TITLES);
+    const keep = ts.getDataRange().getValues().slice(1).filter(r => String(r[0]).trim() && !(normTitle_(r[0]) in roleOf))
+      .map(r => [String(r[0]).trim(), String(r[1]).trim()]);
+    const all = keep.concat(list.map(x => [x.title, x.role]));
+    ts.getRange(2, 1, Math.max(ts.getLastRow() - 1, 1), 2).clearContent();
+    if (all.length) ts.getRange(2, 1, all.length, 2).setValues(all);
+
+    const st = staffSheet_(), data = st.getDataRange().getValues();
+    const roles = data.slice(1).map(r => [r[4] === 'upload' && r[7] && (normTitle_(r[7]) in roleOf) ? roleOf[normTitle_(r[7])] : r[3]]);
+    if (roles.length) st.getRange(2, 4, roles.length, 1).setValues(roles);
+  });
+  return getTitleBindings(token);
 }
 
 // ตัดคำนำหน้า ช่องว่าง เครื่องหมาย ออกก่อนเทียบชื่อแผนก (ต้องตรงกับ normUnit ใน Index.html)

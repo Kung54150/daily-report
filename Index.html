@@ -161,7 +161,7 @@
   .sbox .ln b { font-weight: 700; }
   .sbox .miss { color: var(--bad); font-size: 14px; }
   .sbox .shl { font-weight: 700; color: var(--accent); margin: 8px 0 2px; border-bottom: 1px solid var(--line); }
-  .addrow { display: grid; gap: 8px; }
+  .lstadd { display: grid; gap: 8px; }
   .addn { display: flex; gap: 8px; }
   .addn input { width: 110px; flex: 0 0 auto; }
   .lrow { display: grid; grid-template-columns: 1fr 96px auto; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
@@ -508,7 +508,11 @@ async function startApp(b) {
   $('tabs').querySelectorAll('button').forEach(btn => btn.onclick = () => go(btn.dataset.tab));
   S.tab = tabs[0][0];
   S.aliases = [];
-  if (admin) { try { S.aliases = await api('getAliases', S.token); } catch (e) { handleErr(e); } }
+  S.titleMap = {};
+  if (admin) {
+    try { S.aliases = await api('getAliases', S.token); } catch (e) { handleErr(e); }
+    try { setTitles(await api('getTitleBindings', S.token)); } catch (e) { handleErr(e); }
+  }
   await loadStaff();
   await loadDay();
 }
@@ -575,7 +579,8 @@ function renderMine() {
       <button class="btn" data-act="edit" type="button">เริ่มกรอกรายงานเวร ${esc(S.shift)}</button></div>`;
   }
   return `${seg}<div class="meta">เวร ${esc(S.shift)} \u00b7 ส่งโดย ${esc(rep.reporter)} \u00b7 แก้ไขล่าสุด ${esc(rep.updatedAt)}</div>
-    <div style="margin-bottom:12px"><button class="btn" data-act="edit" type="button">แก้ไขรายงานเวร ${esc(S.shift)}</button></div>
+    <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="edit" type="button">แก้ไขรายงานเวร ${esc(S.shift)}</button>
+      <button class="btn ghost" data-act="gotoprint" data-punit="${esc(u.code)}" type="button">พิมพ์รายงาน (ยอดผู้ป่วย + อัตรากำลัง + เหตุการณ์ผิดปกติ)</button></div>
     ${renderReportView(u, rep)}`;
 }
 const draftNote = () => '<div class="note">แบบฟอร์มของหน่วยงานนี้เป็นตัวอย่าง รอปรับตามรูปแบบรายงานจริง</div>';
@@ -619,7 +624,7 @@ function renderUnitDetail(code) {
   return vshiftSeg(u) + `<div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
       <button class="btn ghost sm" data-act="back" type="button">\u2039 ติดตามรายแผนก</button>
       <b style="font-size:18px">${esc(code)}</b><span class="muted">${esc(unitLabel(u))}</span></div>
-    ${r ? `<div class="meta">ส่งโดย ${esc(r.reporter)} \u00b7 แก้ไขล่าสุด ${esc(r.updatedAt)}</div>${renderReportView(u, r)}`
+    ${r ? `<div class="meta">ส่งโดย ${esc(r.reporter)} \u00b7 แก้ไขล่าสุด ${esc(r.updatedAt)}</div><div style="margin-bottom:12px"><button class="btn ghost" data-act="gotoprint" data-punit="${esc(code)}" type="button">พิมพ์รายงานหน่วยงานนี้</button></div>${renderReportView(u, r)}`
         : `<div class="card muted">หน่วยงานนี้ยังไม่ส่งรายงานเวร ${esc(S.vshift)} ของวันนี้</div>`}`;
 }
 
@@ -791,7 +796,7 @@ function renderLists() {
     const it = s.items.find(i => i.k === st.k);
     const sync = () => { v[s.totalKey] = listTotal(s, v); S.dirty = true; const el = box.querySelector('[data-ltotal]'); if (el) el.textContent = v[s.totalKey]; };
     const canAdd = () => !!it && num(st.n) >= 1 && (!it.ask || st.name.trim() !== '');
-    box.innerHTML = `<div class="addrow"><select data-lsel aria-label="เลือกรายการ"><option value="">\u2014 เลือกรายการ \u2014</option>${s.items.map(i => `<option value="${esc(i.k)}"${i.k === st.k ? ' selected' : ''}>${esc(i.label)}</option>`).join('')}</select>
+    box.innerHTML = `<div class="lstadd"><select data-lsel aria-label="เลือกรายการ"><option value="">\u2014 เลือกรายการ \u2014</option>${s.items.map(i => `<option value="${esc(i.k)}"${i.k === st.k ? ' selected' : ''}>${esc(i.label)}</option>`).join('')}</select>
       ${it && it.ask ? `<input data-lname value="${esc(st.name)}" maxlength="80" placeholder="${esc(it.ask)} (ต้องระบุก่อนจึงจะเพิ่มได้)" aria-label="${esc(it.ask)}">` : ''}
       <div class="addn"><input data-ln type="number" inputmode="numeric" min="1" step="1" value="${esc(st.n)}" aria-label="จำนวน (ราย)"><button type="button" class="btn" data-ladd${canAdd() ? '' : ' disabled'}>+ เพิ่ม</button></div></div>
       <div class="lrows">${rows.map((r, i) => `<div class="lrow"><span>${esc(listLabel(s.items.find(x => x.k === r.k), r))}</span><input type="number" inputmode="numeric" min="0" step="1" data-lcount="${i}" value="${esc(r.n)}" aria-label="จำนวน"><button type="button" class="btn ghost sm" data-ldel="${i}" aria-label="ลบรายการ">\u00d7</button></div>`).join('') || '<div class="muted" style="padding:6px 0">ยังไม่มีรายการ \u2014 เลือกรายการแล้วกด + เพิ่ม</div>'}</div>
@@ -1185,7 +1190,7 @@ function renderStaff() {
       <div style="margin-bottom:8px"><button type="button" class="btn ghost sm" data-act="tpl">ดาวน์โหลดไฟล์ตัวอย่าง (CSV)</button></div>
       <input type="file" id="up_file" accept=".xlsx,.xls,.csv">
       <div id="up_preview"></div></div>`;
-    html += renderBindingCard();
+    html += renderBindingCard() + renderTitleCard();
     html += `<div class="card"><label class="f" for="st_unit">หน่วยงาน</label><select id="st_unit"><option value="__none"${none ? ' selected' : ''}>ยังไม่ผูกแผนก (${S.staff.filter(s => !s.unit).length} คน)</option>${unitOptgroups(unit)}</select></div>`;
   }
   html += `<div class="card"><h3>ทะเบียนเจ้าหน้าที่ ${esc(unitName)} <span class="sub">${list.length} คน \u00b7 ${roleCounts(list).map(([k, n]) => `${k} ${n}`).join(' \u00b7 ')}</span></h3>
@@ -1234,7 +1239,7 @@ function loadXLSX() {
 }
 function normUnit(s) { return String(s || '').toUpperCase().replace(/ผู้ป่วยใน|ผู้ป่วยนอก|ตึก|หอผู้ป่วย|หอ|แผนก|หน่วยงาน|ชั้น|\s|[-_.\/()]/g, ''); }
 const cleanName = s => String(s || '').replace(/\s+/g, ' ').trim();
-function mapRole(raw) {
+function builtinRole(raw) {
   const t = String(raw || '').trim(), up = t.toUpperCase().replace(/[\s.]/g, '');
   if (up === 'RN' || up === 'PN' || up === 'NA') return up;
   if (/ผู้ช่วยพยาบาล|ผู้ช่วยการพยาบาล|ช่วยการพยาบาล/.test(t)) return 'PN';
@@ -1244,10 +1249,13 @@ function mapRole(raw) {
   if (/^พยาบาล|^พว\.?$/.test(t)) return 'RN';
   return S.cfg.roleAliases[t] || S.cfg.roleAliases[t.toLowerCase()] || (S.cfg.roles.indexOf(t) >= 0 ? t : '\u0e2d\u0e37\u0e48\u0e19\u0e46');
 }
+const normTitle = t => String(t || '').toLowerCase().replace(/\s+/g, '');
+// ตำแหน่งที่แอดมินจับคู่เองมาก่อนกฎอัตโนมัติ
+function mapRole(raw) { return (S.titleMap || {})[normTitle(raw)] || builtinRole(raw); }
 const SUGGEST = [
   [/อุบัติเหตุ/, 'ER'], [/อายุรกรรม/, 'OPD1'], [/ศัลยกรรม/, 'OPD3'], [/สูตินรีเวช|สูติ/, 'OBG-IVF'],
   [/กุมารเวช|เด็กสุขภาพดี|พัฒนาการเด็ก/, 'PC'], [/ตา\s*หู\s*คอ/, 'EENT'], [/ทันตกรรม/, 'Dent'],
-  [/ห้องผ่าตัด/, 'OR'], [/ห้องคลอด|ทารกแรกเกิด/, 'LR-NB'], [/ผู้ป่วยวิกฤต/, 'ICU'], [/ส่งเสริมสุขภาพ/, 'HPC']
+  [/ห้องผ่าตัด/, 'OR'], [/ห้องคลอด|ทารกแรกเกิด/, 'LR-NB'], [/ผู้ป่วยวิกฤต/, 'ICU'], [/ส่งเสริมสุขภาพ/, 'HPC'], [/ผิวหนัง/, 'ผิวหนัง'], [/แผนจีน/, 'แผนจีน'], [/CCC/i, 'CCC']
 ];
 function suggestUnit(raw) {
   const hit = SUGGEST.find(x => x[0].test(raw));
@@ -1284,7 +1292,7 @@ async function readRoster(file) {
   const out = [], bad = [];
   rows.forEach((r, i) => {
     const name = cleanName(r[cn]);
-    if (name) out.push({ dept: cleanName(r[cu]), name, role: mapRole(r[cr]) });
+    if (name) out.push({ dept: cleanName(r[cu]), name, role: mapRole(r[cr]), title: String(r[cr] || '').replace(/\s+/g, ' ').trim() });
     else if (cleanName(r[cu])) bad.push(i + 1);
   });
   return { rows: out, bad };
@@ -1371,7 +1379,7 @@ function renderPrint() {
   if (kind === 'month') {
     const key = scope + '|' + month;
     if (!S.monthData || S.monthData.key !== key) { loadMonth(scope, month); return bar + '<div class="card muted">กำลังโหลดรายงานรายเดือน...</div>'; }
-    pages = printMonthly(unitCfg(scope), month, S.monthData.reports).map((p, n, a) => p + (n === a.length - 1 ? sign : ''));
+    pages = [printMonthly(unitCfg(scope), month, S.monthData.reports) + sign];
   } else if (scope === 'all') pages = [printUnits(), printOverview() + printIncidents() + sign];
   else pages = shiftsOf(unitCfg(scope)).map(k => printSingle(unitCfg(scope), k) + sign);
   return bar + `<div class="a4-scroll">${pages.map(p => `<div class="a4">${p}</div>`).join('')}</div>`;
@@ -1420,11 +1428,11 @@ function printMonthly(u, month, reps) {
     if (lines.length) boxes.push(`<div class="ub"><b>${esc(s.title)}</b><table class="stat">${lines.map(([k, n]) => `<tr><td>${esc(k)}</td><td class="n">${n}</td></tr>`).join('')}</table></div>`);
   });
   const incs = reps.flatMap(r => (r.incidents || []).map(i => Object.assign({}, i, { unit: fmtDMY(r.date) + (two ? ' \u00b7 ' + r.shift : '') })));
-  let p2 = head('รายการรวมทั้งเดือน') + `<div class="st">${esc(unitLabel(u))}</div>`;
+  let p2 = '';
   p2 += boxes.length ? `<h2>รวมจำนวนรายการ</h2><div class="cols">${boxes.join('')}</div>` : '<div class="muted">ไม่มีรายการอื่นนอกเหนือจากตารางยอดรายวัน</div>';
   const byType = {}; incs.forEach(i => byType[i.type] = (byType[i.type] || 0) + 1);
   p2 += `<h2>เหตุการณ์ผิดปกติ (${incs.length})</h2>` + (incs.length ? `<div class="chipsp">${Object.entries(byType).map(([k, n]) => `<span>${esc(k)} <b>${n}</b></span>`).join('')}</div>${incTable(incs, 'วันที่ / เวร')}` : '<div>ไม่มีรายงานเหตุการณ์ผิดปกติ</div>');
-  return [p1, p2];
+  return p1 + p2;
 }
 function printHead(sub) {
   const miss = missingText(), nFull = S.cfg.units.filter(u => unitState(u) === 'full').length;
@@ -1612,6 +1620,40 @@ function deptGroups() {
     return { dept: k, n: o.n, cur };
   }).sort((a, b) => (a.cur ? 1 : 0) - (b.cur ? 1 : 0) || a.dept.localeCompare(b.dept, 'th'));
 }
+/* ===== จับคู่ตำแหน่งงานในไฟล์กับบทบาท โดยแอดมิน ===== */
+function setTitles(list) { S.titleMap = {}; (list || []).forEach(x => { S.titleMap[normTitle(x.title)] = x.role; }); }
+function titleGroups() {
+  const g = {};
+  S.staff.filter(s => s.source === 'upload' && s.title).forEach(s => {
+    const o = g[s.title] || (g[s.title] = { title: s.title, n: 0, roles: {} });
+    o.n++; o.roles[s.role] = (o.roles[s.role] || 0) + 1;
+  });
+  return Object.values(g).map(o => Object.assign(o, { cur: Object.entries(o.roles).sort((a, b) => b[1] - a[1])[0][0] }))
+    .filter(o => builtinRole(o.title) === '\u0e2d\u0e37\u0e48\u0e19\u0e46' || normTitle(o.title) in S.titleMap)
+    .sort((a, b) => (a.cur === '\u0e2d\u0e37\u0e48\u0e19\u0e46' ? 0 : 1) - (b.cur === '\u0e2d\u0e37\u0e48\u0e19\u0e46' ? 0 : 1) || b.n - a.n);
+}
+function renderTitleCard() {
+  const gs = titleGroups(), noTitle = S.staff.filter(s => s.source === 'upload' && !s.title).length;
+  if (!gs.length && !noTitle) return '';
+  S.titleSel = S.titleSel || {};
+  return `<div class="card"><h3>จับคู่ตำแหน่งงานกับบทบาท <span class="sub">ตำแหน่งที่ระบบไม่รู้จัก ${gs.filter(o => !(normTitle(o.title) in S.titleMap)).length} ตำแหน่ง</span></h3>
+    <p class="muted" style="margin:0 0 8px;font-size:14px">เลือกบทบาท (RN / PN / NA / นศ. / อื่นๆ) ให้แต่ละตำแหน่งในไฟล์ แล้วกด "บันทึกการจับคู่" รายชื่อที่มีตำแหน่งนี้จะเปลี่ยนทันที และการอัปโหลดครั้งต่อไปใช้ตามที่เลือก (หัวหน้า/ผู้ช่วยหัวหน้าแผนกถูกจัดเป็น RN ให้อัตโนมัติอยู่แล้ว)</p>
+    ${noTitle ? `<div class="note">มี ${noTitle} คนที่อัปโหลดไว้ก่อนระบบเก็บตำแหน่ง \u2014 อัปโหลดไฟล์รายชื่อซ้ำอีก 1 ครั้งเพื่อให้จับคู่ตำแหน่งได้ครบ</div>` : ''}
+    <div class="binding">${gs.map(o => {
+      const bound = normTitle(o.title) in S.titleMap, sel = o.title in S.titleSel ? S.titleSel[o.title] : o.cur;
+      return `<span><b>${esc(o.title)}</b> <small class="muted">(${o.n} คน) \u00b7 ${bound ? 'จับคู่แล้ว' : 'ยังเป็นอื่นๆ'}</small></span><select data-title="${esc(o.title)}">${S.cfg.roles.map(r => `<option${r === sel ? ' selected' : ''}>${esc(r)}</option>`).join('')}</select>`;
+    }).join('')}</div>
+    ${gs.length ? '<button type="button" class="btn" data-act="titlesave">บันทึกการจับคู่</button>' : ''}</div>`;
+}
+async function saveTitlesNow() {
+  const items = titleGroups().filter(o => o.title in (S.titleSel || {})).map(o => ({ title: o.title, role: S.titleSel[o.title] }));
+  if (!items.length) return toast('ไม่มีการเปลี่ยนแปลง');
+  try {
+    setTitles(await api('saveTitleBindings', S.token, items));
+    S.titleSel = {}; await loadStaff(); render();
+    toast(`บันทึกการจับคู่ ${items.length} ตำแหน่งแล้ว`);
+  } catch (e) { handleErr(e); }
+}
 function renderBindingCard() {
   const gs = deptGroups(), none = S.staff.filter(s => !s.unit).length;
   if (!gs.length) return '';
@@ -1647,10 +1689,11 @@ function bindView() {
     const a = b.dataset.act;
     if (a === 'edit') startEdit();
     else if (a === 'back') go('all');
-    else if (a === 'gotoprint') go('print');
+    else if (a === 'gotoprint') { if (b.dataset.punit) { S.printScope = b.dataset.punit; S.printKind = 'day'; } go('print'); }
     else if (a === 'print') { if (S.pendingAtt > 0) toast('กำลังโหลดไฟล์แนบ รอสักครู่แล้วกดพิมพ์อีกครั้ง'); else window.print(); }
     else if (a === 'tpl') downloadTemplate();
     else if (a === 'bindsave') saveBindingsNow();
+    else if (a === 'titlesave') saveTitlesNow();
     else if (a === 'rooms') roomEditor($('adm_room_editor'), b.dataset.runit, () => render());
   });
   v.querySelectorAll('[data-vshift]').forEach(b => b.onclick = () => { S.vshift = b.dataset.vshift; S.day = { reports: deriveReports(S.vshift) }; render(); });
@@ -1672,6 +1715,7 @@ function bindView() {
     } catch (e) { $('up_preview').innerHTML = `<p style="color:var(--bad)">${esc(e.message)}</p>`; }
   };
   v.querySelectorAll('[data-dept]').forEach(sel => sel.onchange = () => { S.bindSel[sel.dataset.dept] = sel.value; });
+  v.querySelectorAll('[data-title]').forEach(sel => sel.onchange = () => { S.titleSel = S.titleSel || {}; S.titleSel[sel.dataset.title] = sel.value; });
   if (S.upRows && $('up_preview') && S.tab === 'staff' && S.upRows.length) drawUpPreview();
 
 }
