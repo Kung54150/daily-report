@@ -6,7 +6,7 @@
  * - ทุกหน่วยงานดูรายงานของกันได้ แก้ไขได้เฉพาะของตนเอง
  * - ADMIN ดูสรุป พิมพ์ A4 และอัปโหลดรายชื่อเจ้าหน้าที่ประจำเดือน
  *
- * ติดตั้งครั้งแรก: เลือกฟังก์ชัน setup แล้วกด Run (สร้างชีตและรหัสผ่านเริ่มต้น)
+ * ติดตั้งครั้งแรก: เปิดไฟล์นี้ เลือกฟังก์ชัน setup แล้วกด "เรียกใช้" (สร้างชีตและรหัสผ่านเริ่มต้น)
  */
 
 const SH_USERS = 'ผู้ใช้';
@@ -28,14 +28,6 @@ const ADMIN = 'ADMIN';
 const SESSION_DAYS = 30;
 const LOGIN_HINT = ''; // ข้อความใต้ฟอร์มเข้าสู่ระบบ (ถ้ามี)
 
-// ===== Web app =====
-function doGet() {
-  return HtmlService.createHtmlOutputFromFile('Index')
-    .setTitle('รายงานยอดประจำวัน')
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-}
-
 // ===== ติดตั้งครั้งแรก =====
 function setup() {
   Object.keys(HEADERS).forEach(sheet_);
@@ -46,7 +38,16 @@ function setup() {
     sh.getRange(sh.getLastRow() + 1, 1, codes.length, 2)
       .setValues(codes.map(c => [c, String(Math.floor(100000 + Math.random() * 900000))]));
   }
+  Logger.log('สร้างชีตแล้ว · เพิ่มผู้ใช้ใหม่ ' + codes.length + ' หน่วยงาน · ดูรหัสผ่านที่ชีต "' + SH_USERS + '"');
   return codes.length;
+}
+
+// ===== Web app =====
+function doGet() {
+  return HtmlService.createHtmlOutputFromFile('Index')
+    .setTitle('รายงานยอดประจำวัน')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 // ===== เข้าสู่ระบบ =====
