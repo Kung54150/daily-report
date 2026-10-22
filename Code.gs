@@ -13,10 +13,15 @@ const SH_USERS = 'ผู้ใช้';
 const SH_REPORTS = 'รายงาน';
 const SH_INCIDENTS = 'เหตุการณ์ผิดปกติ';
 const SH_STAFF = 'ทะเบียนเจ้าหน้าที่';
+const SH_STATS = 'สถิติ';
+const INC_FIELDS = ['type', 'severity', 'patient', 'age', 'hn', 'time', 'doctor', 'bp', 'pr', 'rr', 'temp', 'spo2', 'o2mode', 'o2flow', 'detail', 'action'];
 const HEADERS = {
   [SH_USERS]: ['หน่วยงาน', 'รหัสผ่าน'],
   [SH_REPORTS]: ['วันที่', 'หน่วยงาน', 'ผู้รายงาน', 'แก้ไขล่าสุด', 'ข้อมูล (JSON)'],
-  [SH_INCIDENTS]: ['วันที่', 'หน่วยงาน', 'เวลา', 'ประเภท', 'ระดับความรุนแรง', 'รายละเอียด', 'การแก้ไขเบื้องต้น', 'ผู้รายงาน'],
+  [SH_INCIDENTS]: ['วันที่', 'หน่วยงาน', 'ประเภท', 'ระดับความรุนแรง', 'ชื่อ-สกุลผู้ป่วย', 'อายุ', 'HN', 'เวลามารับบริการ', 'แพทย์เจ้าของไข้',
+    'BP (mmHg)', 'PR (/min)', 'RR (/min)', 'T (°C)', 'O2 sat (%)', 'O2', 'O2 ที่ให้', 'รายละเอียด', 'การแก้ไขเบื้องต้น', 'ผู้รายงาน'],
+  // ยอดมาตรฐานแบบแถวยาว ใช้ทำ Pivot / Looker Studio ภายหลัง
+  [SH_STATS]: ['วันที่', 'กลุ่ม', 'หน่วยงาน', 'หมวด', 'รายการ', 'จำนวน'],
   [SH_STAFF]: ['id', 'หน่วยงาน', 'ชื่อ-สกุล', 'ตำแหน่ง', 'ที่มา', 'แก้ไขล่าสุด']
 };
 const ADMIN = 'ADMIN';
@@ -112,8 +117,10 @@ function saveReport(token, rep) {
     reduce: rep.reduce || {},
     notes: String(rep.notes || ''),
     incidents: (rep.incidents || []).filter(i => i && String(i.detail || '').trim())
-      .map(i => ({ time: i.time || '', type: i.type || '', severity: i.severity || '-', detail: String(i.detail), action: String(i.action || '') }))
+      .map(i => { const o = {}; INC_FIELDS.forEach(k => { o[k] = String(i[k] == null ? '' : i[k]); }); return o; })
   };
+  const unitInfo = buildConfig_().units.find(u => u.code === me.unit);
+  const stats = statRows_(unitInfo, clean);
 
   withLock_(() => {
     const sh = sheet_(SH_REPORTS);
@@ -123,11 +130,31 @@ function saveReport(token, rep) {
     const inc = sheet_(SH_INCIDENTS);
     deleteRows_(inc, r => fmtDate_(r[0]) === clean.date && r[1] === clean.unit);
     if (clean.incidents.length) {
-      inc.getRange(inc.getLastRow() + 1, 1, clean.incidents.length, 8).setValues(clean.incidents.map(i =>
-        [clean.date, clean.unit, i.time, i.type, i.severity, i.detail, i.action, clean.reporter]));
+      inc.getRange(inc.getLastRow() + 1, 1, clean.incidents.length, INC_FIELDS.length + 3).setValues(clean.incidents.map(i =>
+        [clean.date, clean.unit].concat(INC_FIELDS.map(k => i[k]), [clean.reporter])));
     }
+
+    const st = sheet_(SH_STATS);
+    deleteRows_(st, r => fmtDate_(r[0]) === clean.date && r[2] === clean.unit);
+    if (stats.length) st.getRange(st.getLastRow() + 1, 1, stats.length, 6).setValues(stats);
   });
   return { ok: true };
+}
+
+// ยอดมาตรฐาน + ประเภทผู้ป่วย + อัตรากำลัง ของรายงานหนึ่งฉบับ (แถวละหนึ่งค่า)
+function statRows_(u, rep) {
+  const g = GROUPS.find(x => x.key === u.group).name;
+  const row = (cat, item, n) => [rep.date, g, u.code, cat, item, n];
+  const rows = [];
+  Object.entries(stdValues_(u.form, rep.values)).forEach(([k, n]) => rows.push(row('ยอดผู้ป่วย', STD_LABELS[k], n)));
+  Object.entries(categoryValues_(u.form, rep.values)).forEach(([k, n]) => rows.push(row('ประเภทผู้ป่วย', k, n)));
+  ROLES.forEach(r => {
+    const n = rep.staff.filter(s => s.role === r && s.tag !== 'ออกหน่วย').length;
+    if (n) rows.push(row('อัตรากำลัง', r, n));
+  });
+  ['RN', 'PN', 'NA'].forEach(r => { if (Number(rep.reduce[r])) rows.push(row('ลดอัตรากำลัง (ชม.)', r, Number(rep.reduce[r]))); });
+  rep.incidents.forEach(i => rows.push(row('เหตุการณ์ผิดปกติ', i.type, 1)));
+  return rows;
 }
 
 // ===== ทะเบียนเจ้าหน้าที่ =====
