@@ -160,16 +160,20 @@
   .sbox .ln { font-size: 14px; margin: 3px 0; overflow-wrap: anywhere; }
   .sbox .ln b { font-weight: 700; }
   .sbox .miss { color: var(--bad); font-size: 14px; }
-  .sbox .shl { font-weight: 700; color: var(--accent); margin: 8px 0 2px; border-bottom: 1px solid var(--line); }
+  .shb { margin-top: 8px; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px 6px; overflow: hidden; }
+  .shb .shl { font-weight: 700; color: var(--accent); background: var(--accent-soft); margin: 0 -10px 6px; padding: 3px 10px; }
   .lstadd { display: grid; gap: 8px; }
   .addn { display: flex; gap: 8px; }
   .addn input { width: 110px; flex: 0 0 auto; }
   .lrow { display: grid; grid-template-columns: 1fr 96px auto; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
   .slines .lg { break-inside: avoid; margin-bottom: 4px; }
-  .slines .ln.d { padding-left: 10px; color: var(--muted); margin: 1px 0; }
+  .slines .ln.dt { padding-left: 12px; color: var(--fg); margin: 1px 0; text-align: left; }
   @media (min-width: 720px) { .slines { columns: 2; column-gap: 24px; } }
-  .a4 .shl { font-weight: 700; font-size: 9.5pt; border-bottom: .4pt solid #999; margin-top: 3px; }
-  .a4 .ub .ln.d { padding-left: 6px; font-size: 8.5pt; }
+  .a4 .shb { margin-top: 4px; border: .5pt solid #777; padding: 0 4px 2px; border-radius: 0; }
+  .a4 .shb .shl { font-weight: 700; font-size: 9.5pt; background: #e6e6e6; color: #111; margin: 0 -4px 2px; padding: 1px 4px; }
+  .a4 .slines { columns: 1; }
+  .a4 .ub .ln { text-align: left; color: #111; }
+  .a4 .ub .ln.dt { padding-left: 8px; font-size: 9pt; }
   .a4 .ub .lg { break-inside: avoid; }
   .rm small { display: block; font-size: 10px; opacity: .75; line-height: 1.1; }
   .rrow { display: grid; grid-template-columns: 1fr 1.4fr 36px; gap: 6px; margin-bottom: 6px; align-items: center; }
@@ -1329,7 +1333,8 @@ function incCardHtml(i, unitLabelText, n) {
 function unitShiftBlocks(u) {
   const two = shiftsOf(u).length > 1;
   return shiftsOf(u).map(k => { const r = repAt(u, k);
-    return (two ? `<div class="shl">เวร ${esc(k)}</div>` : '') + (r ? `<div class="slines">${printLines(u, r)}</div>` : `<div class="miss">${two ? 'เวร ' + esc(k) + ' ' : ''}ยังไม่รายงาน</div>`); }).join('');
+    const inner = r ? `<div class="slines">${printLines(u, r)}</div>` : `<div class="miss">${two ? 'เวร ' + esc(k) + ' ' : ''}ยังไม่รายงาน</div>`;
+    return two ? `<div class="shb"><div class="shl">เวร ${esc(k)}</div>${inner}</div>` : inner; }).join('');
 }
 function renderSummary() {
   const incs = [];
@@ -1556,7 +1561,7 @@ const SUMMARY_VIEW = {
 // รายการหลักเป็นตัวหนา รายละเอียดขึ้นบรรทัดใหม่ขึ้นต้นด้วย -
 function printLines(u, r) {
   const v = r.values || {}, out = [];
-  const grp = (head, details) => out.push(`<div class="lg">${head ? `<div class="ln m">${head}</div>` : ''}${details.filter(Boolean).map(d => `<div class="ln d">- ${d}</div>`).join('')}</div>`);
+  const grp = (head, details) => out.push(`<div class="lg">${head ? `<div class="ln m">${head}</div>` : ''}${details.filter(Boolean).map(d => `<div class="ln dt">- ${d}</div>`).join('')}</div>`);
   u.form.sections.forEach(s => {
     if (s.type === 'list') { const rows = listRows(s, v); if (rows.length) grp(`<b>${esc(s.totalLabel)} ${listTotal(s, v)} ราย</b>`, rows.map(r => `${esc(listLabel(r.it, r))} ${r.n}`)); return; }
     if (s.type === 'grid') {
