@@ -53,7 +53,9 @@
   .tabs button { flex: 0 0 auto; background: none; border: 0; border-bottom: 3px solid transparent; padding: 11px 12px; color: var(--muted); cursor: pointer; white-space: nowrap; }
   .tabs button.on { color: var(--accent); border-color: var(--accent); font-weight: 600; }
   .datebar { display: flex; align-items: center; gap: 8px; padding-block: 12px; }
-  .datebar input { flex: 0 1 180px; }
+  .dpick { position: relative; flex: 0 1 190px; min-width: 150px; height: 40px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); cursor: pointer; font-weight: 600; }
+  .dpick input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; padding: 0; border: 0; }
+  .dpick .cal { color: var(--muted); }
   .datebar .dlabel { color: var(--muted); font-size: 14px; flex: 1; min-width: 0; }
   .iconbtn { width: 38px; height: 38px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; flex: 0 0 auto; }
 
@@ -128,6 +130,12 @@
   .vs b { font-variant-numeric: tabular-nums; }
   .pt { font-size: 14px; margin: 4px 0; }
 
+  /* เลือกห้องพัก */
+  .rooms { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+  .rm { min-width: 62px; padding: 7px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--sunk); cursor: pointer; font-variant-numeric: tabular-nums; }
+  .rm.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  .rm.used { opacity: .4; }
+  .rm-add { grid-template-columns: 1fr auto; margin-top: 6px; }
   /* แท็บย่อยของหน่วยงาน */
   .seg { display: flex; gap: 4px; background: var(--sunk); border: 1px solid var(--line); border-radius: 10px; padding: 4px; margin-bottom: 12px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 98px); z-index: 3; }
   .seg button { flex: 1 1 0; min-width: 0; border: 0; background: transparent; border-radius: 7px; padding: 8px 6px; cursor: pointer; color: var(--muted); font-weight: 500; line-height: 1.25; }
@@ -324,7 +332,7 @@ setTimeout(function () {
   <main class="wrap">
     <div class="datebar noprint" id="datebar">
       <button class="iconbtn" id="d_prev" type="button" aria-label="วันก่อนหน้า">‹</button>
-      <input type="date" id="d_date">
+      <label class="dpick" for="d_date"><span class="num" id="d_text"></span><span class="cal" aria-hidden="true">&#9662;</span><input type="date" id="d_date"></label>
       <button class="iconbtn" id="d_next" type="button" aria-label="วันถัดไป">›</button>
       <span class="dlabel" id="d_label"></span>
     </div>
@@ -356,6 +364,8 @@ const todayStr = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.g
 const shiftDate = (s, n) => { const d = new Date(s + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
 const thaiDate = (s, long) => new Date(s + 'T12:00:00').toLocaleDateString('th-TH', long ? { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' } : { weekday: 'short', day: 'numeric', month: 'short', year: '2-digit' });
 const store = { get(k) { try { return JSON.parse(localStorage.getItem('dr.' + k)); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem('dr.' + k, JSON.stringify(v)); } catch (e) {} } };
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const fmtDMY = s => { const p = String(s).split('-'); return p[2] + '/' + MON[+p[1] - 1] + '/' + p[0]; };
 const num = v => (v === '' || v == null || isNaN(v)) ? 0 : Number(v);
 const show = v => (v === '' || v == null) ? '\u2013' : esc(v);
 
@@ -413,7 +423,7 @@ async function startApp(b) {
   $('t_unit').textContent = admin ? 'ADMIN' : S.me.unit;
   $('t_sub').textContent = admin ? 'ผู้จัดการ \u00b7 ดูได้ทุกหน่วยงาน' : groupName(unitCfg(S.me.unit).group);
   const tabs = admin
-    ? [['all', 'ทุกหน่วยงาน'], ['print', 'สรุป / พิมพ์ A4'], ['staff', 'ทะเบียนเจ้าหน้าที่']]
+    ? [['all', 'ทุกหน่วยงาน'], ['print', 'สรุป / พิมพ์ A4'], ['staff', 'รายชื่อเจ้าหน้าที่ (อัปโหลด)']]
     : [['mine', 'หน่วยงานของฉัน'], ['all', 'ทุกหน่วยงาน'], ['staff', 'ทะเบียนเจ้าหน้าที่']];
   $('tabs').innerHTML = tabs.map(([k, t]) => `<button type="button" data-tab="${k}">${t}</button>`).join('');
   $('tabs').querySelectorAll('button').forEach(btn => btn.onclick = () => go(btn.dataset.tab));
@@ -422,14 +432,16 @@ async function startApp(b) {
   await loadDay();
 }
 
+function setDateUI() { $('d_date').value = S.date; $('d_text').textContent = fmtDMY(S.date); $('d_label').textContent = thaiDate(S.date, true); }
 $('d_date').onchange = () => { if ($('d_date').value) { S.date = $('d_date').value; loadDay(); } };
+$('d_date').addEventListener('click', () => { try { $('d_date').showPicker(); } catch (e) {} });
 $('d_prev').onclick = () => { S.date = shiftDate(S.date, -1); loadDay(); };
 $('d_next').onclick = () => { S.date = shiftDate(S.date, 1); loadDay(); };
 
 async function loadDay() {
-  if (S.editing && S.dirty) { $('d_date').value = S.date = S.draft.date; toast('บันทึกหรือยกเลิกรายงานก่อนเปลี่ยนวันที่'); return; }
+  if (S.editing && S.dirty) { S.date = S.draft.date; setDateUI(); toast('บันทึกหรือยกเลิกรายงานก่อนเปลี่ยนวันที่'); return; }
   S.editing = false;
-  $('d_date').value = S.date; $('d_label').textContent = thaiDate(S.date, true);
+  setDateUI();
   $('view').innerHTML = '<div class="card muted">กำลังโหลด...</div>';
   try { S.day = await api('getDay', S.token, S.date); } catch (e) { return handleErr(e); }
   render();
@@ -624,7 +636,8 @@ function mountForm() {
         ${s.rows.map(rw => `<tr><td>${esc(rw[1])}</td>${s.cols.map(c => `<td>${numInput(rw[0] + '_' + c[0])}</td>`).join('')}<td class="num"><b data-rowsum="${si}:${esc(rw[0])}">0</b></td></tr>`).join('')}</table></div>`;
     } else {
       s.fields.forEach(f => {
-        if (f.type === 'text') pat += `<div class="frow text"><label class="lab" for="v_${esc(f.key)}">${esc(f.label)}</label><textarea id="v_${esc(f.key)}" data-v="${esc(f.key)}" rows="2">${esc(v[f.key] ?? '')}</textarea></div>`;
+        if (f.type === 'text' && f.rooms && roomsFor(S.me.unit).length) pat += `<div class="frow text"><span class="lab">${esc(f.label)}</span><div data-rooms="${esc(f.key)}"></div></div>`;
+        else if (f.type === 'text') pat += `<div class="frow text"><label class="lab" for="v_${esc(f.key)}">${esc(f.label)}</label><textarea id="v_${esc(f.key)}" data-v="${esc(f.key)}" rows="2">${esc(v[f.key] ?? '')}</textarea></div>`;
         else if (f.type === 'time') pat += `<div class="frow"><span class="lab">${esc(f.label)}</span><input type="time" data-v="${esc(f.key)}" value="${esc(v[f.key] ?? '')}"></div>`;
         else if (f.calc) pat += `<div class="frow"><span class="lab"><b>${esc(f.label)}</b> <small>(คำนวณอัตโนมัติ)</small></span><div class="calc num" data-calc="${esc(f.key)}">0</div></div>`;
         else pat += `<div class="frow"><span class="lab">${esc(f.label)} <small>${esc(f.unit)}</small>${f.pctOf ? ` <small data-pct="${esc(f.key)}"></small>` : ''}</span>${numInput(f.key)}</div>`;
@@ -650,7 +663,7 @@ function mountForm() {
 
   $('view').innerHTML = `<div id="fm_tabs"></div>
     <div data-panel="patient">${pat}</div><div data-panel="staff">${staff}</div><div data-panel="incident">${inc}</div>`;
-  renderStaffPicker(); renderIncidents(); recalc(); showSub();
+  renderStaffPicker(); renderIncidents(); renderRoomPickers(); recalc(); showSub();
   $('fm_addinc').onclick = () => {
     d.incidents.push({ type: S.cfg.problemTypes[0], severity: '-', patient: '', age: '', hn: '', time: '', doctor: '', bp: '', pr: '', rr: '', temp: '', spo2: '', o2mode: 'Room air', o2flow: '', detail: '', action: '' });
     S.dirty = true; renderIncidents(); showSub();
@@ -665,6 +678,47 @@ function showSub() {
 }
 
 $('view').addEventListener('input', e => { if (S.editing && S.tab === 'mine') onFormInput(e); });
+
+/* ห้องพัก: กดเลือกจากรายการห้องของหน่วยงาน หรือพิมพ์ชื่อเอง (ห้องหนึ่งอยู่ได้ที่เดียว ว่างหรือรอทำความสะอาด) */
+const parseRooms = v => String(v || '').split(/[,\n]/).map(x => x.trim()).filter(Boolean);
+const roomsFor = unit => (S.cfg.rooms && S.cfg.rooms[unit]) || [];
+function setRooms(key, list) {
+  const reg = roomsFor(S.me.unit), uniq = list.filter((r, i) => list.indexOf(r) === i);
+  uniq.sort((a, b) => { const ia = reg.indexOf(a), ib = reg.indexOf(b); return (ia < 0 ? 9999 : ia) - (ib < 0 ? 9999 : ib) || a.localeCompare(b); });
+  S.draft.values[key] = uniq.join(', '); S.dirty = true;
+}
+const otherRoomKey = key => key === 'rooms_ready' ? 'rooms_clean' : 'rooms_ready';
+function addRooms(key, names) {
+  const other = otherRoomKey(key), add = parseRooms(names);
+  if (!add.length) return;
+  setRooms(key, parseRooms(S.draft.values[key]).concat(add));
+  setRooms(other, parseRooms(S.draft.values[other]).filter(r => add.indexOf(r) < 0));
+  renderRoomPickers();
+}
+function renderRoomPickers() {
+  const reg = roomsFor(S.me.unit);
+  document.querySelectorAll('[data-rooms]').forEach(box => {
+    const key = box.dataset.rooms, sel = parseRooms(S.draft.values[key]), used = new Set(parseRooms(S.draft.values[otherRoomKey(key)]));
+    const extra = sel.filter(r => reg.indexOf(r) < 0);
+    box.innerHTML = `<div class="rooms">${reg.map(r => `<button type="button" class="rm${sel.indexOf(r) >= 0 ? ' on' : ''}${used.has(r) ? ' used' : ''}" data-room="${esc(r)}" data-rkey="${esc(key)}">${esc(r)}</button>`).join('')}${extra.map(r => `<button type="button" class="rm on" data-room="${esc(r)}" data-rkey="${esc(key)}">${esc(r)} \u00d7</button>`).join('')}</div>
+      <div class="muted" style="font-size:12px">เลือกแล้ว ${sel.length} ห้อง</div>
+      <div class="addrow rm-add"><input data-roomtext="${esc(key)}" placeholder="พิมพ์ชื่อห้องเอง เช่น VIP1 (คั่นหลายห้องด้วย ,)"><button type="button" class="btn sm" data-roomadd="${esc(key)}">+ เพิ่ม</button></div>`;
+  });
+}
+$('view').addEventListener('click', e => {
+  if (!(S.editing && S.tab === 'mine')) return;
+  const rb = e.target.closest('[data-room]');
+  if (rb) {
+    const key = rb.dataset.rkey, r = rb.dataset.room, sel = parseRooms(S.draft.values[key]);
+    if (sel.indexOf(r) >= 0) { setRooms(key, sel.filter(x => x !== r)); renderRoomPickers(); } else addRooms(key, r);
+    return;
+  }
+  const ab = e.target.closest('[data-roomadd]');
+  if (ab) { const inp = document.querySelector(`[data-roomtext="${ab.dataset.roomadd}"]`); addRooms(ab.dataset.roomadd, inp.value); }
+});
+$('view').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.dataset && e.target.dataset.roomtext) { e.preventDefault(); addRooms(e.target.dataset.roomtext, e.target.value); }
+});
 function onFormInput(e) {
   const t = e.target, d = S.draft;
   S.dirty = true;
@@ -807,8 +861,9 @@ function renderStaff() {
   let html = '';
   if (admin) {
     html += `<div class="card"><h3>อัปโหลดรายชื่อประจำเดือน</h3>
-      <p class="muted" style="margin:0 0 8px;font-size:14px">ไฟล์ Excel หรือ CSV มี 3 คอลัมน์: <b>หน่วยงาน</b>, <b>ชื่อ-สกุล</b>, <b>ตำแหน่ง</b> (RN/PN/NA หรือ พยาบาลวิชาชีพ/ผู้ช่วยพยาบาล/ผู้ช่วยเหลือผู้ป่วย)<br>
+      <p class="muted" style="margin:0 0 8px;font-size:14px">ไฟล์ Excel (.xlsx) หรือ CSV มี 3 คอลัมน์: <b>หน่วยงาน</b> (เช่น A4, OPD1, ICU), <b>ชื่อ-สกุล</b>, <b>ตำแหน่ง</b> (RN/PN/NA หรือ พยาบาลวิชาชีพ/ผู้ช่วยพยาบาล/ผู้ช่วยเหลือผู้ป่วย) ชื่อจะถูกนำเข้าทะเบียนของแต่ละหน่วยงานตามคอลัมน์หน่วยงาน<br>
       รายชื่อจากไฟล์จะแทนรายชื่อที่อัปโหลดครั้งก่อนของหน่วยงานในไฟล์ ถ้าชื่อซ้ำกับที่หน่วยงานพิมพ์เพิ่มเอง จะยึดข้อมูลจากไฟล์</p>
+      <div style="margin-bottom:8px"><button type="button" class="btn ghost sm" data-act="tpl">ดาวน์โหลดไฟล์ตัวอย่าง (CSV)</button></div>
       <input type="file" id="up_file" accept=".xlsx,.xls,.csv">
       <div id="up_preview"></div></div>`;
     html += `<div class="card"><label class="f" for="st_unit">หน่วยงาน</label><select id="st_unit">${S.cfg.groups.map(g => `<optgroup label="${esc(g.name)}">${S.cfg.units.filter(u => u.group === g.key).map(u => `<option${u.code === unit ? ' selected' : ''}>${esc(u.code)}</option>`).join('')}</optgroup>`).join('')}</select></div>`;
@@ -851,27 +906,49 @@ function loadXLSX() {
   if (window.XLSX) return Promise.resolve();
   return new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https:\/\/cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload = res; s.onerror = () => rej(new Error('โหลดตัวอ่าน Excel ไม่ได้')); document.head.appendChild(s); });
 }
+function normUnit(s) { return String(s || '').toUpperCase().replace(/ตึก|หอผู้ป่วย|หอ|แผนก|หน่วยงาน|ชั้น|\s|[-_.\/()]/g, ''); }
+function mapRole(raw) {
+  const t = String(raw || '').trim(), up = t.toUpperCase().replace(/[\s.]/g, '');
+  if (up === 'RN' || up === 'PN' || up === 'NA') return up;
+  if (/ผู้ช่วยพยาบาล|ผู้ช่วยการพยาบาล|ช่วยการพยาบาล/.test(t)) return 'PN';
+  if (/ผู้ช่วยเหลือ|ช่วยเหลือคนไข้|ช่วยเหลือผู้ป่วย/.test(t)) return 'NA';
+  if (/นักศึกษา|^นศ/.test(t)) return 'นศ.';
+  if (/พยาบาล|^พว\.?$/.test(t)) return 'RN';
+  return S.cfg.roleAliases[t] || S.cfg.roleAliases[t.toLowerCase()] || (S.cfg.roles.indexOf(t) >= 0 ? t : 'อื่นๆ');
+}
 async function readRoster(file) {
   let rows;
   if (/\.csv$/i.test(file.name)) {
-    rows = (await file.text()).split(/\r?\n/).filter(l => l.trim()).map(l => l.split(',').map(c => c.trim().replace(/^"|"$/g, '')));
+    rows = (await file.text()).replace(/^\ufeff/, '').split(/\r?\n/).filter(l => l.trim()).map(l => l.split(',').map(c => c.trim().replace(/^"|"$/g, '')));
   } else {
     await loadXLSX();
     const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
     rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' }).map(r => r.map(c => String(c).trim()));
   }
-  const head = rows[0].map(h => h.replace(/\s/g, ''));
+  rows = rows.filter(r => r.some(c => String(c).trim()));
+  if (!rows.length) throw new Error('ไฟล์ว่าง');
+  const head = rows[0].map(h => String(h).replace(/\s/g, ''));
   const col = re => head.findIndex(h => re.test(h));
-  let cu = col(/หน่วย|แผนก|unit|ward/i), cn = col(/ชื่อ|name/i), cr = col(/ตำแหน่ง|role|position/i);
+  let cu = col(/หน่วย|แผนก|ตึก|unit|ward/i), cn = col(/ชื่อ|name/i), cr = col(/ตำแหน่ง|role|position/i);
   if (cu < 0 || cn < 0 || cr < 0) { cu = 0; cn = 1; cr = 2; } else rows = rows.slice(1);
-  const codes = S.cfg.units.map(u => u.code), ok = [], bad = [];
+  const byNorm = {}; S.cfg.units.forEach(u => { byNorm[normUnit(u.code)] = u.code; });
+  const ok = [], bad = [], unknown = {};
   rows.forEach((r, i) => {
-    const unit = codes.find(c => c.toLowerCase() === String(r[cu] || '').toLowerCase());
-    const name = String(r[cn] || '').trim(), rawRole = String(r[cr] || '').trim();
-    const role = S.cfg.roles.includes(rawRole.toUpperCase()) ? rawRole.toUpperCase() : (S.cfg.roleAliases[rawRole.toLowerCase()] || S.cfg.roleAliases[rawRole] || (S.cfg.roles.includes(rawRole) ? rawRole : 'อื่นๆ'));
-    if (unit && name) ok.push({ unit, name, role }); else if (name || r[cu]) bad.push(i + 2);
+    const rawUnit = String(r[cu] || '').trim(), unit = byNorm[normUnit(rawUnit)];
+    const name = String(r[cn] || '').trim();
+    if (unit && name) ok.push({ unit, name, role: mapRole(r[cr]) });
+    else if (name && rawUnit) unknown[rawUnit] = (unknown[rawUnit] || 0) + 1;
+    else if (name || rawUnit) bad.push(i + 2);
   });
-  return { ok, bad };
+  return { ok, bad, unknown };
+}
+function downloadTemplate() {
+  const rows = [['หน่วยงาน', 'ชื่อ-สกุล', 'ตำแหน่ง'], ['A4', 'ตัวอย่าง หนึ่ง', 'RN'], ['A4', 'ตัวอย่าง สอง', 'PN'], ['B5', 'ตัวอย่าง สาม', 'NA'], ['OPD1', 'ตัวอย่าง สี่', 'RN']];
+  const csv = '\ufeff' + rows.map(r => r.join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = 'roster-template.csv';
+  document.body.appendChild(a); a.click(); a.remove();
 }
 
 /* ===== สรุป / พิมพ์ A4 ===== */
@@ -1053,6 +1130,7 @@ function bindView() {
     if (a === 'edit') startEdit();
     else if (a === 'back') go('all');
     else if (a === 'print') window.print();
+    else if (a === 'tpl') downloadTemplate();
   });
   v.querySelectorAll('[data-sub]').forEach(b => { if (!S.editing) b.onclick = () => { S.sub = b.dataset.sub; render(); }; });
   if ($('p_scope')) $('p_scope').onchange = () => { S.printScope = $('p_scope').value; render(); };
@@ -1063,10 +1141,11 @@ function bindView() {
     const f = $('up_file').files[0]; if (!f) return;
     $('up_preview').innerHTML = '<p class="muted">กำลังอ่านไฟล์...</p>';
     try {
-      const { ok, bad } = await readRoster(f);
+      const { ok, bad, unknown } = await readRoster(f);
       const byUnit = {}; ok.forEach(r => byUnit[r.unit] = (byUnit[r.unit] || 0) + 1);
       S.upload = ok;
       $('up_preview').innerHTML = `<p style="margin:10px 0 6px">พบ <b>${ok.length}</b> รายชื่อ จาก ${Object.keys(byUnit).length} หน่วยงาน${bad.length ? ` \u00b7 <span style="color:var(--bad)">ข้ามแถวที่อ่านไม่ได้: ${bad.slice(0, 10).join(', ')}${bad.length > 10 ? '\u2026' : ''}</span>` : ''}</p>
+        ${Object.keys(unknown).length ? `<p style="margin:0 0 6px;color:var(--bad);font-size:14px">ไม่รู้จักชื่อหน่วยงาน (ข้ามไป): ${Object.entries(unknown).map(([k, n]) => `${esc(k)} (${n} แถว)`).join(', ')} \u00b7 ต้องตรงกับชื่อหน่วยงานในระบบ เช่น A4, OPD1, ICU</p>` : ''}
         <div class="chips" style="margin-bottom:10px">${Object.entries(byUnit).map(([k, n]) => `<span class="pill plain">${esc(k)} ${n}</span>`).join('')}</div>
         <button type="button" class="btn" id="up_go"${ok.length ? '' : ' disabled'}>ยืนยันอัปโหลด</button>`;
       $('up_go').onclick = async () => {

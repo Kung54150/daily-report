@@ -14,6 +14,8 @@ const SH_REPORTS = 'รายงาน';
 const SH_INCIDENTS = 'เหตุการณ์ผิดปกติ';
 const SH_STAFF = 'ทะเบียนเจ้าหน้าที่';
 const SH_STATS = 'สถิติ';
+const SH_ROOMS = 'ห้อง';
+const ROOMS_PER_IPD = 25; // ห้องเริ่มต้นของแต่ละตึกผู้ป่วยใน เช่น A401 ถึง A425 (แก้ไขได้ในชีต 'ห้อง')
 const INC_FIELDS = ['type', 'severity', 'patient', 'age', 'hn', 'time', 'doctor', 'bp', 'pr', 'rr', 'temp', 'spo2', 'o2mode', 'o2flow', 'detail', 'action'];
 const HEADERS = {
   [SH_USERS]: ['หน่วยงาน', 'รหัสผ่าน'],
@@ -22,7 +24,8 @@ const HEADERS = {
     'BP (mmHg)', 'PR (/min)', 'RR (/min)', 'T (°C)', 'O2 sat (%)', 'O2', 'O2 ที่ให้', 'รายละเอียด', 'การแก้ไขเบื้องต้น', 'ผู้รายงาน'],
   // ยอดมาตรฐานแบบแถวยาว ใช้ทำ Pivot / Looker Studio ภายหลัง
   [SH_STATS]: ['วันที่', 'กลุ่ม', 'หน่วยงาน', 'หมวด', 'รายการ', 'จำนวน'],
-  [SH_STAFF]: ['id', 'หน่วยงาน', 'ชื่อ-สกุล', 'ตำแหน่ง', 'ที่มา', 'แก้ไขล่าสุด']
+  [SH_STAFF]: ['id', 'หน่วยงาน', 'ชื่อ-สกุล', 'ตำแหน่ง', 'ที่มา', 'แก้ไขล่าสุด'],
+  [SH_ROOMS]: ['หน่วยงาน', 'ชื่อห้อง (แก้ไข เพิ่ม ลบได้ที่นี่)']
 };
 const ADMIN = 'ADMIN';
 const SESSION_DAYS = 30;
@@ -38,6 +41,7 @@ function setup() {
     sh.getRange(sh.getLastRow() + 1, 1, codes.length, 2)
       .setValues(codes.map(c => [c, String(Math.floor(100000 + Math.random() * 900000))]));
   }
+  seedRooms_();
   Logger.log('สร้างชีตแล้ว · เพิ่มผู้ใช้ใหม่ ' + codes.length + ' หน่วยงาน · ดูรหัสผ่านที่ชีต "' + SH_USERS + '"');
   return codes.length;
 }
@@ -90,7 +94,7 @@ function auth_(token) {
 }
 
 function getBoot(token) {
-  return { me: auth_(token), config: buildConfig_() };
+  return { me: auth_(token), config: Object.assign(buildConfig_(), { rooms: getRooms_() }) };
 }
 
 // ===== รายงาน =====
@@ -163,6 +167,27 @@ function statRows_(u, rep) {
   ['RN', 'PN', 'NA'].forEach(r => { if (Number(rep.reduce[r])) rows.push(row('ลดอัตรากำลัง (ชม.)', r, Number(rep.reduce[r]))); });
   rep.incidents.forEach(i => rows.push(row('เหตุการณ์ผิดปกติ', i.type, 1)));
   return rows;
+}
+
+// ===== ห้องพัก (ชีต 'ห้อง': หน่วยงาน, ชื่อห้อง — แก้ชื่อหรือเพิ่มลบแถวได้เอง) =====
+function getRooms_() {
+  if (!SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SH_ROOMS) || sheet_(SH_ROOMS).getLastRow() < 2) withLock_(seedRooms_);
+  const out = {};
+  sheet_(SH_ROOMS).getDataRange().getValues().slice(1).forEach(r => {
+    const u = String(r[0]).trim(), n = String(r[1]).trim();
+    if (u && n) (out[u] = out[u] || []).push(n);
+  });
+  return out;
+}
+
+function seedRooms_() {
+  const sh = sheet_(SH_ROOMS);
+  if (sh.getLastRow() >= 2) return;
+  const rows = [];
+  GROUPS.filter(g => g.key === 'IPD').forEach(g => g.units.forEach(u => {
+    for (let i = 1; i <= ROOMS_PER_IPD; i++) rows.push([u, u + (i < 10 ? '0' : '') + i]);
+  }));
+  if (rows.length) sh.getRange(2, 1, rows.length, 2).setValues(rows);
 }
 
 // ===== ทะเบียนเจ้าหน้าที่ =====
@@ -245,7 +270,7 @@ function sheet_(name) {
     sh.setFrozenRows(1);
     sh.getRange(1, 1, 1, HEADERS[name].length).setFontWeight('bold');
     if (name !== SH_STAFF) sh.getRange('A:A').setNumberFormat('@'); // วันที่/รหัสหน่วยงานเก็บเป็นข้อความ
-    if (name === SH_USERS) sh.getRange('B:B').setNumberFormat('@');
+    if (name === SH_USERS || name === SH_ROOMS) sh.getRange('B:B').setNumberFormat('@');
   }
   return sh;
 }

@@ -21,7 +21,7 @@ const ROLE_ALIASES = {
   'นักศึกษาพยาบาล': 'นศ.', 'นศ.ฝึกงานพยาบาล': 'นศ.'
 };
 const DUTY_TAGS = ['Inc.', 'POC', 'Clerk', 'Cc', 'ออกหน่วย'];
-const SHIFTS = ['Day', 'Evening', 'Night'];
+const SHIFTS = ['Day', 'Night'];
 const PROBLEM_TYPES = [
   'ความคลาดเคลื่อนทางยา', 'ผู้ป่วยพลัดตกหกล้ม', 'การระบุตัวผู้ป่วยผิด', 'อัตรากำลังไม่เพียงพอ',
   'เครื่องมือ/อุปกรณ์ขัดข้อง', 'ข้อร้องเรียน', 'ความเสี่ยงด้านการติดเชื้อ', 'อื่นๆ'
@@ -56,7 +56,9 @@ const IPD_CENSUS = {
     })
   ]
 };
-const IPD_ROOMS = { title: 'ห้องพัก', fields: [TX_('rooms_ready', 'ห้องว่างพร้อมรับ'), TX_('rooms_clean', 'ห้องรอทำความสะอาด')] };
+// rooms: true = เลือกจากปุ่มห้องของหน่วยงาน (ชีต 'ห้อง') หรือพิมพ์เอง ค่าเก็บเป็นข้อความคั่นด้วยจุลภาค
+const RM_ = (key, label) => ({ key, label, type: 'text', rooms: true });
+const IPD_ROOMS = { title: 'ห้องพัก', fields: [RM_('rooms_ready', 'ห้องว่างพร้อมรับ'), RM_('rooms_clean', 'ห้องรอทำความสะอาด')] };
 const IPD_STD = { carried: 'carried', admit: 'admit', tr_in: 'tr_in', tr_out: 'tr_out', refer: 'refer', dead: 'dead', dc: 'dc', remain: 'remain' };
 const ipd_ = types => ({ std: IPD_STD, sections: [IPD_CENSUS, { title: 'ประเภทผู้ป่วยคงพยาบาล', categories: true, fields: types, sum: 'รวม' }, IPD_ROOMS] });
 
