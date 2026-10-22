@@ -41,6 +41,22 @@ const CATEGORIES = {
   covid_child: 'Covid-19', covid_adult: 'Covid-19', bedridden: 'Bedridden', pre_or: 'เตรียม OR', post_op: 'Post Op', obs: 'Obs'
 };
 
+// รายการแบบเลือกจาก Drop down แล้วกดเพิ่มต่อๆ ไป (ask = ต้องระบุชื่อก่อนจึงจะเพิ่มได้ เช่น ชื่อบริษัท)
+const LIST_ = (key, title, totalKey, totalLabel, items) => ({ title, type: 'list', key, totalKey, totalLabel, fields: [],
+  items: items.map(x => ({ k: x[0], label: x[1], ask: x[2] || '' })) });
+const HPC_ITEMS = [
+  ['p1', 'ตรวจสุขภาพโปรแกรม 1'], ['p2', 'ตรวจสุขภาพโปรแกรม 2'], ['p3', 'ตรวจสุขภาพโปรแกรม 3'],
+  ['stroke', 'ตรวจสุขภาพโปรแกรมคัดกรองหลอดเลือดสมอง'], ['cancer', 'ตรวจสุขภาพโปรแกรมคัดกรองมะเร็ง'], ['mentor', 'ตรวจสุขภาพโปรแกรมพี่เลี้ยงเด็ก'],
+  ['wedding', 'ตรวจสุขภาพโปรแกรม แต่งงาน'], ['excl', 'ตรวจสุขภาพโปรแกรม Exclusive Care'], ['liver', 'ตรวจสุขภาพโปรแกรม การทำงานของตับ'],
+  ['wisdom', 'ตรวจสุขภาพ Wisdom'], ['aia', 'ตรวจสุขภาพประจำปีของบริษัทประกันชีวิตต่างๆ AIA Prestige'], ['boat', 'ตรวจสุขภาพคนเรือกรมเจ้าท่า'],
+  ['labor', 'ตรวจสุขภาพแรงงานไทยไปต่างประเทศ', 'ชื่อบริษัท / หน่วยงาน'], ['company', 'ตรวจสุขภาพประจำปีบริษัท', 'ชื่อบริษัท'],
+  ['flu', 'ให้บริการฉีดวัคซีนป้องกันไข้หวัดใหญ่'], ['vax', 'ให้บริการฉีดวัคซีนอื่นๆ'],
+  ['lab_back', 'ตรวจทางห้องปฏิบัติการรับผลกลับ'], ['lab_doc', 'ตรวจทางห้องปฏิบัติการและฟังผลกับแพทย์'],
+  ['insure', 'ตรวจสุขภาพทำประกัน'], ['cert', 'ขอใบรับรองแพทย์ต่างๆ'],
+  ['prejob', 'ตรวจสุขภาพก่อนเข้างานพนักงานโรงพยาบาล'], ['staff_year', 'ตรวจสุขภาพประจำปีพนักงานโรงพยาบาล'], ['sso', 'ตรวจสุขภาพประจำปีประกันสังคม'],
+  ['welfare', 'สวัสดิการรักษาพนักงานโรงพยาบาล'], ['est', 'ให้บริการตรวจ Exercise Stress Test'], ['ekg', 'ให้บริการตรวจ EKG'],
+  ['free', 'ไม่มีค่าใช้จ่าย'], ['other', 'อื่นๆ', 'ระบุรายการ']
+];
 const N_ = (key, label, unit) => ({ key, label, unit: unit || 'ราย' });
 const TX_ = (key, label) => ({ key, label, type: 'text' });
 const TM_ = (key, label) => ({ key, label, type: 'time' });
@@ -97,6 +113,7 @@ const FORMS = {
       N_('late_total', 'ทั้งหมด'), N_('late_opd', 'OPD'), Object.assign(N_('late_admit', 'Admit'), { pctOf: 'late_total' })
     ] }
   ] },
+  HPC: { std: { total: 'total' }, sections: [LIST_('svc', 'รายการตรวจ / บริการ', 'total', 'รวมจำนวนผู้รับบริการทั้งหมดในวันนี้', HPC_ITEMS)] },
   OPD1: { std: { total: 'total', admit: ['med_admit'] }, sections: [
     { title: 'ยอดรวม', fields: [N_('total', 'ยอด Total (Med+Psy)')] },
     { title: 'ผู้ป่วยอายุรกรรม', fields: [N_('med', 'ผู้ป่วยอายุรกรรม'), N_('med_appt', 'เป็นนัด'), N_('med_admit', 'Admit'), N_('med_elder', 'ผู้สูงอายุ')] },

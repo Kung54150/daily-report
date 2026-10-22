@@ -4,7 +4,7 @@
  *
  * - หน่วยงานเข้าระบบด้วยชื่อหน่วยงาน + รหัสผ่าน (ไม่ต้องมีบัญชี Google)
  * - ทุกหน่วยงานดูรายงานของกันได้ แก้ไขได้เฉพาะของตนเอง
- * - ADMIN ดูสรุป พิมพ์ A4 และอัปโหลดรายชื่อเจ้าหน้าที่ประจำเดือน
+ * - MANAGER (ผู้จัดการ) ดูสรุป ติดตามรายแผนก พิมพ์ A4 · ADMIN ทำได้เหมือนกัน และอัปโหลดรายชื่อเจ้าหน้าที่ประจำเดือน
  *
  * ติดตั้งครั้งแรก: เปิดไฟล์นี้ เลือกฟังก์ชัน setup แล้วกด "เรียกใช้" (สร้างชีตและรหัสผ่านเริ่มต้น)
  */
@@ -31,7 +31,8 @@ const HEADERS = {
   [SH_ROOMS]: ['หน่วยงาน', 'เลขห้อง', 'ชื่อ/ประเภทห้อง (ไม่บังคับ)'],
   [SH_ALIASES]: ['ชื่อแผนกที่ใช้ในไฟล์', 'หน่วยงานในระบบ']
 };
-const ADMIN = 'ADMIN';
+const ADMIN = 'ADMIN'; // ผู้ดูแลระบบ: ทุกอย่างของผู้จัดการ + อัปโหลด/ผูกรายชื่อเจ้าหน้าที่ + แก้ห้องทุกหน่วยงาน
+const MANAGER = 'MANAGER'; // ผู้จัดการ: ดูสรุป ติดตามรายแผนก และพิมพ์ A4 (ดูอย่างเดียว)
 const SESSION_DAYS = 30;
 const LOGIN_HINT = ''; // ข้อความใต้ฟอร์มเข้าสู่ระบบ (ถ้ามี)
 
@@ -40,7 +41,7 @@ function setup() {
   Object.keys(HEADERS).forEach(sheet_);
   const sh = sheet_(SH_USERS);
   const have = sh.getDataRange().getValues().slice(1).map(r => r[0]);
-  const codes = [ADMIN].concat(GROUPS.flatMap(g => g.units)).filter(c => have.indexOf(c) < 0);
+  const codes = [ADMIN, MANAGER].concat(GROUPS.flatMap(g => g.units)).filter(c => have.indexOf(c) < 0);
   if (codes.length) {
     sh.getRange(sh.getLastRow() + 1, 1, codes.length, 2)
       .setValues(codes.map(c => [c, String(Math.floor(100000 + Math.random() * 900000))]));
@@ -56,6 +57,13 @@ function ensureSetup_() {
   withLock_(() => { if (!SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SH_USERS)) setup(); });
 }
 
+// ระบบเดิมที่ติดตั้งก่อนมีผู้ใช้ MANAGER → เพิ่มแถวผู้จัดการให้เอง (ดูรหัสผ่านที่ชีต 'ผู้ใช้')
+function ensureManager_() {
+  const sh = sheet_(SH_USERS);
+  if (sh.getDataRange().getValues().slice(1).some(r => String(r[0]) === MANAGER)) return;
+  withLock_(() => sh.appendRow([MANAGER, String(Math.floor(100000 + Math.random() * 900000))]));
+}
+
 // ===== Web app =====
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('Index')
@@ -67,6 +75,7 @@ function doGet() {
 // ===== เข้าสู่ระบบ =====
 function getLoginInfo() {
   ensureSetup_();
+  ensureManager_();
   return { groups: GROUPS.map(g => ({ name: g.name, units: g.units, sections: subGroups_(g).map(s => ({ label: s.label, units: s.units })) })), hint: LOGIN_HINT };
 }
 
@@ -94,7 +103,9 @@ function auth_(token) {
   const raw = token && PropertiesService.getScriptProperties().getProperty('tok_' + token);
   const s = raw && JSON.parse(raw);
   if (!s || s.exp < Date.now()) throw new Error('กรุณาเข้าสู่ระบบใหม่');
-  return s.unit === ADMIN ? { unit: null, role: 'admin' } : { unit: s.unit, role: 'unit' };
+  if (s.unit === ADMIN) return { unit: null, role: 'admin' };
+  if (s.unit === MANAGER) return { unit: null, role: 'manager' };
+  return { unit: s.unit, role: 'unit' };
 }
 
 function getBoot(token) {
@@ -113,6 +124,20 @@ function getDay(token, date) {
       (reports[r[1]] = reports[r[1]] || {})[sh] = rep;
     });
   return { reports }; // { หน่วยงาน: { Day: รายงาน, Night: รายงาน } }
+}
+
+// รายงานทั้งเดือนของหน่วยงานเดียว (month = yyyy-mm) — หน่วยงานดูได้เฉพาะของตนเอง
+function getMonth(token, month, unit) {
+  const me = auth_(token);
+  if (!/^\d{4}-\d{2}$/.test(String(month))) throw new Error('เดือนไม่ถูกต้อง');
+  const code = me.role === 'unit' ? me.unit : unit;
+  if (allUnitCodes_().indexOf(code) < 0) throw new Error('ไม่พบหน่วยงาน');
+  const reports = [];
+  sheet_(SH_REPORTS).getDataRange().getValues().slice(1)
+    .filter(r => String(r[1]) === code && fmtDate_(r[0]).indexOf(month) === 0)
+    .forEach(r => { const rep = JSON.parse(r[4]); rep.shift = rowShift_(r[5], rep.shift); reports.push(rep); });
+  reports.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : (a.shift === b.shift ? 0 : a.shift === 'Day' ? -1 : 1));
+  return { reports };
 }
 
 // เวรของแถวข้อมูล: ค่าในคอลัมน์เวร หรือในรายงาน (ข้อมูลเก่าไม่มี = Day)
@@ -135,6 +160,19 @@ function saveReport(token, rep) {
     : s.fields.filter(f => !f.calc).flatMap(f => f.note ? [f.key, f.key + '_note'] : [f.key]));
   const values = {};
   keys.forEach(k => { if (rep.values && rep.values[k] !== undefined && rep.values[k] !== '') values[k] = rep.values[k]; });
+  // รายการแบบเลือก + เพิ่ม (เช่น HPC): ตรวจรายการ/ชื่อ แล้วคำนวณยอดรวมเอง
+  form.sections.filter(s => s.type === 'list').forEach(s => {
+    const rows = [];
+    ((rep.values || {})[s.key] || []).forEach(x => {
+      const it = s.items.find(i => i.k === (x && x.k)), n = Math.floor(Number(x && x.n));
+      if (!it || !(n > 0)) return;
+      const name = String(x.name || '').trim().slice(0, 80);
+      if (it.ask && !name) throw new Error('กรุณาระบุ' + it.ask + ' (' + it.label + ')');
+      rows.push({ k: it.k, name: it.ask ? name : '', n });
+    });
+    if (rows.length) values[s.key] = rows;
+    values[s.totalKey] = rows.reduce((a, r) => a + r.n, 0);
+  });
 
   const clean = {
     date: rep.date, unit: me.unit, reporter: String(rep.reporter).trim(),
@@ -185,6 +223,10 @@ function statRows_(u, rep) {
   const row = (cat, item, n) => [rep.date, g, u.code, cat, item, n, bld, rep.shift];
   const rows = [];
   Object.entries(stdValues_(u.form, rep.values)).forEach(([k, n]) => rows.push(row('ยอดผู้ป่วย', STD_LABELS[k], n)));
+  u.form.sections.filter(s => s.type === 'list').forEach(s => (rep.values[s.key] || []).forEach(r => {
+    const it = s.items.find(i => i.k === r.k);
+    rows.push(row('รายการบริการ', (it ? it.label : r.k) + (r.name ? ' \u00b7 ' + r.name : ''), r.n));
+  }));
   Object.entries(categoryValues_(u.form, rep.values)).forEach(([k, n]) => rows.push(row('ประเภทผู้ป่วย', k, n)));
   ROLES.forEach(r => {
     const n = rep.staff.filter(s => s.role === r && s.tag !== 'ออกหน่วย').length;
