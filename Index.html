@@ -135,6 +135,10 @@
   .rm { min-width: 62px; padding: 7px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--sunk); cursor: pointer; font-variant-numeric: tabular-nums; }
   .rm.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
   .rm.used { opacity: .4; }
+  .tin { text-align: center; max-width: 110px; font-variant-numeric: tabular-nums; }
+  .frow .tin { justify-self: end; }
+  .frow[hidden] { display: none; }
+  .notein { width: 100%; }
   .rm small { display: block; font-size: 10px; opacity: .75; line-height: 1.1; }
   .rrow { display: grid; grid-template-columns: 1fr 1.4fr 36px; gap: 6px; margin-bottom: 6px; align-items: center; }
   .rrow .btn { grid-column: 1 / -1; justify-self: start; }
@@ -594,8 +598,10 @@ function renderReportView(u, r) {
         const val = fieldValue(u, v, f);
         if (f.type === 'text') return `<div class="full"><span class="muted">${esc(f.label)}</span><br><span class="pre">${show(val)}</span></div>`;
         let shown = show(val);
+        if (f.type === 'time' && val) shown = esc(val) + ' น.';
         if (f.pctOf && num(v[f.pctOf])) shown += ` <span class="muted" style="font-weight:400">/${num(v[f.pctOf])} = ${(num(val) / num(v[f.pctOf]) * 100).toFixed(2)}%</span>`;
-        return `<div>${esc(f.label)}</div><div class="v">${shown}</div>`;
+        const nt = f.note && num(val) && v[f.key + '_note'] ? `<div class="full muted" style="font-size:13px">\u2514 ${esc(f.note)}: ${esc(v[f.key + '_note'])}</div>` : '';
+        return `<div>${esc(f.label)}</div><div class="v">${shown}</div>${nt}`;
       }).join('');
       const sum = s.sum ? `<div class="total">${esc(s.sum)}</div><div class="total v">${sectionSum(s, v)}</div>` : '';
       return `<div class="card"><h3>${esc(s.title)}</h3><div class="kv">${rows}${sum}</div></div>`;
@@ -650,9 +656,12 @@ function mountForm() {
       s.fields.forEach(f => {
         if (f.type === 'text' && f.rooms && roomsFor(S.me.unit).length) pat += `<div class="frow text"><span class="lab">${esc(f.label)}</span><div data-rooms="${esc(f.key)}"></div></div>`;
         else if (f.type === 'text') pat += `<div class="frow text"><label class="lab" for="v_${esc(f.key)}">${esc(f.label)}</label><textarea id="v_${esc(f.key)}" data-v="${esc(f.key)}" rows="2">${esc(v[f.key] ?? '')}</textarea></div>`;
-        else if (f.type === 'time') pat += `<div class="frow"><span class="lab">${esc(f.label)}</span><input type="time" data-v="${esc(f.key)}" value="${esc(v[f.key] ?? '')}"></div>`;
+        else if (f.type === 'time') pat += `<div class="frow"><span class="lab">${esc(f.label)} <small>24 \u0e0a\u0e21. \u0e1e\u0e34\u0e21\u0e1e\u0e4c 2030</small></span><input class="tin" type="text" inputmode="numeric" maxlength="5" placeholder="20:30" autocomplete="off" data-v="${esc(f.key)}" value="${esc(v[f.key] ?? '')}"></div>`;
         else if (f.calc) pat += `<div class="frow"><span class="lab"><b>${esc(f.label)}</b> <small>(คำนวณอัตโนมัติ)</small></span><div class="calc num" data-calc="${esc(f.key)}">0</div></div>`;
-        else pat += `<div class="frow"><span class="lab">${esc(f.label)} <small>${esc(f.unit)}</small>${f.pctOf ? ` <small data-pct="${esc(f.key)}"></small>` : ''}</span>${numInput(f.key)}</div>`;
+        else {
+          pat += `<div class="frow"><span class="lab">${esc(f.label)} <small>${esc(f.unit)}</small>${f.pctOf ? ` <small data-pct="${esc(f.key)}"></small>` : ''}</span>${numInput(f.key)}</div>`;
+          if (f.note) pat += `<div class="frow text" data-notefor="${esc(f.key)}"><input class="notein" data-v="${esc(f.key)}_note" value="${esc(v[f.key + '_note'] ?? '')}" placeholder="${esc(f.note)} (พิมพ์เอง)" aria-label="${esc(f.note)}"></div>`;
+        }
       });
       if (s.fields.some(f => f.rooms)) pat += `<div style="margin-top:8px"><button type="button" class="btn ghost sm" data-roomedit>\u270e แก้ไขรายการห้อง (เลขห้อง / ชื่อ)</button></div><div id="room_editor"></div>`;
       if (s.sum) pat += `<div class="sumline"><span>${esc(s.sum)}</span><span class="num" data-sum="${si}">0</span></div>`;
@@ -690,6 +699,22 @@ function showSub() {
   $('fm_tabs').querySelectorAll('[data-sub]').forEach(b => b.onclick = () => { S.sub = b.dataset.sub; showSub(); window.scrollTo(0, 0); });
 }
 
+/* เวลา 24 ชม.: พิมพ์ตัวเลขอย่างเดียว เช่น 2030 ระบบใส่ : ให้เอง */
+const typingTime = v => { const d = String(v).replace(/\D/g, '').slice(0, 4); return d.length === 4 ? d.slice(0, 2) + ':' + d.slice(2) : d; };
+function finishTime(v) {
+  const d = String(v).replace(/\D/g, '');
+  if (d.length === 4) return d.slice(0, 2) + ':' + d.slice(2);
+  if (d.length === 3) return '0' + d[0] + ':' + d.slice(1);
+  if (d.length >= 1 && d.length <= 2) return d.padStart(2, '0') + ':00';
+  return '';
+}
+const validTime = v => v === '' || /^([01]\d|2[0-3]):[0-5]\d$/.test(v);
+$('view').addEventListener('focusout', e => {
+  const t = e.target;
+  if (!(S.editing && t.classList && t.classList.contains('tin'))) return;
+  const f = finishTime(t.value);
+  if (f !== t.value) { t.value = f; t.dispatchEvent(new Event('input', { bubbles: true })); }
+});
 $('view').addEventListener('input', e => { if (S.editing && S.tab === 'mine') onFormInput(e); });
 
 /* แก้ไขรายการห้องของหน่วยงาน: เลขห้อง + ชื่อ/ประเภท เพิ่ม ลบ แก้ไขได้ */
@@ -778,6 +803,7 @@ $('view').addEventListener('keydown', e => {
 function onFormInput(e) {
   const t = e.target, d = S.draft;
   S.dirty = true;
+  if (t.classList && t.classList.contains('tin')) t.value = typingTime(t.value);
   if (t.dataset.v) { d.values[t.dataset.v] = t.type === 'number' ? (t.value === '' ? '' : Number(t.value)) : t.value; recalc(); }
   else if (t.id === 'fm_reporter') d.reporter = t.value;
   else if (t.id === 'fm_shift') d.shift = t.value;
@@ -798,6 +824,7 @@ function recalc() {
       s.fields.forEach(f => {
         if (f.calc) document.querySelector(`[data-calc="${f.key}"]`).textContent = fieldValue(u, v, f);
         if (f.pctOf) { const el = document.querySelector(`[data-pct="${f.key}"]`); el.textContent = num(v[f.pctOf]) ? `= ${(num(v[f.key]) / num(v[f.pctOf]) * 100).toFixed(2)}%` : ''; }
+        if (f.note) { const row = document.querySelector(`[data-notefor="${f.key}"]`); if (row) row.hidden = !num(v[f.key]); }
       });
       if (s.sum) document.querySelector(`[data-sum="${si}"]`).textContent = sectionSum(s, v);
     }
@@ -810,7 +837,7 @@ function renderStaffPicker() {
   const d = S.draft, unit = S.me.unit;
   const chosen = new Set(d.staff.map(s => s.name));
   const mine = S.staff.filter(s => s.unit === unit && !chosen.has(s.name));
-  const others = S.staff.filter(s => s.unit !== unit && !chosen.has(s.name));
+  const others = S.staff.filter(s => s.unit && s.unit !== unit && !chosen.has(s.name));
   const opt = s => `<option value="${esc(s.id)}">${esc(s.name)} (${esc(s.role)}${s.unit !== unit ? ' \u00b7 ' + esc(s.unit) : ''})</option>`;
   $('fm_staffbody').innerHTML = `
     <label class="f" for="ns_pick">เพิ่มผู้ปฏิบัติงานเวรนี้</label>
@@ -868,7 +895,7 @@ function renderIncidents() {
       <div class="row3">
         <div><label class="f">อายุ (ปี)</label><input data-inc="${i}:age" inputmode="numeric" value="${esc(x.age)}"></div>
         <div><label class="f">HN</label><input data-inc="${i}:hn" value="${esc(x.hn)}"></div>
-        <div><label class="f">เวลามารับบริการ</label><input type="time" data-inc="${i}:time" value="${esc(x.time)}"></div>
+        <div><label class="f">เวลามารับบริการ <small>(พิมพ์ 2030)</small></label><input class="tin" type="text" inputmode="numeric" maxlength="5" placeholder="20:30" autocomplete="off" data-inc="${i}:time" value="${esc(x.time)}"></div>
       </div>
       <label class="f">แพทย์เจ้าของไข้</label><input data-inc="${i}:doctor" value="${esc(x.doctor)}">
     </fieldset>
@@ -896,6 +923,16 @@ $('sb_cancel').onclick = () => { if (S.dirty && !leaveGuard()) return; S.editing
 $('sb_save').onclick = async () => {
   const d = S.draft;
   if (!d.reporter.trim()) { S.sub = 'patient'; showSub(); toast('กรุณากรอกชื่อผู้รายงาน'); $('fm_reporter').focus(); return; }
+  const uf = unitCfg(S.me.unit);
+  for (const sc of uf.form.sections) for (const f of (sc.fields || [])) {
+    if (f.type === 'time' && !validTime(d.values[f.key] || '')) { S.sub = 'patient'; showSub(); toast('เวลาไม่ถูกต้อง ใช้ 24 ชม. เช่น 2030'); const el = document.querySelector(`[data-v="${f.key}"]`); if (el) el.focus(); return; }
+    if (f.note && num(d.values[f.key]) > 0 && !String(d.values[f.key + '_note'] || '').trim()) {
+      S.sub = 'patient'; showSub(); toast(`กรุณาระบุ: ${f.note} (${f.label})`);
+      const el = document.querySelector(`[data-v="${f.key}_note"]`); if (el) el.focus(); return;
+    }
+  }
+  const badT = d.incidents.findIndex(i => !validTime(i.time || ''));
+  if (badT >= 0) { S.sub = 'incident'; showSub(); toast(`เหตุการณ์ที่ ${badT + 1}: เวลาไม่ถูกต้อง ใช้ 24 ชม. เช่น 2030`); return; }
   const bad = d.incidents.findIndex(i => !i.detail.trim());
   if (bad >= 0) { S.sub = 'incident'; showSub(); toast(`เหตุการณ์ที่ ${bad + 1} ยังไม่มีรายละเอียด`); return; }
   $('sb_save').disabled = true; $('sb_msg').textContent = 'กำลังบันทึก...';
@@ -913,34 +950,32 @@ $('sb_save').onclick = async () => {
 function renderStaff() {
   const admin = S.me.role === 'admin';
   const unit = admin ? (S.staffUnit || S.cfg.units[0].code) : S.me.unit;
-  const list = S.staff.filter(s => s.unit === unit);
+  const none = unit === '__none';
+  const list = none ? S.staff.filter(s => !s.unit) : S.staff.filter(s => s.unit === unit);
+  const unitName = none ? 'ยังไม่ผูกแผนก' : unit;
   let html = '';
   if (admin) {
     html += `<div class="card"><h3>อัปโหลดรายชื่อประจำเดือน</h3>
-      <p class="muted" style="margin:0 0 8px;font-size:14px">ไฟล์ Excel (.xlsx) หรือ CSV มี 3 คอลัมน์: <b>หน่วยงาน</b> (เช่น A4, OPD1, ICU), <b>ชื่อ-สกุล</b>, <b>ตำแหน่ง</b> (RN/PN/NA หรือ พยาบาลวิชาชีพ/ผู้ช่วยพยาบาล/ผู้ช่วยเหลือผู้ป่วย) ชื่อจะถูกนำเข้าทะเบียนของแต่ละหน่วยงานตามคอลัมน์หน่วยงาน<br>
-      รายชื่อจากไฟล์จะแทนรายชื่อที่อัปโหลดครั้งก่อนของหน่วยงานในไฟล์ ถ้าชื่อซ้ำกับที่หน่วยงานพิมพ์เพิ่มเอง จะยึดข้อมูลจากไฟล์</p>
+      <p class="muted" style="margin:0 0 8px;font-size:14px">ไฟล์ Excel (.xlsx) หรือ CSV ที่มีคอลัมน์ <b>ชื่อ-สกุล</b>, <b>ตำแหน่ง</b> และ <b>แผนก</b> (หัวตารางอยู่แถวไหนก็ได้ ใช้ชีตแรกที่พบ) ระบบนำเข้ารายชื่อทุกคนพร้อมชื่อแผนกตามไฟล์ แล้วคุณผูกชื่อแผนกกับหน่วยงานในระบบได้ภายหลัง รายชื่อจากไฟล์เดิมของแผนกที่อยู่ในไฟล์ใหม่จะถูกแทนที่ ถ้าชื่อซ้ำกับที่หน่วยงานพิมพ์เพิ่มเอง จะยึดข้อมูลจากไฟล์ ระบบอ่านเฉพาะชื่อ ตำแหน่ง แผนก ส่วนเลขบัตรประชาชนและวันเกิดไม่ถูกส่ง</p>
       <div style="margin-bottom:8px"><button type="button" class="btn ghost sm" data-act="tpl">ดาวน์โหลดไฟล์ตัวอย่าง (CSV)</button></div>
       <input type="file" id="up_file" accept=".xlsx,.xls,.csv">
       <div id="up_preview"></div></div>`;
-    html += `<div class="card"><h3>ผูกชื่อแผนกในไฟล์กับหน่วยงานในระบบ <span class="sub">${(S.aliases || []).length} รายการ</span></h3>
-      <p class="muted" style="margin:0 0 8px;font-size:14px">ถ้าไฟล์รายชื่อใช้ชื่อแผนกไม่ตรงกับระบบ เช่น ไฟล์เขียน "ศัลยกรรมชาย" แต่ในระบบคือ A4 ผูกไว้ที่นี่ครั้งเดียว การอัปโหลดครั้งต่อไปจะจับคู่ให้เอง (ผูกได้ตอนตรวจไฟล์ก่อนอัปโหลดด้วย)</p>
-      ${(S.aliases || []).map(a => `<div class="srow"><span>${esc(a.alias)}</span><b>\u2192 ${esc(a.unit)}</b><span class="acts"><button type="button" class="btn ghost sm" data-aldel="${esc(a.alias)}">ลบ</button></span></div>`).join('')}
-      <div class="addrow" style="margin-top:10px"><input id="al_name" placeholder="ชื่อแผนกที่ใช้ในไฟล์"><select id="al_unit">${unitOptgroups('')}</select><button type="button" class="btn sm" id="al_add">+ ผูก</button></div></div>`;
-    html += `<div class="card"><label class="f" for="st_unit">หน่วยงาน</label><select id="st_unit">${unitOptgroups(unit)}</select></div>`;
+    html += renderBindingCard();
+    html += `<div class="card"><label class="f" for="st_unit">หน่วยงาน</label><select id="st_unit"><option value="__none"${none ? ' selected' : ''}>ยังไม่ผูกแผนก (${S.staff.filter(s => !s.unit).length} คน)</option>${unitOptgroups(unit)}</select></div>`;
   }
-  html += `<div class="card"><h3>ทะเบียนเจ้าหน้าที่ ${esc(unit)} <span class="sub">${list.length} คน \u00b7 ${roleCounts(list).map(([k, n]) => `${k} ${n}`).join(' \u00b7 ')}</span></h3>
+  html += `<div class="card"><h3>ทะเบียนเจ้าหน้าที่ ${esc(unitName)} <span class="sub">${list.length} คน \u00b7 ${roleCounts(list).map(([k, n]) => `${k} ${n}`).join(' \u00b7 ')}</span></h3>
     ${list.map(s => S.editStaff === s.id
       ? `<div class="srow edit"><input id="es_name" value="${esc(s.name)}"><select id="es_role">${S.cfg.roles.map(r => `<option${r === s.role ? ' selected' : ''}>${esc(r)}</option>`).join('')}</select>
-         <span class="acts"><button type="button" class="btn sm" data-sact="save" data-id="${s.id}">บันทึก</button><button type="button" class="btn ghost sm" data-sact="cancel">ยกเลิก</button></span></div>`
-      : `<div class="srow"><span>${esc(s.name)} ${s.source === 'upload' ? '<span class="pill plain">จากไฟล์</span>' : '<span class="pill warn">เพิ่มเอง</span>'}</span><b>${esc(s.role)}</b>
+         ${admin ? `<select id="es_unit" style="grid-column:1/-1"><option value="">\u2014 ยังไม่ผูกแผนก \u2014</option>${unitOptgroups(s.unit)}</select>` : ''}<span class="acts"><button type="button" class="btn sm" data-sact="save" data-id="${s.id}">บันทึก</button><button type="button" class="btn ghost sm" data-sact="cancel">ยกเลิก</button></span></div>`
+      : `<div class="srow"><span>${esc(s.name)} ${s.source === 'upload' ? '<span class="pill plain">จากไฟล์</span>' : '<span class="pill warn">เพิ่มเอง</span>'}${s.fileDept && s.fileDept !== s.unit ? ` <small class="muted">${esc(s.fileDept)}</small>` : ''}</span><b>${esc(s.role)}</b>
          <span class="acts">${S.delStaff === s.id
            ? `<button type="button" class="btn danger sm" data-sact="del" data-id="${s.id}">ยืนยันลบ</button>`
            : `<button type="button" class="btn ghost sm" data-sact="edit" data-id="${s.id}">แก้ไข</button><button type="button" class="btn ghost sm" data-sact="askdel" data-id="${s.id}">ลบ</button>`}</span></div>`).join('')
       || '<p class="muted">ยังไม่มีรายชื่อ</p>'}
-    <div class="addrow" style="margin-top:12px"><input id="as_name" placeholder="ชื่อ-สกุล"><select id="as_role">${S.cfg.roles.map(r => `<option>${esc(r)}</option>`).join('')}</select>
-      <button type="button" class="btn sm" data-sact="add" data-unit="${esc(unit)}">+ เพิ่ม</button></div></div>`;
-  const uc = unitCfg(unit), rr = roomsRaw(unit);
-  if (rr.length || uc.form.sections.some(sc => (sc.fields || []).some(f => f.rooms))) {
+    ${none ? '' : `<div class="addrow" style="margin-top:12px"><input id="as_name" placeholder="ชื่อ-สกุล"><select id="as_role">${S.cfg.roles.map(r => `<option>${esc(r)}</option>`).join('')}</select>
+      <button type="button" class="btn sm" data-sact="add" data-unit="${esc(unit)}">+ เพิ่ม</button></div>`}</div>`;
+  const uc = none ? null : unitCfg(unit), rr = none ? [] : roomsRaw(unit);
+  if (!none && (rr.length || uc.form.sections.some(sc => (sc.fields || []).some(f => f.rooms)))) {
     html += `<div class="card"><h3>รายการห้องพัก ${esc(unit)} <span class="sub">${rr.length} ห้อง</span></h3>
       <div class="chips" style="margin-bottom:10px">${rr.map(o => `<span class="pill plain">${esc(roomLabel(o))}${o.name && o.name !== o.no ? ' (' + esc(o.no) + ')' : ''}</span>`).join('') || '<span class="muted">ยังไม่มีห้อง</span>'}</div>
       <button type="button" class="btn ghost sm" data-act="rooms" data-runit="${esc(unit)}">\u270e แก้ไขรายการห้อง (เลขห้อง / ชื่อ)</button><div id="adm_room_editor"></div></div>`;
@@ -956,7 +991,7 @@ async function staffAction(act, id, unit) {
     else if (act === 'del') { await api('deleteStaff', S.token, +id); S.delStaff = null; await loadStaff(); toast('ลบแล้ว'); }
     else if (act === 'save') {
       const s = S.staff.find(x => x.id === +id);
-      await api('saveStaff', S.token, { id: +id, unit: s.unit, name: $('es_name').value.trim(), role: $('es_role').value });
+      await api('saveStaff', S.token, { id: +id, unit: $('es_unit') ? $('es_unit').value : s.unit, name: $('es_name').value.trim(), role: $('es_role').value });
       S.editStaff = null; await loadStaff(); toast('บันทึกแล้ว');
     } else if (act === 'add') {
       const name = $('as_name').value.trim(); if (!name) return toast('พิมพ์ชื่อก่อน');
@@ -1020,17 +1055,21 @@ async function readRoster(file) {
   if (!rows) rows = sheets[0] || [];
   rows = rows.filter(r => r.some(c => String(c).trim()));
   if (!rows.length) throw new Error('ไม่พบข้อมูลในไฟล์');
-  const byNorm = {}; S.cfg.units.forEach(u => { byNorm[normUnit(u.code)] = u.code; });
-  (S.aliases || []).forEach(a => { byNorm[normUnit(a.alias)] = a.unit; });
-  const ok = [], bad = [], unknown = {}, pending = [];
+  const out = [], bad = [];
   rows.forEach((r, i) => {
-    const rawUnit = cleanName(r[cu]), unit = byNorm[normUnit(rawUnit)];
     const name = cleanName(r[cn]);
-    if (unit && name) ok.push({ unit, name, role: mapRole(r[cr]) });
-    else if (name && rawUnit) { unknown[rawUnit] = (unknown[rawUnit] || 0) + 1; pending.push({ rawUnit, name, role: mapRole(r[cr]) }); }
-    else if (name || rawUnit) bad.push(i + 1);
+    if (name) out.push({ dept: cleanName(r[cu]), name, role: mapRole(r[cr]) });
+    else if (cleanName(r[cu])) bad.push(i + 1);
   });
-  return { ok, bad, unknown, pending };
+  return { rows: out, bad };
+}
+function resolveDept(dept) {
+  const k = normUnit(dept);
+  if (!k) return '';
+  const al = (S.aliases || []).find(a => normUnit(a.alias) === k);
+  if (al) return al.unit;
+  const hit = S.cfg.units.find(u => normUnit(u.code) === k);
+  return hit ? hit.code : '';
 }
 function downloadTemplate() {
   const rows = [['หน่วยงาน', 'ชื่อ-สกุล', 'ตำแหน่ง'], ['A4', 'ตัวอย่าง หนึ่ง', 'RN'], ['A4', 'ตัวอย่าง สอง', 'PN'], ['B5', 'ตัวอย่าง สาม', 'NA'], ['OPD1', 'ตัวอย่าง สี่', 'RN']];
@@ -1173,7 +1212,7 @@ function printSingle(u) {
       h += '<table class="stat">' + s.fields.map(f => {
         const val = fieldValue(u, v, f);
         if (f.type === 'text') return val ? `<tr><td colspan="2">${esc(f.label)}: ${esc(val)}</td></tr>` : '';
-        return `<tr><td>${esc(f.label)}</td><td class="n${f.calc ? ' b' : ''}">${show(val)}${f.pctOf && num(v[f.pctOf]) ? ` (${(num(val) / num(v[f.pctOf]) * 100).toFixed(1)}%)` : ''}</td></tr>`;
+        return `<tr><td>${esc(f.label)}${f.note && num(val) && v[f.key + '_note'] ? `<br><small>${esc(v[f.key + '_note'])}</small>` : ''}</td><td class="n${f.calc ? ' b' : ''}">${show(val)}${f.pctOf && num(v[f.pctOf]) ? ` (${(num(val) / num(v[f.pctOf]) * 100).toFixed(1)}%)` : ''}</td></tr>`;
       }).join('') + (s.sum ? `<tr class="tot"><td>${esc(s.sum)}</td><td class="n">${sectionSum(s, v)}</td></tr>` : '') + '</table>';
     }
     h += '</div>';
@@ -1198,9 +1237,9 @@ function printLines(u, r) {
     }
     const items = s.fields.filter(f => f.type !== 'text').map(f => {
       const val = fieldValue(u, v, f);
-      if (f.type === 'time') return val ? `${esc(f.label)} ${esc(val)}` : '';
+      if (f.type === 'time') return val ? `${esc(f.label)} ${esc(val)} น.` : '';
       if (!f.calc && !num(val)) return '';
-      return `${esc(f.label)} <b>${val}</b>${f.pctOf && num(v[f.pctOf]) ? ` (${(num(val) / num(v[f.pctOf]) * 100).toFixed(1)}%)` : ''}`;
+      return `${esc(f.label)} <b>${val}</b>${f.pctOf && num(v[f.pctOf]) ? ` (${(num(val) / num(v[f.pctOf]) * 100).toFixed(1)}%)` : ''}${f.note && v[f.key + '_note'] ? ' (' + esc(v[f.key + '_note']) + ')' : ''}`;
     }).filter(Boolean);
     if (s.sum) items.push(`${esc(s.sum)} <b>${sectionSum(s, v)}</b>`);
     if (items.length) out.push((u.form.sections.length > 1 ? `<u>${esc(s.title)}</u> ` : '') + items.join(', '));
@@ -1216,31 +1255,64 @@ function printLines(u, r) {
   return out.map(l => `<div class="ln">${l}</div>`).join('');
 }
 
-/* ตรวจรายชื่อก่อนอัปโหลด: ชื่อแผนกที่ระบบไม่รู้จักเลือกผูกกับหน่วยงานได้ และระบบจำไว้ใช้ครั้งต่อไป */
+/* ตรวจรายชื่อก่อนอัปโหลด: นำเข้าทุกคน ชื่อแผนกตามไฟล์เก็บไว้ ผูกกับหน่วยงานในระบบภายหลังได้ */
+const NO_DEPT = '(ไม่ระบุแผนก)';
 function drawUpPreview() {
-  const ok = S.upload || [], pend = S.pending || [], bad = S.upBad || [];
-  const unknown = {}; pend.forEach(p => { unknown[p.rawUnit] = (unknown[p.rawUnit] || 0) + 1; });
-  const extra = pend.filter(p => S.bind[p.rawUnit]);
-  const total = ok.length + extra.length, byUnit = {};
-  ok.concat(extra.map(p => ({ unit: S.bind[p.rawUnit] }))).forEach(r => { byUnit[r.unit] = (byUnit[r.unit] || 0) + 1; });
-  const skipped = pend.length - extra.length;
-  $('up_preview').innerHTML = `<p style="margin:10px 0 6px">พบ <b>${total}</b> รายชื่อ จาก ${Object.keys(byUnit).length} หน่วยงาน${bad.length ? ` \u00b7 <span style="color:var(--bad)">ข้ามแถวที่อ่านไม่ได้: ${bad.slice(0, 10).join(', ')}${bad.length > 10 ? '\u2026' : ''}</span>` : ''}</p>
-    ${Object.keys(unknown).length ? `<div style="margin:8px 0"><div style="color:var(--bad);font-size:14px;margin-bottom:4px">ชื่อแผนกในไฟล์ที่ระบบยังไม่รู้จัก เลือกหน่วยงานที่ตรงกัน (ระบบจำการผูกไว้ให้ครั้งต่อไป)${skipped ? ` \u00b7 จะข้าม ${skipped} รายชื่อ` : ''}</div>
-      <div class="binding">${Object.entries(unknown).map(([k, n]) => `<span><b>${esc(k)}</b> <small class="muted">(${n} คน)${S.sugg && S.sugg[k] && S.bind[k] ? ' \u00b7 ระบบแนะนำ' : ''}</small></span><select data-bind="${esc(k)}"><option value="">\u2014 ไม่นำเข้า \u2014</option>${unitOptgroups(S.bind[k])}</select>`).join('')}</div></div>` : ''}
-    <div class="chips" style="margin-bottom:10px">${Object.entries(byUnit).map(([k, n]) => `<span class="pill plain">${esc(k)} ${n}</span>`).join('')}</div>
-    <button type="button" class="btn" id="up_go"${total ? '' : ' disabled'}>ยืนยันอัปโหลด</button>`;
-  $('up_preview').querySelectorAll('[data-bind]').forEach(sel => sel.onchange = () => { S.bind[sel.dataset.bind] = sel.value; drawUpPreview(); });
+  const rows = S.upRows || [], bad = S.upBad || [], by = {};
+  rows.forEach(r => { const k = r.dept || NO_DEPT; if (!by[k]) by[k] = { n: 0, unit: resolveDept(r.dept) }; by[k].n++; });
+  const bound = rows.filter(r => resolveDept(r.dept)).length;
+  $('up_preview').innerHTML = `<p style="margin:10px 0 6px">พบ <b>${rows.length}</b> รายชื่อ จาก ${Object.keys(by).length} แผนกในไฟล์ \u00b7 จัดเข้าหน่วยงานได้ทันที <b>${bound}</b> คน \u00b7 ยังไม่ผูกแผนก <b>${rows.length - bound}</b> คน (เก็บไว้ ผูกภายหลังได้)${bad.length ? ` \u00b7 <span style="color:var(--bad)">ข้ามแถวที่ไม่มีชื่อ: ${bad.slice(0, 10).join(', ')}${bad.length > 10 ? '\u2026' : ''}</span>` : ''}</p>
+    <div class="grid-scroll"><table class="g"><tr><th>ชื่อแผนกในไฟล์</th><th>คน</th><th>หน่วยงานในระบบ</th></tr>
+    ${Object.entries(by).map(([k, o]) => `<tr><td>${esc(k)}</td><td class="num">${o.n}</td><td>${o.unit ? '<b>' + esc(o.unit) + '</b>' : '<span class="muted">ยังไม่ผูก</span>'}</td></tr>`).join('')}</table></div>
+    <button type="button" class="btn" id="up_go" style="margin-top:10px"${rows.length ? '' : ' disabled'}>ยืนยันอัปโหลด</button>`;
   $('up_go').onclick = async () => {
     $('up_go').disabled = true;
     try {
-      const rows = ok.concat(extra.map(p => ({ unit: S.bind[p.rawUnit], name: p.name, role: p.role })));
-      const links = Object.entries(S.bind).filter(([, u]) => u).map(([alias, unit]) => ({ alias, unit }));
-      if (links.length) S.aliases = await api('saveAliases', S.token, links);
       const r = await api('uploadStaff', S.token, rows);
-      S.upload = null; S.pending = null; await loadStaff(); render();
-      toast(`อัปโหลดแล้ว ${r.added} รายชื่อ \u00b7 แทนที่ชื่อซ้ำที่เพิ่มเอง ${r.replaced} รายการ`);
+      S.upRows = null; await loadStaff(); render();
+      toast(`อัปโหลด ${r.added} รายชื่อ \u00b7 จัดเข้าหน่วยงานแล้ว ${r.bound} \u00b7 รอผูกแผนก ${r.unbound}`);
     } catch (e) { handleErr(e); $('up_go').disabled = false; }
   };
+}
+
+/* ผูกชื่อแผนกในไฟล์กับหน่วยงานในระบบ: เลือกแล้วกดบันทึก รายชื่อทั้งแผนกย้ายเข้าหน่วยงานนั้น และจำไว้ใช้ครั้งต่อไป */
+function deptGroups() {
+  const g = {};
+  S.staff.filter(s => s.source === 'upload').forEach(s => {
+    const k = s.fileDept || s.unit || NO_DEPT, o = g[k] || (g[k] = { n: 0, units: {} });
+    o.n++; o.units[s.unit || ''] = (o.units[s.unit || ''] || 0) + 1;
+  });
+  return Object.entries(g).map(([k, o]) => {
+    const cur = Object.entries(o.units).sort((a, b) => b[1] - a[1])[0][0];
+    return { dept: k, n: o.n, cur };
+  }).sort((a, b) => (a.cur ? 1 : 0) - (b.cur ? 1 : 0) || a.dept.localeCompare(b.dept, 'th'));
+}
+function renderBindingCard() {
+  const gs = deptGroups(), none = S.staff.filter(s => !s.unit).length;
+  if (!gs.length) return '';
+  S.bindSel = S.bindSel || {};
+  return `<div class="card"><h3>ผูกชื่อแผนกในไฟล์กับหน่วยงานในระบบ <span class="sub">รอผูก ${none} คน</span></h3>
+    <p class="muted" style="margin:0 0 8px;font-size:14px">เลือกหน่วยงานที่ตรงกับแต่ละแผนกในไฟล์ แล้วกด "บันทึกการผูก" รายชื่อทั้งแผนกจะเข้าหน่วยงานนั้น และอัปโหลดครั้งต่อไประบบจัดเข้าให้เอง (แผนกที่ระบบแนะนำให้ ยังไม่บันทึกจนกว่าจะกดบันทึก)</p>
+    <div class="binding">${gs.map(o => {
+      const sel = o.dept in S.bindSel ? S.bindSel[o.dept] : (o.cur || suggestUnit(o.dept));
+      const tag = o.cur ? 'ผูกแล้ว' : (sel ? 'ระบบแนะนำ ยังไม่บันทึก' : 'ยังไม่ผูก');
+      return `<span><b>${esc(o.dept)}</b> <small class="muted">(${o.n} คน) \u00b7 ${tag}</small></span><select data-dept="${esc(o.dept)}"${o.dept === NO_DEPT ? ' disabled' : ''}><option value="">\u2014 ยังไม่ผูก \u2014</option>${unitOptgroups(sel)}</select>`;
+    }).join('')}</div>
+    <button type="button" class="btn" data-act="bindsave">บันทึกการผูก</button></div>`;
+}
+async function saveBindingsNow() {
+  const items = [];
+  deptGroups().forEach(o => {
+    if (o.dept === NO_DEPT) return;
+    const sel = o.dept in S.bindSel ? S.bindSel[o.dept] : (o.cur || suggestUnit(o.dept));
+    if (sel !== o.cur) items.push({ alias: o.dept, unit: sel });
+  });
+  if (!items.length) return toast('ไม่มีการเปลี่ยนแปลง');
+  try {
+    S.aliases = await api('saveBindings', S.token, items);
+    S.bindSel = {}; await loadStaff(); render();
+    toast(`บันทึกการผูก ${items.length} แผนกแล้ว`);
+  } catch (e) { handleErr(e); }
 }
 
 /* ===== ผูกเหตุการณ์ของหน้าที่แสดงอยู่ ===== */
@@ -1252,6 +1324,7 @@ function bindView() {
     else if (a === 'back') go('all');
     else if (a === 'print') window.print();
     else if (a === 'tpl') downloadTemplate();
+    else if (a === 'bindsave') saveBindingsNow();
     else if (a === 'rooms') roomEditor($('adm_room_editor'), b.dataset.runit, () => render());
   });
   v.querySelectorAll('[data-sub]').forEach(b => { if (!S.editing) b.onclick = () => { S.sub = b.dataset.sub; render(); }; });
@@ -1263,20 +1336,13 @@ function bindView() {
     const f = $('up_file').files[0]; if (!f) return;
     $('up_preview').innerHTML = '<p class="muted">กำลังอ่านไฟล์...</p>';
     try {
-      const { ok, bad, pending } = await readRoster(f);
-      S.upload = ok; S.pending = pending; S.bind = {}; S.sugg = {}; S.upBad = bad;
-      pending.forEach(p => { if (!(p.rawUnit in S.bind)) { const g = suggestUnit(p.rawUnit); S.bind[p.rawUnit] = g; if (g) S.sugg[p.rawUnit] = true; } });
+      const { rows, bad } = await readRoster(f);
+      S.upRows = rows; S.upBad = bad;
       drawUpPreview();
     } catch (e) { $('up_preview').innerHTML = `<p style="color:var(--bad)">${esc(e.message)}</p>`; }
   };
-  if ($('al_add')) $('al_add').onclick = async () => {
-    const alias = $('al_name').value.trim(); if (!alias) return toast('พิมพ์ชื่อแผนกที่ใช้ในไฟล์ก่อน');
-    try { S.aliases = await api('saveAliases', S.token, [{ alias, unit: $('al_unit').value }]); toast('ผูกชื่อแผนกแล้ว'); render(); } catch (e) { handleErr(e); }
-  };
-  v.querySelectorAll('[data-aldel]').forEach(b => b.onclick = async () => {
-    try { S.aliases = await api('deleteAlias', S.token, b.dataset.aldel); toast('ลบการผูกแล้ว'); render(); } catch (e) { handleErr(e); }
-  });
-  if (S.upload && $('up_preview') && S.tab === 'staff' && S.upload.length + (S.pending || []).length) drawUpPreview();
+  v.querySelectorAll('[data-dept]').forEach(sel => sel.onchange = () => { S.bindSel[sel.dataset.dept] = sel.value; });
+  if (S.upRows && $('up_preview') && S.tab === 'staff' && S.upRows.length) drawUpPreview();
 
 }
 window.__scriptLoaded = true;

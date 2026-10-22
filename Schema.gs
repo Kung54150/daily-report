@@ -49,8 +49,11 @@ const TM_ = (key, label) => ({ key, label, type: 'time' });
 const IPD_CENSUS = {
   title: 'ยอดผู้ป่วย',
   fields: [
-    N_('carried', 'ยอดยกมา'), N_('admit', 'รับใหม่'), N_('tr_in', 'รับย้าย'), N_('tr_out', 'ย้ายไป'),
-    N_('refer', 'Refer'), N_('dead', 'Dead'), N_('dc', 'จำหน่าย'),
+    N_('carried', 'ยอดยกมา'), N_('admit', 'รับใหม่'),
+    // note = ต้องระบุที่มา/ปลายทางเป็นข้อความเมื่อมียอด (เก็บในช่อง <key>_note)
+    Object.assign(N_('tr_in', 'รับย้าย'), { note: 'รับย้ายจากที่ไหน' }),
+    Object.assign(N_('tr_out', 'ย้ายไป'), { note: 'ย้ายไปที่ไหน' }),
+    Object.assign(N_('refer', 'Refer'), { note: 'Refer ไปที่ไหน' }), N_('dead', 'Dead'), N_('dc', 'จำหน่าย'),
     Object.assign(N_('remain', 'คงพยาบาล'), {
       calc: { plus: ['carried', 'admit', 'tr_in'], minus: ['tr_out', 'refer', 'dead', 'dc'] }
     })
