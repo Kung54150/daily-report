@@ -15,6 +15,7 @@ const SH_INCIDENTS = 'เหตุการณ์ผิดปกติ';
 const SH_STAFF = 'ทะเบียนเจ้าหน้าที่';
 const SH_STATS = 'สถิติ';
 const SH_ROOMS = 'ห้อง';
+const SH_ALIASES = 'ชื่อแผนกในไฟล์';
 const ROOMS_PER_IPD = 25; // ห้องเริ่มต้นของแต่ละตึกผู้ป่วยใน เช่น A401 ถึง A425 (แก้ไขได้ในชีต 'ห้อง')
 const INC_FIELDS = ['type', 'severity', 'patient', 'age', 'hn', 'time', 'doctor', 'bp', 'pr', 'rr', 'temp', 'spo2', 'o2mode', 'o2flow', 'detail', 'action'];
 const HEADERS = {
@@ -23,9 +24,10 @@ const HEADERS = {
   [SH_INCIDENTS]: ['วันที่', 'หน่วยงาน', 'ประเภท', 'ระดับความรุนแรง', 'ชื่อ-สกุลผู้ป่วย', 'อายุ', 'HN', 'เวลามารับบริการ', 'แพทย์เจ้าของไข้',
     'BP (mmHg)', 'PR (/min)', 'RR (/min)', 'T (°C)', 'O2 sat (%)', 'O2', 'O2 ที่ให้', 'รายละเอียด', 'การแก้ไขเบื้องต้น', 'ผู้รายงาน'],
   // ยอดมาตรฐานแบบแถวยาว ใช้ทำ Pivot / Looker Studio ภายหลัง
-  [SH_STATS]: ['วันที่', 'กลุ่ม', 'หน่วยงาน', 'หมวด', 'รายการ', 'จำนวน'],
+  [SH_STATS]: ['วันที่', 'กลุ่ม', 'หน่วยงาน', 'หมวด', 'รายการ', 'จำนวน', 'ตึก'],
   [SH_STAFF]: ['id', 'หน่วยงาน', 'ชื่อ-สกุล', 'ตำแหน่ง', 'ที่มา', 'แก้ไขล่าสุด'],
-  [SH_ROOMS]: ['หน่วยงาน', 'ชื่อห้อง (แก้ไข เพิ่ม ลบได้ที่นี่)']
+  [SH_ROOMS]: ['หน่วยงาน', 'เลขห้อง', 'ชื่อ/ประเภทห้อง (ไม่บังคับ)'],
+  [SH_ALIASES]: ['ชื่อแผนกที่ใช้ในไฟล์', 'หน่วยงานในระบบ']
 };
 const ADMIN = 'ADMIN';
 const SESSION_DAYS = 30;
@@ -63,7 +65,7 @@ function doGet() {
 // ===== เข้าสู่ระบบ =====
 function getLoginInfo() {
   ensureSetup_();
-  return { groups: GROUPS.map(g => ({ name: g.name, units: g.units })), hint: LOGIN_HINT };
+  return { groups: GROUPS.map(g => ({ name: g.name, units: g.units, sections: subGroups_(g).map(s => ({ label: s.label, units: s.units })) })), hint: LOGIN_HINT };
 }
 
 function login(unit, password) {
@@ -147,8 +149,9 @@ function saveReport(token, rep) {
     }
 
     const st = sheet_(SH_STATS);
+    ensureHeaders_(st, HEADERS[SH_STATS]);
     deleteRows_(st, r => fmtDate_(r[0]) === clean.date && r[2] === clean.unit);
-    if (stats.length) st.getRange(st.getLastRow() + 1, 1, stats.length, 6).setValues(stats);
+    if (stats.length) st.getRange(st.getLastRow() + 1, 1, stats.length, 7).setValues(stats);
   });
   return { ok: true };
 }
@@ -156,7 +159,8 @@ function saveReport(token, rep) {
 // ยอดมาตรฐาน + ประเภทผู้ป่วย + อัตรากำลัง ของรายงานหนึ่งฉบับ (แถวละหนึ่งค่า)
 function statRows_(u, rep) {
   const g = GROUPS.find(x => x.key === u.group).name;
-  const row = (cat, item, n) => [rep.date, g, u.code, cat, item, n];
+  const bld = String(u.sub || '').replace('ตึก ', '');
+  const row = (cat, item, n) => [rep.date, g, u.code, cat, item, n, bld];
   const rows = [];
   Object.entries(stdValues_(u.form, rep.values)).forEach(([k, n]) => rows.push(row('ยอดผู้ป่วย', STD_LABELS[k], n)));
   Object.entries(categoryValues_(u.form, rep.values)).forEach(([k, n]) => rows.push(row('ประเภทผู้ป่วย', k, n)));
@@ -169,25 +173,58 @@ function statRows_(u, rep) {
   return rows;
 }
 
-// ===== ห้องพัก (ชีต 'ห้อง': หน่วยงาน, ชื่อห้อง — แก้ชื่อหรือเพิ่มลบแถวได้เอง) =====
+// ===== ห้องพัก (ชีต 'ห้อง': หน่วยงาน, เลขห้อง, ชื่อ/ประเภท) แก้ในเว็บหรือในชีตก็ได้ =====
 function getRooms_() {
   if (!SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SH_ROOMS) || sheet_(SH_ROOMS).getLastRow() < 2) withLock_(seedRooms_);
+  const sh = sheet_(SH_ROOMS);
+  ensureHeaders_(sh, HEADERS[SH_ROOMS]);
   const out = {};
-  sheet_(SH_ROOMS).getDataRange().getValues().slice(1).forEach(r => {
-    const u = String(r[0]).trim(), n = String(r[1]).trim();
-    if (u && n) (out[u] = out[u] || []).push(n);
+  sh.getDataRange().getValues().slice(1).forEach(r => {
+    const u = String(r[0]).trim(), no = String(r[1]).trim(), name = String(r[2] || '').trim();
+    if (u && (no || name)) (out[u] = out[u] || []).push({ no: no || name, name: no ? name : '' });
   });
   return out;
 }
+
+// หน่วยงานแก้ไขรายการห้องของตนเอง (ADMIN แก้ได้ทุกหน่วยงาน) — แทนที่รายการห้องของหน่วยงานนั้นทั้งหมด
+function saveRooms(token, unit, list) {
+  const me = auth_(token);
+  if (!allUnitCodes_().includes(unit)) throw new Error('ไม่พบหน่วยงาน');
+  if (me.role !== 'admin' && unit !== me.unit) throw new Error('แก้ไขได้เฉพาะห้องของหน่วยงานตนเอง');
+  const seen = {}, clean = [];
+  (list || []).forEach(r => {
+    const no = String(r && r.no || '').trim(), name = String(r && r.name || '').trim();
+    if (!no) return;
+    const key = (name || no).toLowerCase();
+    if (seen[key]) throw new Error('ชื่อห้องซ้ำ: ' + (name || no));
+    seen[key] = true; clean.push([unit, no, name]);
+  });
+  if (clean.length > 300) throw new Error('จำนวนห้องมากเกินไป');
+  withLock_(() => {
+    getRooms_();
+    const sh = sheet_(SH_ROOMS), data = sh.getDataRange().getValues().slice(1);
+    const out = []; let placed = false;
+    data.forEach(r => {
+      if (String(r[0]).trim() === unit) { if (!placed) { clean.forEach(x => out.push(x)); placed = true; } }
+      else out.push([r[0], r[1], r[2] || '']);
+    });
+    if (!placed) clean.forEach(x => out.push(x));
+    sh.getRange(2, 1, Math.max(sh.getLastRow() - 1, 1), 3).clearContent();
+    if (out.length) sh.getRange(2, 1, out.length, 3).setValues(out);
+  });
+  return getRooms_();
+}
+
+function allUnitCodes_() { return GROUPS.flatMap(g => g.units); }
 
 function seedRooms_() {
   const sh = sheet_(SH_ROOMS);
   if (sh.getLastRow() >= 2) return;
   const rows = [];
   GROUPS.filter(g => g.key === 'IPD').forEach(g => g.units.forEach(u => {
-    for (let i = 1; i <= ROOMS_PER_IPD; i++) rows.push([u, u + (i < 10 ? '0' : '') + i]);
+    for (let i = 1; i <= ROOMS_PER_IPD; i++) rows.push([u, u + (i < 10 ? '0' : '') + i, '']);
   }));
-  if (rows.length) sh.getRange(2, 1, rows.length, 2).setValues(rows);
+  if (rows.length) sh.getRange(2, 1, rows.length, 3).setValues(rows);
 }
 
 // ===== ทะเบียนเจ้าหน้าที่ =====
@@ -260,6 +297,45 @@ function uploadStaff(token, rows) {
   });
 }
 
+// ===== ผูกชื่อแผนกที่ใช้ในไฟล์รายชื่อ กับหน่วยงานในระบบ (ADMIN) =====
+// เช่น ไฟล์ HR เขียน "ศัลยกรรมชาย" แต่ในระบบคือ A4 ผูกครั้งเดียว อัปโหลดครั้งต่อไปจับคู่ให้เอง
+function getAliases(token) {
+  if (auth_(token).role !== 'admin') throw new Error('เฉพาะผู้ดูแลระบบ');
+  return sheet_(SH_ALIASES).getDataRange().getValues().slice(1)
+    .filter(r => String(r[0]).trim() && String(r[1]).trim())
+    .map(r => ({ alias: String(r[0]).trim(), unit: String(r[1]).trim() }));
+}
+
+function saveAliases(token, items) {
+  if (auth_(token).role !== 'admin') throw new Error('เฉพาะผู้ดูแลระบบ');
+  const codes = allUnitCodes_();
+  const add = (items || []).filter(x => x && String(x.alias || '').trim() && codes.indexOf(x.unit) >= 0)
+    .map(x => ({ alias: String(x.alias).trim(), unit: x.unit }));
+  withLock_(() => {
+    const sh = sheet_(SH_ALIASES), keys = new Set(add.map(x => normAlias_(x.alias)));
+    const keep = sh.getDataRange().getValues().slice(1).filter(r => String(r[0]).trim() && !keys.has(normAlias_(r[0])))
+      .map(r => [String(r[0]).trim(), String(r[1]).trim()]);
+    const all = keep.concat(add.map(x => [x.alias, x.unit]));
+    sh.getRange(2, 1, Math.max(sh.getLastRow() - 1, 1), 2).clearContent();
+    if (all.length) sh.getRange(2, 1, all.length, 2).setValues(all);
+  });
+  return getAliases(token);
+}
+
+function deleteAlias(token, alias) {
+  if (auth_(token).role !== 'admin') throw new Error('เฉพาะผู้ดูแลระบบ');
+  withLock_(() => {
+    const sh = sheet_(SH_ALIASES), k = normAlias_(alias);
+    deleteRows_(sh, r => normAlias_(r[0]) === k);
+  });
+  return getAliases(token);
+}
+
+// ตัดคำนำหน้า ช่องว่าง เครื่องหมาย ออกก่อนเทียบชื่อแผนก (ต้องตรงกับ normUnit ใน Index.html)
+function normAlias_(s) {
+  return String(s || '').toUpperCase().replace(/ตึก|หอผู้ป่วย|หอ|แผนก|หน่วยงาน|ชั้น|\s|[-_.\/()]/g, '');
+}
+
 // ===== helpers =====
 function sheet_(name) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -271,8 +347,15 @@ function sheet_(name) {
     sh.getRange(1, 1, 1, HEADERS[name].length).setFontWeight('bold');
     if (name !== SH_STAFF) sh.getRange('A:A').setNumberFormat('@'); // วันที่/รหัสหน่วยงานเก็บเป็นข้อความ
     if (name === SH_USERS || name === SH_ROOMS) sh.getRange('B:B').setNumberFormat('@');
+    if (name === SH_ROOMS) sh.getRange('C:C').setNumberFormat('@');
   }
   return sh;
+}
+
+// ชีตเก่าที่มีคอลัมน์หัวตารางน้อยกว่าเวอร์ชันใหม่ → เติมหัวตารางที่ขาด
+function ensureHeaders_(sh, header) {
+  const have = sh.getRange(1, 1, 1, header.length).getValues()[0];
+  header.forEach((h, i) => { if (!String(have[i] || '').trim()) sh.getRange(1, i + 1).setValue(h).setFontWeight('bold'); });
 }
 
 function withLock_(fn) {

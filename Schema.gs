@@ -168,10 +168,21 @@ function categoryValues_(form, vals) {
   return out;
 }
 
+// ผู้ป่วยในแยกเป็นตึก A / B / C ตามตัวอักษรหน้ารหัสหน่วยงาน (A4 → ตึก A)
+function subGroups_(g) {
+  if (g.key !== 'IPD') return [{ label: g.name, sub: '', units: g.units }];
+  const by = {};
+  g.units.forEach(u => { const k = u.charAt(0); (by[k] = by[k] || []).push(u); });
+  return Object.keys(by).sort().map(k => ({ label: g.name + ' \u00b7 ตึก ' + k, sub: 'ตึก ' + k, units: by[k] }));
+}
+
 function buildConfig_() {
-  const units = GROUPS.flatMap(g => g.units.map(code => ({ code, group: g.key, form: FORMS[code] || OPD_DRAFT })));
+  const subOf = {};
+  GROUPS.forEach(g => subGroups_(g).forEach(s => s.units.forEach(u => { subOf[u] = s.sub; })));
+  const units = GROUPS.flatMap(g => g.units.map(code => ({ code, group: g.key, sub: subOf[code], form: FORMS[code] || OPD_DRAFT })));
   return {
     groups: GROUPS.map(g => ({ key: g.key, name: g.name })),
+    sections: GROUPS.flatMap(g => subGroups_(g).map(s => ({ group: g.key, label: s.label, sub: s.sub, units: s.units }))),
     units, roles: ROLES, roleAliases: ROLE_ALIASES, dutyTags: DUTY_TAGS, shifts: SHIFTS,
     problemTypes: PROBLEM_TYPES, severity: SEVERITY, o2Modes: O2_MODES,
     stdLabels: STD_LABELS, stdOpd: STD_OPD, stdIpd: STD_IPD, categories: CATEGORIES
