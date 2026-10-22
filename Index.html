@@ -846,9 +846,10 @@ async function staffAction(act, id, unit) {
 }
 
 /* อ่านไฟล์รายชื่อ (Excel ใช้ SheetJS โหลดเมื่อจำเป็น) */
+// หมายเหตุ: Apps Script ตัดข้อความหลัง // ในสคริปต์ทิ้งแม้อยู่ในสตริง จึงเขียน URL เป็น https:\/\/ (ห้ามมี // ต่อกันในโค้ด)
 function loadXLSX() {
   if (window.XLSX) return Promise.resolve();
-  return new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload = res; s.onerror = () => rej(new Error('โหลดตัวอ่าน Excel ไม่ได้')); document.head.appendChild(s); });
+  return new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https:\/\/cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload = res; s.onerror = () => rej(new Error('โหลดตัวอ่าน Excel ไม่ได้')); document.head.appendChild(s); });
 }
 async function readRoster(file) {
   let rows;
