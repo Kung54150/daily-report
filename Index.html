@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root { --pri:#0f766e; --bg:#f4f6f8; --card:#fff; --line:#e2e8f0; --muted:#64748b; --warn:#b91c1c; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:'Sarabun',sans-serif; background:var(--bg); color:#1e293b; }
+  header { background:var(--pri); color:#fff; padding:14px 16px; font-size:18px; font-weight:600; }
+  header small { font-weight:400; opacity:.85; }
+  nav { display:flex; background:#fff; border-bottom:1px solid var(--line); }
+  nav button { flex:1; border:0; background:none; padding:12px 4px; font:inherit; color:var(--muted); border-bottom:3px solid transparent; cursor:pointer; }
+  nav button.on { color:var(--pri); border-color:var(--pri); font-weight:600; }
+  main { max-width:760px; margin:0 auto; padding:16px; }
+  main.wide { max-width:1000px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:14px; }
+  label { display:block; font-size:14px; color:var(--muted); margin:10px 0 4px; }
+  input, select, textarea { width:100%; padding:9px 10px; font:inherit; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .item { display:grid; grid-template-columns:1fr 110px; gap:10px; align-items:center; padding:6px 0; border-bottom:1px dashed var(--line); }
+  .btn { width:100%; margin-top:16px; padding:12px; border:0; border-radius:8px; background:var(--pri); color:#fff; font:inherit; font-weight:600; cursor:pointer; }
+  .btn:disabled { opacity:.6; }
+  .btn.sm { width:auto; margin:0; padding:9px 16px; }
+  .msg { margin-top:10px; font-size:14px; }
+  .info { font-size:13px; color:#92400e; background:#fef3c7; padding:6px 10px; border-radius:6px; margin-top:10px; }
+  .hide { display:none !important; }
+  .toolbar { display:flex; gap:10px; align-items:end; }
+  .toolbar > div { flex:1; }
+  .links { font-size:13px; }
+  .links a { display:inline-block; margin:2px 8px 2px 0; color:var(--pri); }
+
+  /* ===== รายงาน A4 ===== */
+  #report { background:#fff; border:1px solid var(--line); padding:12mm; font-size:10.5pt; }
+  #report h1 { font-size:15pt; text-align:center; margin:0; }
+  #report .date { text-align:center; margin:2px 0 10px; }
+  #report h2 { font-size:12pt; margin:12px 0 4px; border-bottom:2px solid #1e293b; }
+  #report h3 { font-size:10.5pt; margin:8px 0 2px; }
+  #report table { width:100%; border-collapse:collapse; margin-bottom:4px; }
+  #report th, #report td { border:1px solid #94a3b8; padding:2px 5px; }
+  #report th { background:#f1f5f9; font-weight:600; }
+  #report td.n { text-align:center; }
+  #report tr.total td { font-weight:600; background:#f8fafc; }
+  #report .miss { color:var(--warn); }
+  #report .status { font-size:10pt; }
+  #report .sign { margin-top:20px; display:flex; justify-content:flex-end; text-align:center; }
+
+  @page { size:A4 portrait; margin:10mm; }
+  @media print {
+    header, nav, .noprint { display:none !important; }
+    body { background:#fff; }
+    main, main.wide { max-width:none; padding:0; }
+    #report { border:0; padding:0; }
+    #report tr { page-break-inside:avoid; }
+    #report h2, #report h3, #report thead { page-break-after:avoid; }
+  }
+</style>
+</head>
+<body>
+<header>รายงานยอดประจำวัน <small id="h_unit"></small></header>
+<nav>
+  <button data-tab="counts" class="on">กรอกยอด</button>
+  <button data-tab="problem">รายงานปัญหา</button>
+  <button data-tab="summary" id="tab_summary">สรุป / พิมพ์</button>
+</nav>
+<main>
+  <!-- กรอกยอด -->
+  <section id="counts">
+    <div class="card">
+      <div class="row">
+        <div><label>วันที่</label><input type="date" id="c_date"></div>
+        <div><label>หน่วยงาน</label><select id="c_unit" class="unit-select"></select></div>
+      </div>
+      <label>ผู้รายงาน</label><input id="c_reporter" placeholder="ชื่อ-สกุล">
+      <div id="c_existing" class="info hide">มีข้อมูลของวันนี้แล้ว — บันทึกใหม่จะแทนที่ของเดิม</div>
+      <div id="c_items"></div>
+      <label>หมายเหตุ</label><textarea id="c_note" rows="2"></textarea>
+      <button class="btn" id="c_send">บันทึกยอด</button>
+      <div class="msg" id="c_msg"></div>
+    </div>
+  </section>
+
+  <!-- รายงานปัญหา -->
+  <section id="problem" class="hide">
+    <div class="card">
+      <div class="row">
+        <div><label>วันที่</label><input type="date" id="p_date"></div>
+        <div><label>เวลา</label><input type="time" id="p_time"></div>
+      </div>
+      <div class="row">
+        <div><label>หน่วยงาน</label><select id="p_unit" class="unit-select"></select></div>
+        <div><label>ผู้รายงาน</label><input id="p_reporter"></div>
+      </div>
+      <div class="row">
+        <div><label>ประเภทปัญหา</label><select id="p_type"></select></div>
+        <div><label>ระดับความรุนแรง</label><select id="p_sev"></select></div>
+      </div>
+      <label>รายละเอียด</label><textarea id="p_detail" rows="3"></textarea>
+      <label>การแก้ไขเบื้องต้น</label><textarea id="p_action" rows="2"></textarea>
+      <button class="btn" id="p_send">ส่งรายงานปัญหา</button>
+      <div class="msg" id="p_msg"></div>
+    </div>
+  </section>
+
+  <!-- สรุป / พิมพ์ (ผู้จัดการ) -->
+  <section id="summary" class="hide">
+    <div class="card noprint">
+      <div class="toolbar">
+        <div><label>วันที่</label><input type="date" id="s_date"></div>
+        <button class="btn sm" id="s_reload">รีเฟรช</button>
+        <button class="btn sm" id="s_print">พิมพ์ A4</button>
+      </div>
+    </div>
+    <div id="report">กำลังโหลด...</div>
+    <div class="card noprint links" style="margin-top:14px">
+      <b>ลิงก์สำหรับแต่ละหน่วยงาน</b> (เปิดแล้วล็อกหน่วยงานให้อัตโนมัติ)
+      <div id="s_links"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+let CFG, UNIT_LOCK = '';
+const $ = id => document.getElementById(id);
+const today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+const thaiDate = d => new Date(d + 'T00:00:00').toLocaleDateString('th-TH', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+const unitOf = code => CFG.units.find(u => u.code === code);
+
+function showTab(tab) {
+  document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x.dataset.tab === tab));
+  document.querySelectorAll('main section').forEach(s => s.classList.toggle('hide', s.id !== tab));
+  document.querySelector('main').classList.toggle('wide', tab === 'summary');
+  if (tab === 'summary') loadSummary();
+}
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+
+// ?unit=A4 → ล็อกหน่วยงาน ซ่อนหน้าสรุป | ?view=manager → เปิดหน้าสรุป
+google.script.url.getLocation(loc => {
+  const prm = loc.parameter || {};
+  google.script.run.withSuccessHandler(cfg => {
+    CFG = cfg;
+    init(prm);
+  }).getConfig();
+});
+
+function init(prm) {
+  const optgroups = CFG.groups.map(g =>
+    `<optgroup label="${esc(g.name)}">` +
+    CFG.units.filter(u => u.group === g.key).map(u => `<option value="${esc(u.code)}">${esc(u.code)}</option>`).join('') +
+    '</optgroup>').join('');
+  document.querySelectorAll('.unit-select').forEach(s => s.innerHTML = optgroups);
+  $('p_type').innerHTML = CFG.problemTypes.map(t => `<option>${esc(t)}</option>`).join('');
+  $('p_sev').innerHTML = CFG.severity.map(s => `<option>${s}</option>`).join('');
+  $('c_date').value = $('p_date').value = $('s_date').value = today();
+
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem('daily-report') || '{}'); } catch (e) {}
+  $('c_reporter').value = $('p_reporter').value = saved.reporter || '';
+
+  if (prm.unit && unitOf(prm.unit)) {
+    UNIT_LOCK = prm.unit;
+    document.querySelectorAll('.unit-select').forEach(s => { s.value = UNIT_LOCK; s.disabled = true; });
+    $('h_unit').textContent = '· ' + UNIT_LOCK;
+    $('tab_summary').classList.add('hide');
+  } else if (saved.unit && unitOf(saved.unit)) {
+    document.querySelectorAll('.unit-select').forEach(s => s.value = saved.unit);
+  }
+
+  $('s_links').innerHTML = CFG.units.map(u =>
+    `<a href="${esc(CFG.url)}?unit=${encodeURIComponent(u.code)}" target="_blank">${esc(u.code)}</a>`).join('');
+
+  renderItems();
+  if (prm.view === 'manager' && !UNIT_LOCK) showTab('summary');
+}
+
+function remember(unit, reporter) {
+  try { localStorage.setItem('daily-report', JSON.stringify({ unit, reporter })); } catch (e) {}
+}
+
+// ===== กรอกยอด =====
+$('c_unit').onchange = () => { $('p_unit').value = $('c_unit').value; renderItems(); };
+$('c_date').onchange = renderItems;
+
+function renderItems() {
+  const u = unitOf($('c_unit').value);
+  $('c_items').innerHTML = u.items.map(it =>
+    `<div class="item"><span>${esc(it.label)} <small>(${esc(it.unit)})</small></span>
+     <input type="number" min="0" inputmode="numeric" data-key="${esc(it.key)}" value="0"></div>`).join('');
+  $('c_existing').classList.add('hide');
+  $('c_note').value = '';
+  $('c_msg').textContent = '';
+  const date = $('c_date').value, code = u.code;
+  google.script.run.withSuccessHandler(rep => {
+    if (!rep || $('c_date').value !== date || $('c_unit').value !== code) return;
+    $('c_existing').classList.remove('hide');
+    document.querySelectorAll('#c_items input').forEach(i => { if (i.dataset.key in rep.values) i.value = rep.values[i.dataset.key]; });
+    $('c_note').value = rep.note || '';
+  }).getUnitReport(date, code);
+}
+
+function send(btn, msg, fn, payload, onOk) {
+  btn.disabled = true; msg.textContent = 'กำลังบันทึก...'; msg.style.color = '';
+  google.script.run
+    .withSuccessHandler(() => { btn.disabled = false; msg.textContent = '✓ บันทึกเรียบร้อย'; msg.style.color = 'green'; onOk && onOk(); })
+    .withFailureHandler(e => { btn.disabled = false; msg.textContent = e.message; msg.style.color = 'var(--warn)'; })[fn](payload);
+}
+
+$('c_send').onclick = () => {
+  const values = {};
+  document.querySelectorAll('#c_items input').forEach(i => values[i.dataset.key] = i.value);
+  remember($('c_unit').value, $('c_reporter').value.trim());
+  send($('c_send'), $('c_msg'), 'submitCounts', {
+    date: $('c_date').value, unit: $('c_unit').value, reporter: $('c_reporter').value.trim(),
+    note: $('c_note').value.trim(), values
+  }, () => $('c_existing').classList.remove('hide'));
+};
+
+// ===== รายงานปัญหา =====
+$('p_send').onclick = () => {
+  remember($('p_unit').value, $('p_reporter').value.trim());
+  send($('p_send'), $('p_msg'), 'submitProblem', {
+    date: $('p_date').value, time: $('p_time').value, unit: $('p_unit').value,
+    reporter: $('p_reporter').value.trim(), type: $('p_type').value, severity: $('p_sev').value,
+    detail: $('p_detail').value.trim(), action: $('p_action').value.trim()
+  }, () => { $('p_detail').value = $('p_action').value = $('p_time').value = ''; });
+};
+
+// ===== สรุป / พิมพ์ =====
+$('s_date').onchange = loadSummary;
+$('s_reload').onclick = loadSummary;
+$('s_print').onclick = () => window.print();
+
+function loadSummary() {
+  const date = $('s_date').value;
+  $('report').innerHTML = 'กำลังโหลด...';
+  google.script.run
+    .withSuccessHandler(data => { if ($('s_date').value === date) $('report').innerHTML = renderReport(date, data); })
+    .withFailureHandler(e => { $('report').textContent = e.message; })
+    .getSummary(date);
+}
+
+function renderReport(date, data) {
+  const reported = CFG.units.filter(u => data.reports[u.code]);
+  const missing = CFG.units.filter(u => !data.reports[u.code]);
+  let html = `<h1>รายงานยอดประจำวัน</h1><div class="date">${thaiDate(date)}</div>
+    <div class="status">รายงานแล้ว ${reported.length}/${CFG.units.length} หน่วยงาน` +
+    (missing.length ? ` · <span class="miss">ยังไม่รายงาน: ${missing.map(u => esc(u.code)).join(', ')}</span>` : '') + '</div>';
+
+  CFG.groups.forEach(g => {
+    html += `<h2>${esc(g.name)}</h2>`;
+    // หน่วยงานที่รายการเหมือนกันอยู่ตารางเดียวกัน
+    const sets = [];
+    CFG.units.filter(u => u.group === g.key).forEach(u => {
+      const sig = u.items.map(i => i.key).join(',');
+      let s = sets.find(x => x.sig === sig);
+      if (!s) sets.push(s = { sig, items: u.items, units: [] });
+      s.units.push(u);
+    });
+    sets.forEach(s => {
+      if (sets.length > 1 && s.units.length === 1) html += `<h3>${esc(s.units[0].code)}</h3>`;
+      html += renderTable(s.items, s.units, data.reports);
+    });
+  });
+
+  html += '<h2>ปัญหา / เหตุการณ์ผิดปกติ</h2>';
+  html += data.problems.length
+    ? '<table><thead><tr><th>หน่วยงาน</th><th>เวลา</th><th>ประเภท</th><th>ระดับ</th><th>รายละเอียด</th><th>การแก้ไขเบื้องต้น</th></tr></thead>' +
+      data.problems.map(p => `<tr><td>${esc(p.unit)}</td><td class="n">${esc(p.time)}</td><td>${esc(p.type)}</td>
+        <td class="n">${esc(p.severity)}</td><td>${esc(p.detail)}</td><td>${esc(p.action)}</td></tr>`).join('') + '</table>'
+    : '<div>ไม่มีรายงานปัญหา</div>';
+
+  html += `<div class="sign"><div>ลงชื่อ ......................................... ผู้สรุปรายงาน<br>
+    (.........................................)<br>พิมพ์เมื่อ ${new Date().toLocaleString('th-TH')}</div></div>`;
+  return html;
+}
+
+function renderTable(items, units, reports) {
+  const multi = units.length > 1;
+  let html = '<table><thead><tr>' + (multi ? '<th>หน่วยงาน</th>' : '') +
+    items.map(i => `<th>${esc(i.label)}</th>`).join('') + '<th>หมายเหตุ</th></tr></thead>';
+  const totals = items.map(() => 0);
+  units.forEach(u => {
+    const r = reports[u.code];
+    html += '<tr>' + (multi ? `<td>${esc(u.code)}</td>` : '');
+    if (!r) {
+      html += `<td class="n miss" colspan="${items.length + 1}">ยังไม่รายงาน</td>`;
+    } else {
+      items.forEach((it, k) => {
+        const v = Number(r.values[it.key]) || 0;
+        totals[k] += v;
+        html += `<td class="n">${v}</td>`;
+      });
+      html += `<td>${esc(r.note)}</td>`;
+    }
+    html += '</tr>';
+  });
+  if (multi) html += '<tr class="total"><td>รวม</td>' + totals.map(t => `<td class="n">${t}</td>`).join('') + '<td></td></tr>';
+  return html + '</table>';
+}
+</script>
+</body>
+</html>
