@@ -1423,6 +1423,11 @@ function printSingle(u, shift) {
   const incs = (r.incidents || []).map(i => Object.assign({ unit: u.code }, i));
   return h + `<h2>เหตุการณ์ผิดปกติ (${incs.length})</h2>` + (incs.length ? incTable(incs) : '<div>ไม่มีเหตุการณ์ผิดปกติ</div>');
 }
+// ปรับการแสดงผลในเอกสารสรุปของบางหัวข้อ: title = ชื่อหัวข้อที่แสดง, lead = ช่องที่นำค่ามาต่อท้ายหัวข้อ (ไม่ซ้ำในรายละเอียด), nosum = ไม่แสดงบรรทัดรวม
+const SUMMARY_VIEW = {
+  ER: { 'ยอดผู้รับบริการ': { title: 'ยอดผู้รับบริการทั้งหมด', lead: 'total' }, 'OPD Case แบ่งตามประเภท (Triage)': { title: 'แยกตามประเภท Triage', nosum: true } },
+  OPD1: { 'ยอดรวม': { title: 'ยอดรวม Med+Psy', lead: 'total' }, 'ผู้ป่วยอายุรกรรม': { lead: 'med' }, 'ผู้ป่วยจิตเวช': { lead: 'psy' } }
+};
 // รายการหลักเป็นตัวหนา รายละเอียดขึ้นบรรทัดใหม่ขึ้นต้นด้วย -
 function printLines(u, r) {
   const v = r.values || {}, out = [];
@@ -1432,15 +1437,17 @@ function printLines(u, r) {
       s.rows.forEach(rw => { const parts = s.cols.map(c => [c[1], num(v[rw[0] + '_' + c[0]])]).filter(x => x[1]); const t = parts.reduce((a, x) => a + x[1], 0); grp(`<b>${esc(rw[1])} ${t}</b>`, [parts.map(x => esc(x[0]) + ' ' + x[1]).join(', ')]); });
       return;
     }
-    const calcs = [];
+    const calcs = [], vw = (SUMMARY_VIEW[u.code] || {})[s.title] || {};
     const items = s.fields.filter(f => f.type !== 'text').map(f => {
+      if (f.key === vw.lead) return '';
       const val = fieldValue(u, v, f);
       if (f.type === 'time') return val ? `${esc(f.label)} ${esc(val)} น.` : '';
       if (f.calc) { calcs.push(`<b>${esc(f.label)} ${val}</b>`); return ''; }
       if (!num(val)) return '';
       return `${esc(f.label)} ${val}${f.pctOf && num(v[f.pctOf]) ? ` (${(num(val) / num(v[f.pctOf]) * 100).toFixed(1)}%)` : ''}${f.note && v[f.key + '_note'] ? ' (' + esc(v[f.key + '_note']) + ')' : ''}`;
     }).filter(Boolean);
-    const head = (u.form.sections.length > 1 ? esc(s.title) : '') + (s.sum ? ` ${esc(s.sum)} ${sectionSum(s, v)}` : '');
+    const lf = vw.lead && s.fields.find(f => f.key === vw.lead), lv = lf ? fieldValue(u, v, lf) : '';
+    const head = (u.form.sections.length > 1 ? esc(vw.title || s.title) : '') + (lf && lv !== undefined && lv !== '' ? ` ${lv} ${esc(lf.unit || '')}` : '') + (s.sum && !vw.nosum ? ` ${esc(s.sum)} ${sectionSum(s, v)}` : '');
     if (items.length || (head.trim() && !s.sum)) grp(head.trim() ? `<b>${head.trim()}</b>` : '', items);
     calcs.forEach(l => grp(l, []));
     s.fields.filter(f => f.type === 'text' && v[f.key]).forEach(f => grp('', [`${esc(f.label)}: ${esc(v[f.key])}`]));
