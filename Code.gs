@@ -141,6 +141,14 @@ function changePassword(token, oldPw, newPw) {
   return { ok: true };
 }
 
+// รุ่นของโค้ดฝั่งเซิร์ฟเวอร์ (แสดงในแผงตั้งค่าเทียบกับรุ่นของหน้าเว็บ เพื่อตรวจว่าวางไฟล์/Deploy ครบหรือยัง)
+const SERVER_VERSION = '2026.10.23-a';
+function getServerVersion() {
+  let photos = -1;
+  try { photos = Object.keys(THEME_IMAGES).length; } catch (e) { photos = -1; }
+  return { version: SERVER_VERSION, photos };
+}
+
 // ธีมรูปภาพ (ดู ThemeImages.gs): ภาพตัวอย่างเล็กทั้งหมด และรูปพื้นหลังของธีมที่เลือก (ไม่ต้องเข้าสู่ระบบ ใช้ที่หน้าเข้าสู่ระบบได้)
 function getThemeThumbs() {
   const out = {};

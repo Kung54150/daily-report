@@ -576,6 +576,13 @@ function shrinkImage(file, max) {
     img.src = url;
   });
 }
+const APP_VERSION = '2026.10.23-a';
+function loadVersion() {
+  if (S.srvVer || S.srvVerLoading) return;
+  S.srvVerLoading = true;
+  api('getServerVersion').then(v => { S.srvVer = v; }).catch(() => { S.srvVer = { version: 'ไม่พบ (ยังไม่ได้วางไฟล์ Code.gs ล่าสุด)', photos: -1 }; })
+    .then(() => { S.srvVerLoading = false; if (!$('settings').hidden) renderSettings(); });
+}
 function loadThumbs() {
   if (S.thumbs || S.thumbsLoading) return;
   S.thumbsLoading = true;
@@ -585,6 +592,7 @@ function loadThumbs() {
 function renderSettings() {
   const t = S.theme, box = $('settings'), loggedIn = !!S.me;
   if (!S.thumbsErr) loadThumbs();
+  loadVersion();
   box.innerHTML = `<h3>ธีม</h3>
     <div class="optrow">${THEME_MODES.map(([k, n]) => `<button type="button" class="opt${t.mode === k ? ' on' : ''}" data-tmode="${k}">${n}</button>`).join('')}</div>
     <div class="muted" style="font-size:13px">ธีมรูปภาพ</div>
@@ -602,6 +610,7 @@ function renderSettings() {
       <input type="password" id="pw_new2" placeholder="ยืนยันรหัสผ่านใหม่" autocomplete="new-password" required>
       <button class="btn" type="submit" id="pw_btn">เปลี่ยนรหัสผ่าน</button><div class="msg" id="pw_msg"></div></form>
       <div class="muted" style="font-size:13px">ลืมรหัสผ่าน? แจ้ง Admin เพื่อรีเซ็ตรหัสผ่านให้</div>` : ''}
+    <div class="muted" style="font-size:12px;border-top:1px solid var(--line);padding-top:8px">หน้าเว็บรุ่น ${APP_VERSION} \u00b7 เซิร์ฟเวอร์รุ่น ${S.srvVer ? esc(S.srvVer.version) : '...'}${S.srvVer && S.srvVer.photos >= 0 ? ' \u00b7 รูปธีม ' + S.srvVer.photos + ' รูป' : (S.srvVer ? ' \u00b7 ยังไม่พบไฟล์ ThemeImages' : '')}</div>
     ${S.me && S.me.role === 'admin' ? `<hr><h3>รีเซ็ตรหัสผ่านให้ผู้ใช้ (Admin)</h3><div class="pw">
       <select id="rs_user"><option value="">\u2014 เลือกผู้ใช้ \u2014</option><option value="MANAGER">MANAGER (ผู้จัดการ)</option>${unitOptgroups('')}</select>
       <button class="btn ghost" type="button" id="rs_btn">รีเซ็ตรหัสผ่าน (สุ่มรหัสใหม่ 6 หลัก)</button><div class="msg" id="rs_msg"></div></div>` : ''}`;
