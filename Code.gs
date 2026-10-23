@@ -60,7 +60,24 @@ function ensureSetup_() {
 }
 
 // ระบบเดิมที่ติดตั้งก่อนมี MANAGER หรือหน่วยงานใหม่ → เพิ่มแถวผู้ใช้ที่ขาดให้เอง (ดูรหัสผ่านที่ชีต 'ผู้ใช้')
+// หน่วยงานที่ถูกยกเลิก/แยกชื่อ (เช่น LR-NB → LR และ NB): รายชื่อที่ผูกไว้กลับเป็น "ยังไม่ผูกแผนก" และลบการผูกชื่อแผนกที่ชี้ไปหน่วยงานที่ไม่มีแล้ว
+function releaseOrphans_() {
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty('mig_orphans_v1')) return;
+  const codes = allUnitCodes_();
+  withLock_(() => {
+    const st = staffSheet_(), data = st.getDataRange().getValues();
+    const units = data.slice(1).map(r => [r[1] && codes.indexOf(String(r[1])) < 0 ? '' : r[1]]);
+    if (units.length) st.getRange(2, 2, units.length, 1).setValues(units);
+    const as = sheet_(SH_ALIASES), keep = as.getDataRange().getValues().slice(1).filter(r => codes.indexOf(String(r[1]).trim()) >= 0).map(r => [r[0], r[1]]);
+    as.getRange(2, 1, Math.max(as.getLastRow() - 1, 1), 2).clearContent();
+    if (keep.length) as.getRange(2, 1, keep.length, 2).setValues(keep);
+    props.setProperty('mig_orphans_v1', '1');
+  });
+}
+
 function ensureUsers_() {
+  releaseOrphans_();
   const sh = sheet_(SH_USERS);
   const need = [ADMIN, MANAGER].concat(allUnitCodes_());
   const have0 = sh.getDataRange().getValues().slice(1).map(r => String(r[0]));
@@ -413,7 +430,7 @@ function uploadStaff(token, rows) {
   const byNorm = {};
   allUnitCodes_().forEach(c => { byNorm[normAlias_(c)] = c; });
   sheet_(SH_ALIASES).getDataRange().getValues().slice(1).forEach(r => {
-    if (String(r[0]).trim() && String(r[1]).trim()) byNorm[normAlias_(r[0])] = String(r[1]).trim();
+    if (String(r[0]).trim() && allUnitCodes_().indexOf(String(r[1]).trim()) >= 0) byNorm[normAlias_(r[0])] = String(r[1]).trim();
   });
   const incoming = (rows || []).filter(r => r && String(r.name || '').trim()).map(r => {
     const dept = String(r.dept || '').replace(/\s+/g, ' ').trim();

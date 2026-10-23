@@ -174,7 +174,8 @@ const FORMS = {
 
   // ----- Special Unit (รอรูปแบบจริง) -----
   ICU: { draft: true, std: IPD_STD, sections: [IPD_CENSUS] },
-  'LR-NB': { draft: true, std: { total: ['nl', 'cs'] }, sections: [{ title: 'การคลอด', fields: [N_('nl', 'คลอดปกติ'), N_('cs', 'ผ่าคลอด'), N_('nb', 'ทารกแรกเกิด')] }] },
+  LR: { draft: true, std: { total: ['nl', 'cs'] }, sections: [{ title: 'การคลอด', fields: [N_('nl', 'คลอดปกติ'), N_('cs', 'ผ่าคลอด')] }] },
+  NB: { draft: true, std: { total: 'nb' }, sections: [{ title: 'ทารกแรกเกิด', fields: [N_('nb', 'ทารกแรกเกิด'), N_('nb_adm', 'Admit ตึกเด็ก')] }] },
   'ไตเทียม': { draft: true, std: { total: 'hd' }, sections: [{ title: 'ไตเทียม', fields: [N_('hd', 'ฟอกเลือด (HD)'), N_('hd_new', 'ผู้ป่วยรายใหม่')] }] },
   OR: { draft: true, std: { total: ['elective', 'emergency'] }, sections: [{ title: 'ห้องผ่าตัด', sum: 'รวม', fields: [N_('elective', 'Elective'), N_('emergency', 'Emergency')] }, { title: 'อื่นๆ', fields: [N_('cancel', 'งดผ่าตัด')] }] }
 };
@@ -185,7 +186,7 @@ const OPD_DRAFT = { draft: true, std: { total: 'total', admit: 'admit', refer: '
 const GROUPS = [
   { key: 'OPD', name: 'ผู้ป่วยนอก', units: ['OPD1', 'OPD3', 'ER', 'HPC', 'ผิวหนัง', 'แผนจีน', 'CCC', 'OBG-IVF', 'PC', 'EENT', 'Dent'] },
   { key: 'IPD', name: 'ผู้ป่วยใน', units: ['A4', 'A5', 'A6', 'B3', 'B4', 'B5', 'C3', 'C4', 'C5'] },
-  { key: 'SPU', name: 'Special Unit', units: ['ICU', 'LR-NB', 'ไตเทียม', 'OR'] }
+  { key: 'SPU', name: 'Special Unit', units: ['ICU', 'LR', 'NB', 'ไตเทียม', 'OR'] }
 ];
 
 // ===== คำนวณยอด (ใช้ทั้งเซิร์ฟเวอร์และหน้าเว็บ — หน้าเว็บมีสำเนาใน Index.html) =====
