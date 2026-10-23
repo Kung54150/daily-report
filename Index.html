@@ -55,6 +55,11 @@
   :root[data-accent="slate"] { --accent: #3f4a5a; --accent-ink: #ffffff; --accent-strong: #3f4a5a; --accent-soft: #e6e9ee; }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"])[data-accent="slate"] { --accent: #566275; --accent-ink: #ffffff; --accent-strong: #b4c0d2; --accent-soft: #262d38; } }
   :root[data-theme="dark"][data-accent="slate"] { --accent: #566275; --accent-ink: #ffffff; --accent-strong: #b4c0d2; --accent-soft: #262d38; }
+  #settings .photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  #settings .ph { border: 2px solid var(--line); border-radius: 10px; background: var(--sunk); padding: 0; overflow: hidden; cursor: pointer; color: var(--fg); }
+  #settings .ph.on { border-color: var(--accent-strong); }
+  #settings .phimg { display: block; aspect-ratio: 1; background-size: cover; background-position: center top; background-color: var(--line); }
+  #settings .ph small { display: block; padding: 3px 2px; font-size: 12px; font-weight: 600; }
   .themebtn { position: fixed; top: 12px; right: 12px; z-index: 6; background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 5px 12px; font-size: 13px; cursor: pointer; }
   #settings { position: fixed; z-index: 20; top: 58px; right: 12px; width: min(350px, calc(100vw - 24px)); max-height: calc(100vh - 76px); overflow: auto; background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.28); padding: 14px; display: grid; gap: 10px; }
   #settings h3 { margin: 0; font-size: 15px; }
@@ -537,8 +542,9 @@ function toast(t) { const el = $('toast'); el.textContent = t; el.hidden = false
 const S = { token: null, me: null, cfg: null, date: todayStr(), day: {}, staff: [], tab: 'mine', sub: 'patient', viewUnit: null, editing: false, draft: null };
 /* ===== ธีม (โหมดสว่าง/มืด/อัตโนมัติ + สีหลัก) และเปลี่ยนรหัสผ่านของตนเอง ===== */
 const THEME_MODES = [['auto', 'อัตโนมัติ'], ['light', 'สว่าง'], ['dark', 'มืด']];
-const THEME_ACCENTS = [['teal', '#8fd9cf', 'มิ้นต์', 0], ['blue', '#9cc7f5', 'ฟ้า', 0], ['purple', '#c9b6f2', 'ม่วง', 0], ['rose', '#f5b5cf', 'ชมพู', 0], ['orange', '#f8c99a', 'พีช', 0], ['ekachai', '#a5dfb4', 'รพ.เอกชัย', 0],
-  ['navy', '#1f3a68', 'กรมท่า', 1], ['deepteal', '#0e6f6a', 'เขียวหม่น', 1], ['burgundy', '#7a2a3a', 'เลือดหมู', 1], ['forest', '#2c5f3f', 'เขียวเข้ม', 1], ['slate', '#3f4a5a', 'เทาเข้ม', 1]];
+const THEME_ACCENTS = [['teal', '#8fd9cf', 'มิ้นต์', 0], ['blue', '#9cc7f5', 'ฟ้า', 0], ['rose', '#f5b5cf', 'ชมพู', 0], ['ekachai', '#a5dfb4', 'รพ.เอกชัย', 0], ['navy', '#1f3a68', 'กรมท่า', 1], ['forest', '#2c5f3f', 'เขียวเข้ม', 1]];
+// ธีมรูปภาพ: [รหัส, ชื่อ, สีหลักที่คู่กัน, โหมด, ความเข้มของชั้นทับรูปเริ่มต้น]
+const PHOTO_THEMES = [['blackpink', 'BlackPink', 'rose', 'light', 0.8], ['babymonster', 'BabyMonster', 'orange', 'light', 0.8], ['bts', 'BTS', 'purple', 'light', 0.78], ['bigbang', 'BigBang', 'blue', 'dark', 0.8], ['bus', 'Bus', 'blue', 'light', 0.8], ['gd', 'GD', 'burgundy', 'dark', 0.78]];
 S.theme = Object.assign({ mode: 'auto', accent: 'teal' }, store.get('theme') || {});
 function applyTheme() {
   const r = document.documentElement, t = S.theme;
@@ -566,11 +572,19 @@ function shrinkImage(file, max) {
     img.src = url;
   });
 }
+function loadThumbs() {
+  if (S.thumbs || S.thumbsLoading) return;
+  S.thumbsLoading = true;
+  api('getThemeThumbs').then(t => { S.thumbs = t; if (!$('settings').hidden) renderSettings(); }).catch(() => {}).then(() => { S.thumbsLoading = false; });
+}
 function renderSettings() {
   const t = S.theme, box = $('settings'), loggedIn = !!S.me;
+  loadThumbs();
   box.innerHTML = `<h3>ธีม</h3>
     <div class="optrow">${THEME_MODES.map(([k, n]) => `<button type="button" class="opt${t.mode === k ? ' on' : ''}" data-tmode="${k}">${n}</button>`).join('')}</div>
-    ${[[0, 'พาสเทล'], [1, 'เข้ม / สุภาพ']].map(([g, nm]) => `<div class="muted" style="font-size:13px">${nm}</div><div class="swatches">${THEME_ACCENTS.filter(x => x[3] === g).map(([k, c, n]) => `<button type="button" class="sw${t.accent === k ? ' on' : ''}" style="background:${c}" data-taccent="${k}" title="${n}" aria-label="${n}"></button>`).join('')}</div>`).join('')}
+    <div class="muted" style="font-size:13px">ธีมรูปภาพ</div>
+    <div class="photos">${PHOTO_THEMES.map(([k, n]) => `<button type="button" class="ph${S.bg && S.bg.preset === k ? ' on' : ''}" data-tphoto="${k}" title="${n}"><span class="phimg" style="${S.thumbs && S.thumbs[k] ? 'background-image:url(' + S.thumbs[k] + ')' : ''}"></span><small>${n}</small></button>`).join('')}</div>
+    ${[[0, 'สีพื้น \u00b7 พาสเทล'], [1, 'สีพื้น \u00b7 เข้ม / สุภาพ']].map(([g, nm]) => `<div class="muted" style="font-size:13px">${nm}</div><div class="swatches">${THEME_ACCENTS.filter(x => x[3] === g).map(([k, c, n]) => `<button type="button" class="sw${t.accent === k ? ' on' : ''}" style="background:${c}" data-taccent="${k}" title="${n}" aria-label="${n}"></button>`).join('')}</div>`).join('')}
     <hr><h3>รูปพื้นหลังของฉัน</h3>
     <div class="pw"><input type="file" id="bg_file" accept="image/*">
       <label class="f" for="bg_dim">ความเข้มของชั้นทับรูป (ยิ่งมาก ตัวหนังสือยิ่งอ่านง่าย)</label>
@@ -587,6 +601,15 @@ function renderSettings() {
       <button class="btn ghost" type="button" id="rs_btn">รีเซ็ตรหัสผ่าน (สุ่มรหัสใหม่ 6 หลัก)</button><div class="msg" id="rs_msg"></div></div>` : ''}`;
   box.querySelectorAll('[data-tmode]').forEach(b => b.onclick = () => { S.theme.mode = b.dataset.tmode; store.set('theme', S.theme); applyTheme(); renderSettings(); });
   box.querySelectorAll('[data-taccent]').forEach(b => b.onclick = () => { S.theme.accent = b.dataset.taccent; store.set('theme', S.theme); applyTheme(); renderSettings(); });
+  box.querySelectorAll('[data-tphoto]').forEach(b => b.onclick = async () => {
+    const p = PHOTO_THEMES.find(x => x[0] === b.dataset.tphoto), msg = $('bg_msg');
+    msg.textContent = 'กำลังโหลดรูป...'; msg.className = 'msg';
+    try {
+      const data = await api('getThemePhoto', p[0]);
+      S.bg = { data, dim: p[4], preset: p[0] }; S.theme.accent = p[2]; S.theme.mode = p[3];
+      store.set('bg', S.bg); store.set('theme', S.theme); applyBg(); applyTheme(); renderSettings();
+    } catch (err) { msg.textContent = err.message; msg.className = 'msg bad'; }
+  });
   $('bg_file').onchange = async e => {
     const f = e.target.files[0]; if (!f) return;
     try { S.bg = { data: await shrinkImage(f, 1400), dim: (S.bg && S.bg.dim) || 0.8 }; store.set('bg', S.bg); applyBg(); renderSettings(); }
