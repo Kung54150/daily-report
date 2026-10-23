@@ -74,6 +74,9 @@
   #settings .pw input { width: 100%; }
   #settings .msg { font-size: 13px; min-height: 18px; }
   #settings .msg.bad { color: var(--bad); } #settings .msg.ok { color: var(--ok); }
+  #settings { transition: opacity .15s; }
+  #settings.peek { opacity: .06; }
+  @media (max-width: 600px) { #settings { top: auto; bottom: 0; left: 0; right: 0; width: auto; max-height: 48vh; border-radius: 14px 14px 0 0; } }
   @media print { .themebtn, #settings { display: none !important; } }
   * { box-sizing: border-box; }
   html, body { margin: 0; }
@@ -2122,6 +2125,12 @@ function bindView() {
 
 }
 window.__scriptLoaded = true;
+
+(function () {
+  const pk = on => { const el = document.getElementById('settings'); if (el) el.classList.toggle('peek', on); };
+  document.addEventListener('pointerdown', e => { if (e.target && e.target.type === 'range' && e.target.closest('#settings')) pk(true); });
+  ['pointerup', 'pointercancel', 'touchend', 'touchcancel'].forEach(t => document.addEventListener(t, () => pk(false)));
+})();
 </script>
 </body>
 </html>
