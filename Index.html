@@ -257,6 +257,18 @@
     .cattab tfoot td { border: 0; }
   }
   .card.fit, #view > .note { width: fit-content; max-width: 100%; }
+  html.has-bg .card.fit { background: color-mix(in srgb, var(--surface) calc(var(--cardfit, 0) * 1%), transparent); border-color: color-mix(in srgb, var(--line) calc(var(--cardfit, 0) * 1%), transparent); box-shadow: none; -webkit-backdrop-filter: blur(calc(var(--cardfit, 0) * 0.08px)); backdrop-filter: blur(calc(var(--cardfit, 0) * 0.08px));
+    text-shadow: 0 0 2px var(--bg), 0 0 5px var(--bg), 0 0 10px var(--bg), 0 0 18px var(--bg); }
+  html.has-bg .card.fit .muted, html.has-bg .card.fit p { color: var(--fg); }
+  @media (max-width: 600px) {
+    .top .wrap { height: 44px; padding-block: 0; gap: 8px; }
+    .top .title { font-size: 14px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .top .title small { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .unit-pill { font-size: 13px; padding: 2px 9px; }
+    .top button { font-size: 12px; padding: 3px 8px; white-space: nowrap; }
+    .tabs { top: calc(env(safe-area-inset-top, 0px) + 44px); }
+    .tabs button { padding: 9px 11px; font-size: 14px; }
+  }
   .bw { display: none; }
   .a4 .bw { display: inline; }
   .a4 .ball { width: 10px; height: 10px; margin-right: 3px; vertical-align: -1px; }
@@ -617,8 +629,8 @@ function bgFrame() {
 window.addEventListener('resize', () => { if (S.bg) bgFrame(); });
 function applyBg() {
   const r = document.documentElement;
-  if (S.bg && S.bg.data) { r.classList.add('has-bg'); bgImageCss(); ensureNat(); bgFrame(); r.style.setProperty('--bgdim', String(S.bg.dim == null ? 0.8 : S.bg.dim)); }
-  else { r.classList.remove('has-bg'); $('bgimg').style.backgroundImage = ''; $('bgpic').style.backgroundImage = ''; $('bgpic').style.transform = ''; r.style.removeProperty('--bgdim'); }
+  if (S.bg && S.bg.data) { r.classList.add('has-bg'); bgImageCss(); ensureNat(); bgFrame(); r.style.setProperty('--bgdim', String(S.bg.dim == null ? 0.8 : S.bg.dim)); r.style.setProperty('--cardfit', String(S.bg.card == null ? 0 : S.bg.card)); }
+  else { r.classList.remove('has-bg'); $('bgimg').style.backgroundImage = ''; $('bgpic').style.backgroundImage = ''; $('bgpic').style.transform = ''; r.style.removeProperty('--bgdim'); r.style.removeProperty('--cardfit'); }
 }
 applyBg();
 function shrinkImage(file, max) {
@@ -660,6 +672,8 @@ function renderSettings() {
     <div class="pw"><input type="file" id="bg_file" accept="image/*">
       <label class="f" for="bg_dim">ความเข้มของชั้นทับรูป (ยิ่งมาก ตัวหนังสือยิ่งอ่านง่าย)</label>
       <input type="range" id="bg_dim" min="40" max="95" step="5" value="${Math.round((S.bg && S.bg.dim != null ? S.bg.dim : 0.8) * 100)}"${S.bg ? '' : ' disabled'}>
+      <label class="f" for="bg_card">ความโปร่งใสของกล่องข้อความหน้าแรก <b id="bg_cv">${Math.round(S.bg && S.bg.card != null ? S.bg.card : 0)}%</b> <small class="muted">(0 = ไม่มีกล่อง ตัวหนังสือมีเงาขาวช่วยให้อ่านง่าย)</small></label>
+      <input type="range" id="bg_card" min="0" max="95" step="5" value="${Math.round(S.bg && S.bg.card != null ? S.bg.card : 0)}"${S.bg ? '' : ' disabled'}>
       ${(() => { const b = S.bg || {}, cp = curP(), off = S.bg ? '' : ' disabled'; return `
       <label class="f" for="bg_zoom">ขนาดรูป (ซูมออก \u2194 ซูมเข้า) <b id="bg_zv">${Math.round((b.zoom || 1) * 100)}%</b></label><input type="range" id="bg_zoom" min="20" max="300" step="5" value="${Math.round((b.zoom || 1) * 100)}"${off}>
       <label class="f" for="bg_x">เลื่อนรูปไป ซ้าย \u2194 ขวา</label><input type="range" id="bg_x" min="0" max="100" step="1" value="${Math.round(cp[0])}"${off}>
@@ -703,6 +717,8 @@ function renderSettings() {
   };
   $('bg_dim').oninput = e => { S.bg.dim = +e.target.value / 100; document.documentElement.style.setProperty('--bgdim', String(S.bg.dim)); };
   $('bg_dim').onchange = () => store.set('bg', S.bg);
+  $('bg_card').oninput = e => { S.bg.card = +e.target.value; document.documentElement.style.setProperty('--cardfit', String(S.bg.card)); $('bg_cv').textContent = e.target.value + '%'; };
+  $('bg_card').onchange = () => store.set('bg', S.bg);
   const ensurePos = () => { const p = curP(); if (S.bg.px == null) { S.bg.px = p[0]; S.bg.py = p[1]; } };
   const frame = (k, f) => { $(k).oninput = e => { ensurePos(); S.bg[f.key] = f.val(+e.target.value); bgFrame(); }; $(k).onchange = () => store.set('bg', S.bg); };
   frame('bg_zoom', { key: 'zoom', val: v => v / 100 }); $('bg_zoom').addEventListener('input', e => { $('bg_zv').textContent = e.target.value + '%'; }); frame('bg_x', { key: 'px', val: v => v }); frame('bg_y', { key: 'py', val: v => v });
@@ -710,7 +726,7 @@ function renderSettings() {
   box.querySelectorAll('[data-bgfill]').forEach(bt => bt.onclick = () => { if (!S.bg) return; S.bg.fill = bt.dataset.bgfill; store.set('bg', S.bg); bgImageCss(); bgFrame(); renderSettings(); });
   $('bg_fillc').oninput = e => { S.bg.fillColor = e.target.value; bgImageCss(); bgFrame(); };
   $('bg_fillc').onchange = () => store.set('bg', S.bg);
-  $('bg_reset').onclick = () => { delete S.bg.zoom; delete S.bg.px; delete S.bg.py; delete S.bg.rot; delete S.bg.fill; delete S.bg.fillColor; store.set('bg', S.bg); bgImageCss(); bgFrame(); renderSettings(); };
+  $('bg_reset').onclick = () => { delete S.bg.zoom; delete S.bg.px; delete S.bg.py; delete S.bg.rot; delete S.bg.card; delete S.bg.fill; delete S.bg.fillColor; store.set('bg', S.bg); bgImageCss(); bgFrame(); renderSettings(); };
   $('bg_clear').onclick = () => { S.bg = null; store.set('bg', null); applyBg(); renderSettings(); };
   const rb = $('rs_btn');
   if (rb) rb.onclick = async () => {
