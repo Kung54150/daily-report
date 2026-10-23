@@ -10,33 +10,36 @@
   /* Layout: แถบหัว + แท็บ + วันที่ติดด้านบน, เนื้อหาคอลัมน์เดียวบนมือถือ, 2 คอลัมน์บนจอกว้าง */
   :root {
     --bg: #eef3f3; --surface: #ffffff; --sunk: #f5f8f8; --line: #d5e0e0; --fg: #15282a; --muted: #5b7073;
-    --accent: #0e6f6a; --accent-ink: #ffffff; --accent-soft: #dcefed;
+    --accent: #8fd9cf; --accent-ink: #0d3b36; --accent-strong: #1b7f76; --accent-soft: #e3f5f2;
     --ok: #1d7a3e; --ok-soft: #e1f3e7; --warn: #a15c00; --warn-soft: #fbefdc; --bad: #b42318; --bad-soft: #fde7e5;
     --font: 'IBM Plex Sans Thai', 'Sarabun', system-ui, sans-serif; --print: 'Sarabun', 'IBM Plex Sans Thai', sans-serif;
     --r: 10px;
   }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
     --bg: #0f1a1b; --surface: #172526; --sunk: #1d2e2f; --line: #2c4143; --fg: #e3eeee; --muted: #93a9ab;
-    --accent: #4fc1b8; --accent-ink: #062523; --accent-soft: #1b3a38;
+    --accent: #8fd9cf; --accent-ink: #0b2f2b; --accent-strong: #8fd9cf; --accent-soft: #1b3a38;
     --ok: #5fd08a; --ok-soft: #173326; --warn: #f0b04f; --warn-soft: #3a2d15; --bad: #ff8a80; --bad-soft: #3d1c1a; color-scheme: dark;
   } }
   :root[data-theme="dark"] {
     --bg: #0f1a1b; --surface: #172526; --sunk: #1d2e2f; --line: #2c4143; --fg: #e3eeee; --muted: #93a9ab;
-    --accent: #4fc1b8; --accent-ink: #062523; --accent-soft: #1b3a38;
+    --accent: #8fd9cf; --accent-ink: #0b2f2b; --accent-strong: #8fd9cf; --accent-soft: #1b3a38;
     --ok: #5fd08a; --ok-soft: #173326; --warn: #f0b04f; --warn-soft: #3a2d15; --bad: #ff8a80; --bad-soft: #3d1c1a; color-scheme: dark;
   }
-  :root[data-accent="blue"] { --accent: #1d5fbf; --accent-soft: #dbe7f8; }
-  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"])[data-accent="blue"] { --accent: #7ab0ff; --accent-ink: #06203f; --accent-soft: #1b2d4a; } }
-  :root[data-theme="dark"][data-accent="blue"] { --accent: #7ab0ff; --accent-ink: #06203f; --accent-soft: #1b2d4a; }
-  :root[data-accent="purple"] { --accent: #6d3fc0; --accent-soft: #e8dffa; }
-  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"])[data-accent="purple"] { --accent: #b79cff; --accent-ink: #1f0f45; --accent-soft: #2b2347; } }
-  :root[data-theme="dark"][data-accent="purple"] { --accent: #b79cff; --accent-ink: #1f0f45; --accent-soft: #2b2347; }
-  :root[data-accent="rose"] { --accent: #c0366b; --accent-soft: #f9dfe9; }
-  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"])[data-accent="rose"] { --accent: #ff8fb8; --accent-ink: #3d0a20; --accent-soft: #3d2030; } }
-  :root[data-theme="dark"][data-accent="rose"] { --accent: #ff8fb8; --accent-ink: #3d0a20; --accent-soft: #3d2030; }
-  :root[data-accent="orange"] { --accent: #b45309; --accent-soft: #fbebd3; }
-  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"])[data-accent="orange"] { --accent: #ffb25e; --accent-ink: #3a1d00; --accent-soft: #3a2a15; } }
-  :root[data-theme="dark"][data-accent="orange"] { --accent: #ffb25e; --accent-ink: #3a1d00; --accent-soft: #3a2a15; }
+  :root[data-accent="blue"] { --accent: #9cc7f5; --accent-ink: #0e2f57; --accent-strong: #2a6cb8; --accent-soft: #e5f0fc; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"])[data-accent="blue"] { --accent: #9cc7f5; --accent-ink: #0b2342; --accent-strong: #9cc7f5; --accent-soft: #1b2d4a; } }
+  :root[data-theme="dark"][data-accent="blue"] { --accent: #9cc7f5; --accent-ink: #0b2342; --accent-strong: #9cc7f5; --accent-soft: #1b2d4a; }
+  :root[data-accent="purple"] { --accent: #c9b6f2; --accent-ink: #2c1a5c; --accent-strong: #6a4bb8; --accent-soft: #eee8fb; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"])[data-accent="purple"] { --accent: #c9b6f2; --accent-ink: #241447; --accent-strong: #c9b6f2; --accent-soft: #2b2347; } }
+  :root[data-theme="dark"][data-accent="purple"] { --accent: #c9b6f2; --accent-ink: #241447; --accent-strong: #c9b6f2; --accent-soft: #2b2347; }
+  :root[data-accent="rose"] { --accent: #f5b5cf; --accent-ink: #5a1233; --accent-strong: #b83b73; --accent-soft: #fbe6ef; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"])[data-accent="rose"] { --accent: #f5b5cf; --accent-ink: #4a0f29; --accent-strong: #f5b5cf; --accent-soft: #3d2030; } }
+  :root[data-theme="dark"][data-accent="rose"] { --accent: #f5b5cf; --accent-ink: #4a0f29; --accent-strong: #f5b5cf; --accent-soft: #3d2030; }
+  :root[data-accent="orange"] { --accent: #f8c99a; --accent-ink: #5a2e07; --accent-strong: #b5651d; --accent-soft: #fcefdf; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"])[data-accent="orange"] { --accent: #f8c99a; --accent-ink: #432105; --accent-strong: #f8c99a; --accent-soft: #3a2a15; } }
+  :root[data-theme="dark"][data-accent="orange"] { --accent: #f8c99a; --accent-ink: #432105; --accent-strong: #f8c99a; --accent-soft: #3a2a15; }
+  :root[data-accent="ekachai"] { --accent: #a5dfb4; --accent-ink: #123d22; --accent-strong: #2e8a4f; --accent-soft: #e6f6ea; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"])[data-accent="ekachai"] { --accent: #a5dfb4; --accent-ink: #0f2f1a; --accent-strong: #a5dfb4; --accent-soft: #1c3a26; } }
+  :root[data-theme="dark"][data-accent="ekachai"] { --accent: #a5dfb4; --accent-ink: #0f2f1a; --accent-strong: #a5dfb4; --accent-soft: #1c3a26; }
   .themebtn { position: fixed; top: 12px; right: 12px; z-index: 6; background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 5px 12px; font-size: 13px; cursor: pointer; }
   #settings { position: fixed; z-index: 20; top: 58px; right: 12px; width: min(350px, calc(100vw - 24px)); max-height: calc(100vh - 76px); overflow: auto; background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.28); padding: 14px; display: grid; gap: 10px; }
   #settings h3 { margin: 0; font-size: 15px; }
@@ -78,7 +81,7 @@
   .tabs { background: var(--surface); border-bottom: 1px solid var(--line); position: sticky; top: calc(env(safe-area-inset-top, 0px) + 52px); z-index: 4; }
   .tabs .wrap { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
   .tabs button { flex: 0 0 auto; background: none; border: 0; border-bottom: 3px solid transparent; padding: 11px 12px; color: var(--muted); cursor: pointer; white-space: nowrap; }
-  .tabs button.on { color: var(--accent); border-color: var(--accent); font-weight: 600; }
+  .tabs button.on { color: var(--accent-strong); border-color: var(--accent); font-weight: 600; }
   .datebar { display: flex; align-items: center; gap: 8px; padding-block: 12px; }
   .dpick { position: relative; flex: 0 1 190px; min-width: 150px; height: 40px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); cursor: pointer; font-weight: 600; }
   .dpick input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; padding: 0; border: 0; }
@@ -95,7 +98,7 @@
   input, select, textarea { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); min-width: 0; }
   input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 16px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); font-weight: 600; cursor: pointer; }
-  .btn.ghost { background: transparent; color: var(--accent); }
+  .btn.ghost { background: transparent; color: var(--accent-strong); }
   .btn.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
   .btn.sm { padding: 6px 12px; font-size: 14px; }
   .btn:disabled { opacity: .55; cursor: default; }
@@ -138,17 +141,17 @@
   .duty select { padding: 6px; font-size: 14px; }
   .x { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--bad); cursor: pointer; }
   .counts { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
-  .counts span { background: var(--accent-soft); color: var(--accent); border-radius: 6px; padding: 2px 9px; font-weight: 600; font-size: 14px; }
+  .counts span { background: var(--accent-soft); color: var(--accent-strong); border-radius: 6px; padding: 2px 9px; font-weight: 600; font-size: 14px; }
   .addrow { display: grid; grid-template-columns: 1fr 84px auto; gap: 6px; margin-top: 10px; }
 
   /* sub tabs */
   .subtabs { display: flex; gap: 4px; background: var(--sunk); border: 1px solid var(--line); border-radius: 10px; padding: 4px; margin-bottom: 12px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 98px); z-index: 3; }
   .subtabs button { flex: 1 1 0; min-width: 0; border: 0; background: transparent; border-radius: 7px; padding: 8px 4px; cursor: pointer; color: var(--muted); font-size: 14px; line-height: 1.25; }
-  .subtabs button.on { background: var(--surface); color: var(--accent); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .subtabs button.on { background: var(--surface); color: var(--accent-strong); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
   .subtabs .c { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 99px; background: var(--bad-soft); color: var(--bad); font-size: 11px; font-weight: 700; margin-left: 3px; }
   .subtabs .c.z { background: var(--line); color: var(--muted); }
   fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px 10px; margin: 8px 0 0; min-width: 0; }
-  legend { font-size: 13px; font-weight: 600; color: var(--accent); padding: 0 4px; }
+  legend { font-size: 13px; font-weight: 600; color: var(--accent-strong); padding: 0 4px; }
   .g3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
   .unitin { position: relative; }
   .unitin input { padding-right: 52px; }
@@ -168,7 +171,7 @@
   .notein { width: 100%; }
   .atts { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
   .att { display: inline-flex; align-items: center; gap: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--sunk); max-width: 100%; }
-  .att > button.open { border: 0; background: transparent; padding: 6px 8px; cursor: pointer; color: var(--accent); font-weight: 600; text-align: left; overflow-wrap: anywhere; }
+  .att > button.open { border: 0; background: transparent; padding: 6px 8px; cursor: pointer; color: var(--accent-strong); font-weight: 600; text-align: left; overflow-wrap: anywhere; }
   .att small { color: var(--muted); padding-right: 4px; white-space: nowrap; }
   .att .x { width: 28px; height: 28px; margin-right: 3px; }
   .viewer { position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,.82); display: flex; flex-direction: column; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
@@ -188,7 +191,7 @@
   .sbox .ln b { font-weight: 700; }
   .sbox .miss { color: var(--bad); font-size: 14px; }
   .shb { margin-top: 8px; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px 6px; overflow: hidden; }
-  .shb .shl { font-weight: 700; color: var(--accent); background: var(--accent-soft); margin: 0 -10px 6px; padding: 3px 10px; }
+  .shb .shl { font-weight: 700; color: var(--accent-strong); background: var(--accent-soft); margin: 0 -10px 6px; padding: 3px 10px; }
   .ball { display: inline-block; width: 14px; height: 14px; border-radius: 50%; margin-right: 4px; vertical-align: -2px; flex: 0 0 auto;
     background: radial-gradient(circle at 32% 28%, #fff 0 9%, var(--b1) 36%, var(--b2) 100%); box-shadow: 0 1px 2px rgba(0,0,0,.4), inset -1px -1px 2px rgba(0,0,0,.25); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .ball.g { --b1: #4ade80; --b2: #15803d; } .ball.y { --b1: #fef08a; --b2: #facc15; } .ball.o { --b1: #fb923c; --b2: #c2410c; } .ball.r { --b1: #ef4444; --b2: #7f1d1d; }
@@ -263,10 +266,10 @@
   .seg { display: flex; gap: 4px; background: var(--sunk); border: 1px solid var(--line); border-radius: 10px; padding: 4px; margin-bottom: 12px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 98px); z-index: 3; }
   .seg button { flex: 1 1 0; min-width: 0; border: 0; background: transparent; border-radius: 7px; padding: 8px 6px; cursor: pointer; color: var(--muted); font-weight: 500; line-height: 1.25; }
   .seg button small { display: block; font-size: 11px; font-weight: 600; opacity: .9; }
-  .seg button.on { background: var(--surface); color: var(--accent); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .seg button.on { background: var(--surface); color: var(--accent-strong); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
   .seg button.alert small { color: var(--bad); }
   fieldset { border: 1px solid var(--line); border-radius: 8px; margin: 12px 0 0; padding: 4px 12px 12px; min-width: 0; }
-  legend { font-size: 13px; font-weight: 600; color: var(--accent); padding: 0 6px; }
+  legend { font-size: 13px; font-weight: 600; color: var(--accent-strong); padding: 0 6px; }
   .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
   .vsgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); gap: 8px; margin-top: 8px; }
   .vs { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 8px; padding: 2px 8px; background: var(--surface); }
@@ -282,7 +285,7 @@
   /* incidents */
   .inc, .inc-view { border-left: 4px solid var(--bad); }
   .inc-head { display: flex; justify-content: space-between; align-items: center; font-weight: 600; }
-  .addinc { width: 100%; border: 2px dashed var(--line); background: transparent; color: var(--accent); padding: 12px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+  .addinc { width: 100%; border: 2px dashed var(--line); background: transparent; color: var(--accent-strong); padding: 12px; border-radius: 8px; cursor: pointer; font-weight: 600; }
 
   /* ===== Read view ===== */
   .kv { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; }
@@ -448,6 +451,7 @@ setTimeout(function () {
     </div>
     <button class="btn" id="l_btn" type="submit">เข้าสู่ระบบ</button>
     <div id="l_msg" class="muted" style="font-size:14px"></div>
+    <div class="muted" style="font-size:13px">ลืมรหัสผ่าน? แจ้ง Admin เพื่อรีเซ็ตรหัสผ่าน</div>
     <div id="l_hint" class="hint" hidden></div>
   </form>
 </section>
@@ -512,7 +516,7 @@ function toast(t) { const el = $('toast'); el.textContent = t; el.hidden = false
 const S = { token: null, me: null, cfg: null, date: todayStr(), day: {}, staff: [], tab: 'mine', sub: 'patient', viewUnit: null, editing: false, draft: null };
 /* ===== ธีม (โหมดสว่าง/มืด/อัตโนมัติ + สีหลัก) และเปลี่ยนรหัสผ่านของตนเอง ===== */
 const THEME_MODES = [['auto', 'อัตโนมัติ'], ['light', 'สว่าง'], ['dark', 'มืด']];
-const THEME_ACCENTS = [['teal', '#0e6f6a', 'เขียวอมฟ้า'], ['blue', '#1d5fbf', 'น้ำเงิน'], ['purple', '#6d3fc0', 'ม่วง'], ['rose', '#c0366b', 'ชมพู'], ['orange', '#b45309', 'ส้ม']];
+const THEME_ACCENTS = [['teal', '#8fd9cf', 'มิ้นต์'], ['blue', '#9cc7f5', 'ฟ้า'], ['purple', '#c9b6f2', 'ม่วง'], ['rose', '#f5b5cf', 'ชมพู'], ['orange', '#f8c99a', 'พีช'], ['ekachai', '#a5dfb4', 'รพ.เอกชัย']];
 S.theme = Object.assign({ mode: 'auto', accent: 'teal' }, store.get('theme') || {});
 function applyTheme() {
   const r = document.documentElement, t = S.theme;
@@ -529,9 +533,23 @@ function renderSettings() {
       <input type="password" id="pw_old" placeholder="รหัสผ่านเดิม" autocomplete="current-password" required>
       <input type="password" id="pw_new" placeholder="รหัสผ่านใหม่ (อย่างน้อย 4 ตัว ไม่มีช่องว่าง)" autocomplete="new-password" required>
       <input type="password" id="pw_new2" placeholder="ยืนยันรหัสผ่านใหม่" autocomplete="new-password" required>
-      <button class="btn" type="submit" id="pw_btn">เปลี่ยนรหัสผ่าน</button><div class="msg" id="pw_msg"></div></form>` : ''}`;
+      <button class="btn" type="submit" id="pw_btn">เปลี่ยนรหัสผ่าน</button><div class="msg" id="pw_msg"></div></form>
+      <div class="muted" style="font-size:13px">ลืมรหัสผ่าน? แจ้ง Admin เพื่อรีเซ็ตรหัสผ่านให้</div>` : ''}
+    ${S.me && S.me.role === 'admin' ? `<hr><h3>รีเซ็ตรหัสผ่านให้ผู้ใช้ (Admin)</h3><div class="pw">
+      <select id="rs_user"><option value="">\u2014 เลือกผู้ใช้ \u2014</option><option value="MANAGER">MANAGER (ผู้จัดการ)</option>${unitOptgroups('')}</select>
+      <button class="btn ghost" type="button" id="rs_btn">รีเซ็ตรหัสผ่าน (สุ่มรหัสใหม่ 6 หลัก)</button><div class="msg" id="rs_msg"></div></div>` : ''}`;
   box.querySelectorAll('[data-tmode]').forEach(b => b.onclick = () => { S.theme.mode = b.dataset.tmode; store.set('theme', S.theme); applyTheme(); renderSettings(); });
   box.querySelectorAll('[data-taccent]').forEach(b => b.onclick = () => { S.theme.accent = b.dataset.taccent; store.set('theme', S.theme); applyTheme(); renderSettings(); });
+  const rb = $('rs_btn');
+  if (rb) rb.onclick = async () => {
+    const u = $('rs_user').value, say = (t, c) => { $('rs_msg').textContent = t; $('rs_msg').className = 'msg ' + (c || ''); };
+    if (!u) return say('เลือกผู้ใช้ก่อน', 'bad');
+    if (S.rsArm !== u) { S.rsArm = u; setTimeout(() => { S.rsArm = null; }, 4000); return say('กดอีกครั้งเพื่อยืนยันการรีเซ็ตรหัสผ่านของ ' + u, 'bad'); }
+    S.rsArm = null; rb.disabled = true; say('กำลังรีเซ็ต...');
+    try { const r = await api('resetPassword', S.token, u); say('รหัสผ่านใหม่ของ ' + r.code + ' คือ ' + r.password + ' \u2014 แจ้งผู้ใช้ และให้เปลี่ยนเองที่ปุ่มตั้งค่า', 'ok'); }
+    catch (err) { say(err.message, 'bad'); }
+    rb.disabled = false;
+  };
   const f = $('pwForm');
   if (f) f.onsubmit = async e => {
     e.preventDefault();

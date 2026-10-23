@@ -141,6 +141,23 @@ function changePassword(token, oldPw, newPw) {
   return { ok: true };
 }
 
+// ผู้ดูแลระบบรีเซ็ตรหัสผ่านให้ผู้ใช้อื่น (กรณีลืมรหัส): สุ่มรหัส 6 หลักใหม่ แล้วแจ้งผู้ใช้ — เครื่องเดิมของผู้ใช้นั้นถูกออกจากระบบ
+function resetPassword(token, code) {
+  if (auth_(token).role !== 'admin') throw new Error('เฉพาะผู้ดูแลระบบ');
+  code = String(code || '');
+  if ([MANAGER].concat(allUnitCodes_()).indexOf(code) < 0) throw new Error('ไม่พบผู้ใช้');
+  const pw = String(Math.floor(100000 + Math.random() * 900000));
+  withLock_(() => {
+    const sh = sheet_(SH_USERS), data = sh.getDataRange().getValues();
+    const i = data.findIndex((r, k) => k > 0 && String(r[0]) === code);
+    if (i < 0) throw new Error('ไม่พบผู้ใช้');
+    sh.getRange(i + 1, 2).setValue(pw);
+  });
+  const props = PropertiesService.getScriptProperties();
+  Object.entries(props.getProperties()).forEach(([k, v]) => { if (k.indexOf('tok_') === 0) { try { if (JSON.parse(v).unit === code) props.deleteProperty(k); } catch (e) {} } });
+  return { code, password: pw };
+}
+
 function logout(token) {
   PropertiesService.getScriptProperties().deleteProperty('tok_' + token);
 }
