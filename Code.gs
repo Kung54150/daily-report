@@ -164,9 +164,14 @@ function saveReport(token, rep) {
   const form = myUnit.form;
   const keys = form.sections.flatMap(s => s.type === 'grid'
     ? s.rows.flatMap(r => s.cols.map(c => r[0] + '_' + c[0]))
-    : s.fields.filter(f => !f.calc).flatMap(f => f.note ? [f.key, f.key + '_note'] : [f.key]));
+    : s.fields.filter(f => !f.calc).flatMap(f => (f.note ? [f.key, f.key + '_note'] : [f.key]).concat(s.categories ? BALLS.map(b => f.key + '_' + b[0]) : [])));
   const values = {};
   keys.forEach(k => { if (rep.values && rep.values[k] !== undefined && rep.values[k] !== '') values[k] = rep.values[k]; });
+  // จำนวนผู้ป่วยแต่ละประเภท = ผลรวมลูกบอลสี (ระบบรวมให้ ไม่ใช่ค่าที่กรอกเอง)
+  form.sections.filter(s => s.categories).forEach(s => s.fields.forEach(f => {
+    const n = BALLS.reduce((a, b) => a + (Number(values[f.key + '_' + b[0]]) || 0), 0);
+    if (n > 0) values[f.key] = n;
+  }));
   // รายการแบบเลือก + เพิ่ม (เช่น HPC): ตรวจรายการ/ชื่อ แล้วคำนวณยอดรวมเอง
   form.sections.filter(s => s.type === 'list').forEach(s => {
     const rows = [];
@@ -235,6 +240,12 @@ function statRows_(u, rep) {
     rows.push(row('รายการบริการ', (it ? it.label : r.k) + (r.name ? ' \u00b7 ' + r.name : ''), r.n));
   }));
   Object.entries(categoryValues_(u.form, rep.values)).forEach(([k, n]) => rows.push(row('ประเภทผู้ป่วย', k, n)));
+  const bv = ballValues_(u.form, rep.values);
+  BALLS.forEach(b => { if (bv[b[0]]) rows.push(row('ลูกบอลสีผู้ป่วย', b[1], bv[b[0]])); });
+  u.form.sections.filter(s => s.categories).forEach(s => s.fields.forEach(f => BALLS.forEach(b => {
+    const n = Number(rep.values[f.key + '_' + b[0]]) || 0;
+    if (n) rows.push(row('ลูกบอลสีรายประเภท', f.label + ' \u00b7 ' + b[1], n));
+  })));
   ROLES.forEach(r => {
     const n = rep.staff.filter(s => s.role === r && s.tag !== 'ออกหน่วย').length;
     if (n) rows.push(row('อัตรากำลัง', r, n));
