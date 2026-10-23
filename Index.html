@@ -570,7 +570,15 @@ function ensureNat() {
   const d = S.bg && S.bg.data;
   if (!d || (S._nat && S._nat.k === d.length)) return;
   const im = new Image();
-  im.onload = () => { S._nat = { k: d.length, w: im.naturalWidth, h: im.naturalHeight }; bgFrame(); if ($('settings') && !$('settings').hidden) renderSettings(); };
+  im.onload = () => {
+    // สีขอบบน/ล่างของรูป (ใช้เติมพื้นที่รอบรูปเมื่อซูมออกให้รูปไม่ลอย)
+    const cw = 40, ch = Math.max(6, Math.round(40 * im.naturalHeight / im.naturalWidth)), c = document.createElement('canvas');
+    c.width = cw; c.height = ch;
+    const cx = c.getContext('2d'); cx.drawImage(im, 0, 0, cw, ch);
+    const avg = (y0, y1) => { const px = cx.getImageData(0, y0, cw, y1 - y0).data; let r = 0, g = 0, b = 0; const n = px.length / 4; for (let i = 0; i < px.length; i += 4) { r += px[i]; g += px[i + 1]; b += px[i + 2]; } return 'rgb(' + Math.round(r / n) + ',' + Math.round(g / n) + ',' + Math.round(b / n) + ')'; };
+    S._nat = { k: d.length, w: im.naturalWidth, h: im.naturalHeight, top: avg(0, 2), bot: avg(ch - 2, ch) };
+    bgImageCss(); bgFrame(); if ($('settings') && !$('settings').hidden) renderSettings();
+  };
   im.src = d;
 }
 function bgGeom() {
@@ -584,18 +592,30 @@ function curP() {
   const pre = g ? [g.w >= g.W ? 100 - d[0] : d[0], g.h >= g.H ? 100 - d[1] : d[1]] : [50, 50];
   return [b.px != null ? b.px : pre[0], b.py != null ? b.py : pre[1]];
 }
+// ชั้นสีรอบรูป: fill = auto (ไล่สีตามขอบบน-ล่างของรูป) / theme (สีธีม) / custom (สีที่เลือกเอง)
+function bgFillCss() {
+  const b = S.bg || {}, n = S._nat && b.data && S._nat.k === b.data.length ? S._nat : null, mode = b.fill || 'auto';
+  if (mode === 'custom') return 'linear-gradient(' + (b.fillColor || '#ffffff') + ',' + (b.fillColor || '#ffffff') + ')';
+  return mode === 'auto' && n ? 'linear-gradient(' + n.top + ',' + n.bot + ')' : '';
+}
+function bgImageCss() {
+  const el = $('bgimg'), b = S.bg;
+  if (!b || !b.data) return;
+  const f = bgFillCss();
+  S._layers = f ? 2 : 1;
+  el.style.backgroundImage = 'url("' + b.data + '")' + (f ? ', ' + f : '');
+}
 function bgFrame() {
-  const el = $('bgimg'), b = S.bg || {}, g = bgGeom();
+  const el = $('bgimg'), b = S.bg || {}, g = bgGeom(), L = S._layers === 2;
   el.style.transform = '';
-  if (!g) { el.style.backgroundSize = 'cover'; el.style.backgroundRepeat = ''; el.style.backgroundPosition = b.pos || 'center top'; return; }
-  const p = curP();
-  el.style.backgroundSize = Math.round(g.w) + 'px ' + Math.round(g.h) + 'px'; el.style.backgroundRepeat = 'no-repeat';
-  el.style.backgroundPosition = Math.round(g.lx + (g.hx - g.lx) * p[0] / 100) + 'px ' + Math.round(g.ly + (g.hy - g.ly) * p[1] / 100) + 'px';
+  if (!g) { el.style.backgroundSize = L ? 'cover, 100% 100%' : 'cover'; el.style.backgroundRepeat = L ? 'no-repeat, no-repeat' : ''; el.style.backgroundPosition = (b.pos || 'center top') + (L ? ', 0 0' : ''); return; }
+  const p = curP(), sz = Math.round(g.w) + 'px ' + Math.round(g.h) + 'px', ps = Math.round(g.lx + (g.hx - g.lx) * p[0] / 100) + 'px ' + Math.round(g.ly + (g.hy - g.ly) * p[1] / 100) + 'px';
+  el.style.backgroundSize = sz + (L ? ', 100% 100%' : ''); el.style.backgroundRepeat = L ? 'no-repeat, no-repeat' : 'no-repeat'; el.style.backgroundPosition = ps + (L ? ', 0 0' : '');
 }
 window.addEventListener('resize', () => { if (S.bg) bgFrame(); });
 function applyBg() {
   const r = document.documentElement;
-  if (S.bg && S.bg.data) { r.classList.add('has-bg'); $('bgimg').style.backgroundImage = 'url("' + S.bg.data + '")'; ensureNat(); bgFrame(); r.style.setProperty('--bgdim', String(S.bg.dim == null ? 0.8 : S.bg.dim)); }
+  if (S.bg && S.bg.data) { r.classList.add('has-bg'); bgImageCss(); ensureNat(); bgFrame(); r.style.setProperty('--bgdim', String(S.bg.dim == null ? 0.8 : S.bg.dim)); }
   else { r.classList.remove('has-bg'); $('bgimg').style.backgroundImage = ''; $('bgimg').style.transform = ''; r.style.removeProperty('--bgdim'); }
 }
 applyBg();
@@ -642,6 +662,9 @@ function renderSettings() {
       <label class="f" for="bg_zoom">ขนาดรูป (ซูมออก \u2194 ซูมเข้า) <b id="bg_zv">${Math.round((b.zoom || 1) * 100)}%</b></label><input type="range" id="bg_zoom" min="20" max="300" step="5" value="${Math.round((b.zoom || 1) * 100)}"${off}>
       <label class="f" for="bg_x">เลื่อนรูปไป ซ้าย \u2194 ขวา</label><input type="range" id="bg_x" min="0" max="100" step="1" value="${Math.round(cp[0])}"${off}>
       <label class="f" for="bg_y">เลื่อนรูปไป บน \u2195 ล่าง</label><input type="range" id="bg_y" min="0" max="100" step="1" value="${Math.round(cp[1])}"${off}>
+      <div class="muted" style="font-size:13px">สีพื้นรอบรูป (เมื่อซูมออกจนรูปไม่เต็มจอ)</div>
+      <div class="optrow">${[['auto', 'ตามสีขอบรูป'], ['theme', 'สีธีม'], ['custom', 'เลือกเอง']].map(([k, n]) => `<button type="button" class="opt${(b.fill || 'auto') === k ? ' on' : ''}" data-bgfill="${k}"${off}>${n}</button>`).join('')}
+        <input type="color" id="bg_fillc" value="${esc(b.fillColor || '#ffffff')}" title="เลือกสี"${S.bg && b.fill === 'custom' ? '' : ' disabled'} style="flex:0 0 46px;padding:2px;height:auto"></div>
       <button class="btn ghost sm" type="button" id="bg_reset"${off}>คืนค่าขนาด/ตำแหน่งเดิม</button>`; })()}
       <button class="btn ghost" type="button" id="bg_clear"${S.bg ? '' : ' disabled'}>เอารูปพื้นหลังออก</button><div class="msg" id="bg_msg">รูปเก็บไว้ในเครื่องนี้เท่านั้น</div></div>
     ${loggedIn ? `<hr><h3>เปลี่ยนรหัสผ่านของฉัน</h3><form class="pw" id="pwForm" autocomplete="off">
@@ -680,7 +703,10 @@ function renderSettings() {
   const ensurePos = () => { const p = curP(); if (S.bg.px == null) { S.bg.px = p[0]; S.bg.py = p[1]; } };
   const frame = (k, f) => { $(k).oninput = e => { ensurePos(); S.bg[f.key] = f.val(+e.target.value); bgFrame(); }; $(k).onchange = () => store.set('bg', S.bg); };
   frame('bg_zoom', { key: 'zoom', val: v => v / 100 }); $('bg_zoom').addEventListener('input', e => { $('bg_zv').textContent = e.target.value + '%'; }); frame('bg_x', { key: 'px', val: v => v }); frame('bg_y', { key: 'py', val: v => v });
-  $('bg_reset').onclick = () => { delete S.bg.zoom; delete S.bg.px; delete S.bg.py; store.set('bg', S.bg); bgFrame(); renderSettings(); };
+  box.querySelectorAll('[data-bgfill]').forEach(bt => bt.onclick = () => { if (!S.bg) return; S.bg.fill = bt.dataset.bgfill; store.set('bg', S.bg); bgImageCss(); bgFrame(); renderSettings(); });
+  $('bg_fillc').oninput = e => { S.bg.fillColor = e.target.value; bgImageCss(); bgFrame(); };
+  $('bg_fillc').onchange = () => store.set('bg', S.bg);
+  $('bg_reset').onclick = () => { delete S.bg.zoom; delete S.bg.px; delete S.bg.py; delete S.bg.fill; delete S.bg.fillColor; store.set('bg', S.bg); bgImageCss(); bgFrame(); renderSettings(); };
   $('bg_clear').onclick = () => { S.bg = null; store.set('bg', null); applyBg(); renderSettings(); };
   const rb = $('rs_btn');
   if (rb) rb.onclick = async () => {
