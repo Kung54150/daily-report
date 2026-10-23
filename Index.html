@@ -162,14 +162,28 @@
   .sbox .miss { color: var(--bad); font-size: 14px; }
   .shb { margin-top: 8px; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px 6px; overflow: hidden; }
   .shb .shl { font-weight: 700; color: var(--accent); background: var(--accent-soft); margin: 0 -10px 6px; padding: 3px 10px; }
-  .ball { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; border: 1px solid rgba(0,0,0,.25); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .ball.g { background: #2e9e4f; } .ball.y { background: #f2c200; } .ball.o { background: #f08a00; } .ball.r { background: #d32f2f; }
-  .balls { display: grid; gap: 4px; padding: 2px 0 8px 12px; border-left: 3px solid var(--line); margin-bottom: 6px; }
-  .balls .ballhint { font-size: 13px; color: var(--muted); }
-  .ballin { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-  .bl { display: grid; gap: 2px; font-size: 13px; justify-items: start; }
+  .ball { display: inline-block; width: 13px; height: 13px; border-radius: 50%; margin-right: 4px; vertical-align: -2px; flex: 0 0 auto;
+    background: radial-gradient(circle at 32% 28%, #fff 0 9%, var(--b1) 36%, var(--b2) 100%); box-shadow: 0 1px 2px rgba(0,0,0,.4), inset -1px -1px 2px rgba(0,0,0,.25); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .ball.g { --b1: #55d676; --b2: #1b7a36; } .ball.y { --b1: #ffe34f; --b2: #c29600; } .ball.o { --b1: #ffb24d; --b2: #c25d00; } .ball.r { --b1: #ff7066; --b2: #9c1a12; }
+  .frow.ext { grid-template-columns: 1fr 96px; grid-template-areas: "lab cnt" "ext ext"; row-gap: 0; }
+  .frow.ext > .extra { margin-top: 6px; }
+  .frow.ext > .lab { grid-area: lab; } .frow.ext > .cnt { grid-area: cnt; } .frow.ext > .extra { grid-area: ext; min-width: 0; }
+  .extra.off { display: none; }
+  .ballin { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px 8px; align-items: center; }
+  .bl { display: grid; gap: 2px; justify-items: start; }
   .bl input { width: 100%; min-width: 0; }
-  .balls small.ok { color: var(--ok); } .balls small.bad { color: var(--bad); }
+  .ballin small { grid-column: 1 / -1; font-size: 13px; }
+  .ballin small.ok { color: var(--ok); } .ballin small.bad { color: var(--bad); }
+  @media (min-width: 720px) {
+    .frow.ext { grid-template-columns: minmax(120px, 1fr) minmax(0, 1.5fr) 96px; grid-template-areas: "lab ext cnt"; }
+    .frow.ext > .extra { margin-top: 0; }
+    .extra.off { display: flex; visibility: hidden; }
+    .ballin { display: flex; gap: 8px; justify-content: flex-end; }
+    .bl { display: flex; align-items: center; gap: 2px; }
+    .bl input { width: 54px; padding: 7px 4px; text-align: center; }
+    .ballin small { grid-column: auto; min-width: 54px; }
+  }
+  .bstack div { text-align: left; font-weight: 400; white-space: nowrap; padding-left: 4px; }
   .sumtabs { margin-bottom: 12px; }
   .a4.printonly { display: none; }
   .lstadd { display: grid; gap: 8px; }
@@ -679,16 +693,16 @@ const listTotal = (s, v) => (v[s.key] || []).reduce((a, r) => a + num(r.n), 0);
 /* ===== ลูกบอลสีของผู้ป่วยคงพยาบาลแต่ละประเภท (เขียว เหลือง ส้ม แดง) ===== */
 const ballSum = (v, key) => S.cfg.balls.reduce((a, b) => a + num(v[key + '_' + b[0]]), 0);
 const ballDot = c => `<i class="ball ${c}"></i>`;
-// "ลูกบอลสีเขียว 1, ลูกบอลสีส้ม 3" (สีที่ไม่มีผู้ป่วยไม่แสดง)
-const ballText = (v, key) => S.cfg.balls.filter(b => num(v[key + '_' + b[0]])).map(b => `${ballDot(b[0])}ลูกบอลสี${b[1]} ${num(v[key + '_' + b[0]])}`).join(', ');
+// "\u25cf เขียว 1, \u25cf ส้ม 3" (สีที่ไม่มีผู้ป่วยไม่แสดง) \u2014 มีคำบอกสีด้วยเผื่อพิมพ์ขาวดำ
+const ballList = t => S.cfg.balls.filter(b => num(t[b[0]])).map(b => `${ballDot(b[0])}${esc(b[1])} ${num(t[b[0]])}`).join(', ');
+const ballText = (v, key) => ballList(Object.fromEntries(S.cfg.balls.map(b => [b[0], v[key + '_' + b[0]]])));
 function ballTotals(u, v) {
   const out = { g: 0, y: 0, o: 0, r: 0 };
   u.form.sections.filter(s => s.categories).forEach(s => s.fields.forEach(f => S.cfg.balls.forEach(b => { out[b[0]] += num(v[f.key + '_' + b[0]]); })));
   return out;
 }
-const ballsRow = (f, v) => `<div class="frow text balls" data-ballsfor="${esc(f.key)}"><span class="ballhint">ลูกบอลสี \u2014 ระบุว่าสีไหนกี่ราย</span>
-  <div class="ballin">${S.cfg.balls.map(b => `<label class="bl"><i class="ball ${b[0]}"></i><span>${esc(b[1])}</span><input type="number" inputmode="numeric" min="0" step="1" data-v="${esc(f.key)}_${b[0]}" value="${esc(v[f.key + '_' + b[0]] ?? '')}" placeholder="0" aria-label="${esc(b[1])}"></label>`).join('')}</div>
-  <small data-ballchk="${esc(f.key)}"></small></div>`;
+// ช่องกรอกลูกบอลสี อยู่แถวเดียวกับช่องจำนวนบนจอกว้าง และลงมาอยู่ด้านล่างบนมือถือ (แสดงเป็นลูกบอล ไม่มีคำบรรยาย)
+const ballsExtra = (f, v) => `<div class="ballin extra off" data-ballsfor="${esc(f.key)}">${S.cfg.balls.map(b => `<label class="bl"><i class="ball ${b[0]}"></i><input type="number" inputmode="numeric" min="0" step="1" data-v="${esc(f.key)}_${b[0]}" value="${esc(v[f.key + '_' + b[0]] ?? '')}" placeholder="0" aria-label="${esc(b[1])}"></label>`).join('')}<small data-ballchk="${esc(f.key)}"></small></div>`;
 
 function listCard(s, v) {
   const rows = listRows(s, v);
@@ -723,8 +737,8 @@ function renderReportView(u, r) {
         if (f.type === 'time' && val) shown = esc(val) + ' น.';
         if (f.pctOf && num(v[f.pctOf])) shown += ` <span class="muted" style="font-weight:400">/${num(v[f.pctOf])} = ${(num(val) / num(v[f.pctOf]) * 100).toFixed(2)}%</span>`;
         if (s.categories && ballText(v, f.key)) shown += `<div class="muted" style="font-size:13px;font-weight:400">${ballText(v, f.key)}</div>`;
-        const nt = f.note && num(val) && v[f.key + '_note'] ? `<div class="full muted" style="font-size:13px">\u2514 ${esc(f.note)}: ${esc(v[f.key + '_note'])}</div>` : '';
-        return `<div>${esc(f.label)}</div><div class="v">${shown}</div>${nt}`;
+        if (f.note && num(val) && v[f.key + '_note']) shown += ` <span class="muted" style="font-weight:400;font-size:13px">(${esc(v[f.key + '_note'])})</span>`;
+        return `<div>${esc(f.label)}</div><div class="v">${shown}</div>`;
       }).join('');
       const sum = s.sum ? `<div class="total">${esc(s.sum)}</div><div class="total v">${sectionSum(s, v)}</div>` : '';
       return `<div class="card"><h3>${esc(s.title)}</h3><div class="kv">${rows}${sum}</div></div>`;
@@ -784,10 +798,9 @@ function mountForm() {
         else if (f.type === 'time') pat += `<div class="frow"><span class="lab">${esc(f.label)} <small>24 \u0e0a\u0e21. \u0e1e\u0e34\u0e21\u0e1e\u0e4c 2030</small></span><input class="tin" type="text" inputmode="numeric" maxlength="5" placeholder="20:30" autocomplete="off" data-v="${esc(f.key)}" value="${esc(v[f.key] ?? '')}"></div>`;
         else if (f.calc) pat += `<div class="frow"><span class="lab"><b>${esc(f.label)}</b> <small>(คำนวณอัตโนมัติ)</small></span><div class="calc num" data-calc="${esc(f.key)}">0</div></div>`;
         else {
-          if (s.categories) { /* ลูกบอลสีตามหลังช่องจำนวน */ }
-          pat += `<div class="frow"><span class="lab">${esc(f.label)} <small>${esc(f.unit)}</small>${f.pctOf ? ` <small data-pct="${esc(f.key)}"></small>` : ''}</span>${numInput(f.key)}</div>`;
-          if (s.categories) pat += ballsRow(f, v);
-          if (f.note) pat += `<div class="frow text" data-notefor="${esc(f.key)}"><input class="notein" data-v="${esc(f.key)}_note" value="${esc(v[f.key + '_note'] ?? '')}" placeholder="${esc(f.note)} (พิมพ์เอง)" aria-label="${esc(f.note)}"></div>`;
+          const extra = s.categories ? ballsExtra(f, v)
+            : f.note ? `<input class="notein extra off" data-notefor="${esc(f.key)}" data-v="${esc(f.key)}_note" value="${esc(v[f.key + '_note'] ?? '')}" placeholder="${esc(f.note)} (พิมพ์เอง)" aria-label="${esc(f.note)}">` : '';
+          pat += `<div class="frow${extra ? ' ext' : ''}"><span class="lab">${esc(f.label)} <small>${esc(f.unit)}</small>${f.pctOf ? ` <small data-pct="${esc(f.key)}"></small>` : ''}</span>${numInput(f.key, 'class="cnt"')}${extra}</div>`;
         }
       });
       if (s.fields.some(f => f.rooms)) pat += `<div style="margin-top:8px"><button type="button" class="btn ghost sm" data-roomedit>\u270e แก้ไขรายการห้อง (เลขห้อง / ชื่อ)</button></div><div id="room_editor"></div>`;
@@ -979,11 +992,11 @@ function recalc() {
       s.fields.forEach(f => {
         if (f.calc) document.querySelector(`[data-calc="${f.key}"]`).textContent = fieldValue(u, v, f);
         if (f.pctOf) { const el = document.querySelector(`[data-pct="${f.key}"]`); el.textContent = num(v[f.pctOf]) ? `= ${(num(v[f.key]) / num(v[f.pctOf]) * 100).toFixed(2)}%` : ''; }
-        if (f.note) { const row = document.querySelector(`[data-notefor="${f.key}"]`); if (row) row.hidden = !num(v[f.key]); }
+        if (f.note) { const row = document.querySelector(`[data-notefor="${f.key}"]`); if (row) row.classList.toggle('off', !num(v[f.key])); }
         if (s.categories) {
           const row = document.querySelector(`[data-ballsfor="${f.key}"]`), chk = document.querySelector(`[data-ballchk="${f.key}"]`);
-          if (row) row.hidden = !num(v[f.key]);
-          if (chk) { const d = num(v[f.key]) - ballSum(v, f.key); chk.textContent = d === 0 ? '\u2713 ครบ' : d > 0 ? `ยังขาดอีก ${d} ราย` : `เกินมา ${-d} ราย`; chk.className = d === 0 ? 'ok' : 'bad'; }
+          if (row) row.classList.toggle('off', !num(v[f.key]));
+          if (chk) { const d = num(v[f.key]) - ballSum(v, f.key); chk.textContent = d === 0 ? '\u2713 ครบ' : d > 0 ? `ขาดอีก ${d}` : `เกิน ${-d}`; chk.className = d === 0 ? 'ok' : 'bad'; }
         }
       });
       if (s.sum) document.querySelector(`[data-sum="${si}"]`).textContent = sectionSum(s, v);
@@ -1505,12 +1518,17 @@ function printOverview() {
   const staffTh = '<th>RN</th><th>PN</th><th>NA</th>';
   const staffTd = (u, k) => sc3(u, k).map(n => `<td class="n">${n || '\u2013'}</td>`).join('');
   const staffSumTd = (list, k) => [0, 1, 2].map(i => `<td class="n">${ssum(list, i, k)}</td>`).join('');
+  // ผู้ป่วยใน: คงพยาบาลมีลูกบอลสีเรียงลงมาข้างใต้ และอัตรากำลัง RN/PN/NA เรียงลงมาในช่องเดียว
+  const ballsOf = (list, k) => { const t = { g: 0, y: 0, o: 0, r: 0 }; list.forEach(u => { const r = repAt(u, k); if (r) { const x = ballTotals(u, r.values || {}); S.cfg.balls.forEach(b => { t[b[0]] += x[b[0]]; }); } }); return t; };
+  const stackBalls = t => S.cfg.balls.some(b => t[b[0]]) ? `<div class="bstack">${S.cfg.balls.filter(b => t[b[0]]).map(b => `<div>${ballDot(b[0])}${esc(b[1])} ${t[b[0]]}</div>`).join('')}</div>` : '';
+  const stackStaff = c3 => c3.some(Boolean) ? `<div class="bstack">${['RN', 'PN', 'NA'].map((n, i) => c3[i] ? `<div>${n} ${c3[i]}</div>` : '').join('')}</div>` : '\u2013';
   const row = (u, k, keys, ipdMode) => { const s = sv(u, k);
-    return s ? `<tr><td>${shiftLab(u, k)}</td>${keys.map(x => ipdMode ? `<td class="n${x === 'remain' ? ' b' : ''}">${s[x] || '\u2013'}</td>` : `<td class="n">${x in s ? s[x] : '\u2013'}</td>`).join('')}${staffTd(u, k)}</tr>`
-      : `<tr><td>${shiftLab(u, k)}</td><td colspan="${keys.length + 3}" class="miss">ยังไม่รายงาน</td></tr>`; };
+    if (!s) return `<tr><td>${shiftLab(u, k)}</td><td colspan="${keys.length + (ipdMode ? 1 : 3)}" class="miss">ยังไม่รายงาน</td></tr>`;
+    if (!ipdMode) return `<tr><td>${shiftLab(u, k)}</td>${keys.map(x => `<td class="n">${x in s ? s[x] : '\u2013'}</td>`).join('')}${staffTd(u, k)}</tr>`;
+    return `<tr><td>${shiftLab(u, k)}</td>${keys.map(x => x === 'remain' ? `<td class="n b">${s[x] || '\u2013'}${stackBalls(ballsOf([u], k))}</td>` : `<td class="n">${s[x] || '\u2013'}</td>`).join('')}<td class="n">${stackStaff(sc3(u, k))}</td></tr>`; };
   const rows = (list, keys, ipdMode) => list.flatMap(u => shiftsOf(u).map(k => row(u, k, keys, ipdMode))).join('');
-  const totRows = (list, keys, label, cls) => SH.filter(k => list.some(u => unitHas(u, k))).map(k => { const l = list.filter(u => unitHas(u, k));
-    return `<tr class="${cls}"><td>${esc(label)} \u00b7 ${esc(k)}</td>${keys.map(x => `<td class="n">${sum(l, x, k)}</td>`).join('')}${staffSumTd(l, k)}</tr>`; }).join('');
+  const totRows = (list, keys, label, cls, ipdMode) => SH.filter(k => list.some(u => unitHas(u, k))).map(k => { const l = list.filter(u => unitHas(u, k));
+    return `<tr class="${cls}"><td>${esc(label)} \u00b7 ${esc(k)}</td>${keys.map(x => `<td class="n">${sum(l, x, k)}${ipdMode && x === 'remain' ? stackBalls(ballsOf(l, k)) : ''}</td>`).join('')}${ipdMode ? `<td class="n">${stackStaff([0, 1, 2].map(i => ssum(l, i, k)))}</td>` : staffSumTd(l, k)}</tr>`; }).join('');
 
   let h = printHead('ภาพรวม');
   h += `<h2>ผู้ป่วยนอก</h2><table class="stat"><thead><tr><th>หน่วยงาน</th>${S.cfg.stdOpd.map(k => `<th>${L[k]}</th>`).join('')}${staffTh}</tr></thead>
@@ -1520,19 +1538,9 @@ function printOverview() {
   const ipdBlocks = S.cfg.sections.filter(sc => sc.group === 'IPD').map(sc => ({ name: sc.sub, list: sc.units.map(unitCfg) }));
   const icuLike = ipd.filter(u => u.group !== 'IPD');
   if (icuLike.length) ipdBlocks.push({ name: 'Special Unit', list: icuLike });
-  h += `<h2>ผู้ป่วยใน</h2><table class="stat"><thead><tr><th>ตึก</th>${S.cfg.stdIpd.map(k => `<th>${L[k]}</th>`).join('')}${staffTh}</tr></thead>
-    ${ipdBlocks.map(bk => rows(bk.list, S.cfg.stdIpd, true) + totRows(bk.list, S.cfg.stdIpd, 'รวม ' + bk.name, 'sub')).join('')}
-    ${totRows(ipd, S.cfg.stdIpd, 'รวมทั้งหมด', 'tot')}</table>`;
-
-  const bt = (u, k) => { const r = repAt(u, k); return r ? ballTotals(u, r.values || {}) : null; };
-  const bRow = (u, k) => { const t = bt(u, k);
-    return t ? `<tr><td>${shiftLab(u, k)}</td>${S.cfg.balls.map(b => `<td class="n">${t[b[0]] || '\u2013'}</td>`).join('')}<td class="n b">${S.cfg.balls.reduce((a, b) => a + t[b[0]], 0) || '\u2013'}</td></tr>`
-      : `<tr><td>${shiftLab(u, k)}</td><td colspan="5" class="miss">ยังไม่รายงาน</td></tr>`; };
-  const bTot = (list, label, cls) => SH.filter(k => list.some(u => unitHas(u, k))).map(k => { const l = list.filter(u => unitHas(u, k)), tt = { g: 0, y: 0, o: 0, r: 0 };
-    l.forEach(u => { const t = bt(u, k); if (t) S.cfg.balls.forEach(b => { tt[b[0]] += t[b[0]]; }); });
-    return `<tr class="${cls}"><td>${esc(label)} \u00b7 ${esc(k)}</td>${S.cfg.balls.map(b => `<td class="n">${tt[b[0]]}</td>`).join('')}<td class="n">${S.cfg.balls.reduce((a, b) => a + tt[b[0]], 0)}</td></tr>`; }).join('');
-  h += `<h2>ลูกบอลสีผู้ป่วยคงพยาบาล (ผู้ป่วยใน)</h2><table class="stat"><thead><tr><th>ตึก / หน่วยงาน</th>${S.cfg.balls.map(b => `<th>${ballDot(b[0])}${esc(b[1])}</th>`).join('')}<th>รวม</th></tr></thead>
-    ${ipdBlocks.map(bk => bk.list.flatMap(u => shiftsOf(u).map(k => bRow(u, k))).join('') + bTot(bk.list, 'รวม ' + bk.name, 'sub')).join('')}${bTot(ipd, 'รวมทั้งหมด', 'tot')}</table>`;
+  h += `<h2>ผู้ป่วยใน</h2><table class="stat"><thead><tr><th>ตึก</th>${S.cfg.stdIpd.map(k => `<th${k === 'remain' ? ' style="width:19%"' : ''}>${L[k]}</th>`).join('')}<th style="width:9%">อัตรากำลัง</th></tr></thead>
+    ${ipdBlocks.map(bk => rows(bk.list, S.cfg.stdIpd, true) + totRows(bk.list, S.cfg.stdIpd, 'รวม ' + bk.name, 'sub', true)).join('')}
+    ${totRows(ipd, S.cfg.stdIpd, 'รวมทั้งหมด', 'tot', true)}</table>`;
 
   const cats = {};
   ipd.forEach(u => shiftsOf(u).forEach(k => { const r = repAt(u, k); if (r) Object.entries(categoryValues(u, r.values)).forEach(([c, n]) => { (cats[c] = cats[c] || {})[k] = (cats[c][k] || 0) + n; }); }));
@@ -1626,19 +1634,18 @@ function printLines(u, r) {
       s.rows.forEach(rw => { const parts = s.cols.map(c => [c[1], num(v[rw[0] + '_' + c[0]])]).filter(x => x[1]); const t = parts.reduce((a, x) => a + x[1], 0); grp(`<b>${esc(rw[1])} ${t}</b>`, [parts.map(x => esc(x[0]) + ' ' + x[1]).join(', ')]); });
       return;
     }
-    const calcs = [], vw = (SUMMARY_VIEW[u.code] || {})[s.title] || {};
+    const calcs = [], vw = (SUMMARY_VIEW[u.code] || {})[s.title] || {}, btxt = ballList(ballTotals(u, v));
     const items = s.fields.filter(f => f.type !== 'text').map(f => {
       if (f.key === vw.lead) return '';
       const val = fieldValue(u, v, f);
       if (f.type === 'time') return val ? `${esc(f.label)} ${esc(val)} น.` : '';
-      if (f.calc) { calcs.push(`<b>${esc(f.label)} ${val}</b>`); return ''; }
+      if (f.calc) { calcs.push(`<b>${esc(f.label)} ${val}</b>${f.key === 'remain' && btxt ? ' (' + btxt + ')' : ''}`); return ''; }
       if (!num(val)) return '';
       return `${esc(f.label)} ${val}${s.categories ? ' ราย' : ''}${s.categories && ballText(v, f.key) ? ' (' + ballText(v, f.key) + ')' : ''}${f.pctOf && num(v[f.pctOf]) ? ` (${(num(val) / num(v[f.pctOf]) * 100).toFixed(1)}%)` : ''}${f.note && v[f.key + '_note'] ? ' (' + esc(v[f.key + '_note']) + ')' : ''}`;
     }).filter(Boolean);
     const lf = vw.lead && s.fields.find(f => f.key === vw.lead), lv = lf ? fieldValue(u, v, lf) : '';
     const head = (u.form.sections.length > 1 ? esc(vw.title || s.title) : '') + (lf && lv !== undefined && lv !== '' ? ` ${lv} ${esc(lf.unit || '')}` : '') + (s.sum && !vw.nosum ? ` ${esc(s.sum)} ${sectionSum(s, v)}` : '');
     if (items.length || (head.trim() && !s.sum)) grp(head.trim() ? `<b>${head.trim()}</b>` : '', items);
-    if (s.categories) { const bt = ballTotals(u, v); if (S.cfg.balls.some(b => bt[b[0]])) grp('<b>ลูกบอลสีผู้ป่วยทั้งเวร</b>', [S.cfg.balls.map(b => `${ballDot(b[0])}${esc(b[1])} ${bt[b[0]]}`).join(', ') + ' ราย']); }
     calcs.forEach(l => grp(l, []));
     s.fields.filter(f => f.type === 'text' && v[f.key]).forEach(f => grp('', [`${esc(f.label)}: ${esc(v[f.key])}`]));
   });
