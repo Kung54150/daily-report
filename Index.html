@@ -579,14 +579,16 @@ function shrinkImage(file, max) {
 function loadThumbs() {
   if (S.thumbs || S.thumbsLoading) return;
   S.thumbsLoading = true;
-  api('getThemeThumbs').then(t => { S.thumbs = t; if (!$('settings').hidden) renderSettings(); }).catch(() => {}).then(() => { S.thumbsLoading = false; });
+  api('getThemeThumbs').then(t => { S.thumbs = t; S.thumbsErr = null; }).catch(e => { S.thumbsErr = (e && e.message) || String(e); })
+    .then(() => { S.thumbsLoading = false; if (!$('settings').hidden) renderSettings(); });
 }
 function renderSettings() {
   const t = S.theme, box = $('settings'), loggedIn = !!S.me;
-  loadThumbs();
+  if (!S.thumbsErr) loadThumbs();
   box.innerHTML = `<h3>ธีม</h3>
     <div class="optrow">${THEME_MODES.map(([k, n]) => `<button type="button" class="opt${t.mode === k ? ' on' : ''}" data-tmode="${k}">${n}</button>`).join('')}</div>
     <div class="muted" style="font-size:13px">ธีมรูปภาพ</div>
+    ${S.thumbsErr ? `<div class="msg bad">โหลดรูปตัวอย่างไม่สำเร็จ: ${esc(S.thumbsErr)}<br>ตรวจว่าเพิ่มไฟล์ ThemeImages (ชนิด Script) ในโปรเจกต์ Apps Script แล้ว และ Deploy เวอร์ชันใหม่ <button type="button" class="btn ghost sm" id="th_retry">ลองใหม่</button></div>` : ''}
     <div class="photos">${PHOTO_THEMES.map(([k, n]) => `<button type="button" class="ph${S.bg && S.bg.preset === k ? ' on' : ''}" data-tphoto="${k}" title="${n}"><span class="phimg" style="${S.thumbs && S.thumbs[k] ? 'background-image:url(' + S.thumbs[k] + ')' : ''}"></span><small>${n}</small></button>`).join('')}</div>
     ${[[0, 'สีพื้น \u00b7 พาสเทล'], [1, 'สีพื้น \u00b7 เข้ม / สุภาพ']].map(([g, nm]) => `<div class="muted" style="font-size:13px">${nm}</div><div class="swatches">${THEME_ACCENTS.filter(x => x[3] === g).map(([k, c, n]) => `<button type="button" class="sw${t.accent === k ? ' on' : ''}" style="background:${c}" data-taccent="${k}" title="${n}" aria-label="${n}"></button>`).join('')}</div>`).join('')}
     <hr><h3>รูปพื้นหลังของฉัน</h3>
@@ -605,14 +607,19 @@ function renderSettings() {
       <button class="btn ghost" type="button" id="rs_btn">รีเซ็ตรหัสผ่าน (สุ่มรหัสใหม่ 6 หลัก)</button><div class="msg" id="rs_msg"></div></div>` : ''}`;
   box.querySelectorAll('[data-tmode]').forEach(b => b.onclick = () => { S.theme.mode = b.dataset.tmode; store.set('theme', S.theme); applyTheme(); renderSettings(); });
   box.querySelectorAll('[data-taccent]').forEach(b => b.onclick = () => { S.theme.accent = b.dataset.taccent; store.set('theme', S.theme); applyTheme(); renderSettings(); });
+  const tr = $('th_retry'); if (tr) tr.onclick = () => { S.thumbsErr = null; renderSettings(); };
   box.querySelectorAll('[data-tphoto]').forEach(b => b.onclick = async () => {
     const p = PHOTO_THEMES.find(x => x[0] === b.dataset.tphoto), msg = $('bg_msg');
-    msg.textContent = 'กำลังโหลดรูป...'; msg.className = 'msg';
+    // เปลี่ยนสีหลัก/โหมดให้ทันที แล้วจึงโหลดรูป (ถ้าโหลดรูปไม่ได้ สีก็ยังเปลี่ยน และแจ้งสาเหตุ)
+    S.theme.accent = p[2]; S.theme.mode = p[3]; store.set('theme', S.theme); applyTheme();
+    b.classList.add('on'); msg.textContent = 'กำลังโหลดรูป...'; msg.className = 'msg';
     try {
       const data = await api('getThemePhoto', p[0]);
-      S.bg = { data, dim: p[4], preset: p[0], pos: p[5] }; S.theme.accent = p[2]; S.theme.mode = p[3];
-      store.set('bg', S.bg); store.set('theme', S.theme); applyBg(); applyTheme(); renderSettings();
-    } catch (err) { msg.textContent = err.message; msg.className = 'msg bad'; }
+      S.bg = { data, dim: p[4], preset: p[0], pos: p[5] };
+      store.set('bg', S.bg); applyBg(); S.thumbsErr = null; renderSettings();
+    } catch (err) {
+      S.thumbsErr = (err && err.message) || String(err); toast('โหลดรูปธีมไม่สำเร็จ'); renderSettings(); box.scrollTop = 0;
+    }
   });
   $('bg_file').onchange = async e => {
     const f = e.target.files[0]; if (!f) return;
