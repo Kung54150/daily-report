@@ -141,6 +141,18 @@ function changePassword(token, oldPw, newPw) {
   return { ok: true };
 }
 
+// ธีมรูปภาพ (ดู ThemeImages.gs): ภาพตัวอย่างเล็กทั้งหมด และรูปพื้นหลังของธีมที่เลือก (ไม่ต้องเข้าสู่ระบบ ใช้ที่หน้าเข้าสู่ระบบได้)
+function getThemeThumbs() {
+  const out = {};
+  Object.keys(THEME_IMAGES).forEach(k => { out[k] = THEME_IMAGES[k].thumb; });
+  return out;
+}
+function getThemePhoto(key) {
+  const t = THEME_IMAGES[String(key)];
+  if (!t) throw new Error('ไม่พบธีมรูปภาพนี้');
+  return t.photo;
+}
+
 // ผู้ดูแลระบบรีเซ็ตรหัสผ่านให้ผู้ใช้อื่น (กรณีลืมรหัส): สุ่มรหัส 6 หลักใหม่ แล้วแจ้งผู้ใช้ — เครื่องเดิมของผู้ใช้นั้นถูกออกจากระบบ
 function resetPassword(token, code) {
   if (auth_(token).role !== 'admin') throw new Error('เฉพาะผู้ดูแลระบบ');
