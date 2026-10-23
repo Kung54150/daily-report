@@ -257,6 +257,16 @@
     .cattab tfoot td { border: 0; }
   }
   .card.fit, #view > .note { width: fit-content; max-width: 100%; }
+  html.has-bg .card.fit { background: color-mix(in srgb, var(--surface) 68%, transparent); border-color: color-mix(in srgb, var(--line) 60%, transparent); -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px); }
+  @media (max-width: 600px) {
+    .top .wrap { height: 44px; padding-block: 0; gap: 8px; }
+    .top .title { font-size: 14px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .top .title small { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .unit-pill { font-size: 13px; padding: 2px 9px; }
+    .top button { font-size: 12px; padding: 3px 8px; white-space: nowrap; }
+    .tabs { top: calc(env(safe-area-inset-top, 0px) + 44px); }
+    .tabs button { padding: 9px 11px; font-size: 14px; }
+  }
   .bw { display: none; }
   .a4 .bw { display: inline; }
   .a4 .ball { width: 10px; height: 10px; margin-right: 3px; vertical-align: -1px; }
