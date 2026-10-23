@@ -257,7 +257,9 @@
     .cattab tfoot td { border: 0; }
   }
   .card.fit, #view > .note { width: fit-content; max-width: 100%; }
-  html.has-bg .card.fit { background: color-mix(in srgb, var(--surface) calc(var(--cardfit, 40) * 1%), transparent); border-color: color-mix(in srgb, var(--line) 50%, transparent); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+  html.has-bg .card.fit { background: color-mix(in srgb, var(--surface) calc(var(--cardfit, 0) * 1%), transparent); border-color: color-mix(in srgb, var(--line) calc(var(--cardfit, 0) * 1%), transparent); box-shadow: none; -webkit-backdrop-filter: blur(calc(var(--cardfit, 0) * 0.08px)); backdrop-filter: blur(calc(var(--cardfit, 0) * 0.08px));
+    text-shadow: 0 0 2px var(--bg), 0 0 5px var(--bg), 0 0 10px var(--bg), 0 0 18px var(--bg); }
+  html.has-bg .card.fit .muted, html.has-bg .card.fit p { color: var(--fg); }
   @media (max-width: 600px) {
     .top .wrap { height: 44px; padding-block: 0; gap: 8px; }
     .top .title { font-size: 14px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -627,7 +629,7 @@ function bgFrame() {
 window.addEventListener('resize', () => { if (S.bg) bgFrame(); });
 function applyBg() {
   const r = document.documentElement;
-  if (S.bg && S.bg.data) { r.classList.add('has-bg'); bgImageCss(); ensureNat(); bgFrame(); r.style.setProperty('--bgdim', String(S.bg.dim == null ? 0.8 : S.bg.dim)); r.style.setProperty('--cardfit', String(S.bg.card == null ? 40 : S.bg.card)); }
+  if (S.bg && S.bg.data) { r.classList.add('has-bg'); bgImageCss(); ensureNat(); bgFrame(); r.style.setProperty('--bgdim', String(S.bg.dim == null ? 0.8 : S.bg.dim)); r.style.setProperty('--cardfit', String(S.bg.card == null ? 0 : S.bg.card)); }
   else { r.classList.remove('has-bg'); $('bgimg').style.backgroundImage = ''; $('bgpic').style.backgroundImage = ''; $('bgpic').style.transform = ''; r.style.removeProperty('--bgdim'); r.style.removeProperty('--cardfit'); }
 }
 applyBg();
@@ -670,8 +672,8 @@ function renderSettings() {
     <div class="pw"><input type="file" id="bg_file" accept="image/*">
       <label class="f" for="bg_dim">ความเข้มของชั้นทับรูป (ยิ่งมาก ตัวหนังสือยิ่งอ่านง่าย)</label>
       <input type="range" id="bg_dim" min="40" max="95" step="5" value="${Math.round((S.bg && S.bg.dim != null ? S.bg.dim : 0.8) * 100)}"${S.bg ? '' : ' disabled'}>
-      <label class="f" for="bg_card">ความโปร่งใสของกล่องข้อความหน้าแรก <b id="bg_cv">${Math.round(S.bg && S.bg.card != null ? S.bg.card : 40)}%</b> <small class="muted">(น้อย = โปร่งมาก)</small></label>
-      <input type="range" id="bg_card" min="10" max="95" step="5" value="${Math.round(S.bg && S.bg.card != null ? S.bg.card : 40)}"${S.bg ? '' : ' disabled'}>
+      <label class="f" for="bg_card">ความโปร่งใสของกล่องข้อความหน้าแรก <b id="bg_cv">${Math.round(S.bg && S.bg.card != null ? S.bg.card : 0)}%</b> <small class="muted">(0 = ไม่มีกล่อง ตัวหนังสือมีเงาขาวช่วยให้อ่านง่าย)</small></label>
+      <input type="range" id="bg_card" min="0" max="95" step="5" value="${Math.round(S.bg && S.bg.card != null ? S.bg.card : 0)}"${S.bg ? '' : ' disabled'}>
       ${(() => { const b = S.bg || {}, cp = curP(), off = S.bg ? '' : ' disabled'; return `
       <label class="f" for="bg_zoom">ขนาดรูป (ซูมออก \u2194 ซูมเข้า) <b id="bg_zv">${Math.round((b.zoom || 1) * 100)}%</b></label><input type="range" id="bg_zoom" min="20" max="300" step="5" value="${Math.round((b.zoom || 1) * 100)}"${off}>
       <label class="f" for="bg_x">เลื่อนรูปไป ซ้าย \u2194 ขวา</label><input type="range" id="bg_x" min="0" max="100" step="1" value="${Math.round(cp[0])}"${off}>
