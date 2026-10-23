@@ -184,8 +184,26 @@
     .bl .bd { display: grid; justify-items: center; gap: 0; line-height: 1.15; font-size: 12px; }
     .bl input { width: 54px; padding: 7px 4px; text-align: center; }
   }
+  .cattab { width: 100%; border-collapse: collapse; }
+  .cattab th { text-align: left; font-size: 13px; color: var(--muted); font-weight: 600; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+  .cattab th:nth-child(2) { text-align: center; }
+  .cattab td { padding: 6px; border-bottom: 1px dashed var(--line); }
+  .cattab .cn { text-align: center; font-weight: 700; width: 96px; }
+  .cattab tfoot td { font-weight: 700; border-top: 2px solid var(--line); border-bottom: 0; }
+  @media (max-width: 719px) {
+    .cattab thead { display: none; }
+    .cattab tr { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+    .cattab td { border: 0; padding: 0; }
+    .cattab .cn { width: auto; text-align: left; }
+    .cattab .cb { flex-basis: 100%; color: var(--muted); font-size: 14px; }
+    .cattab .cb:empty { display: none; }
+    .cattab tfoot tr { border-bottom: 0; border-top: 2px solid var(--line); margin-top: 2px; }
+    .cattab tfoot td { border: 0; }
+  }
   .bw { display: none; }
   .a4 .bw { display: inline; }
+  .a4 .ball { width: 10px; height: 10px; margin-right: 3px; vertical-align: -1px; }
+  .a4 .bst div { line-height: 1.2; font-size: 8.5pt; }
   @media print { .bw { display: inline; } }
   .bst div { text-align: left; font-weight: 400; white-space: nowrap; }
   .rem { display: inline-flex; gap: 12px; align-items: flex-start; }
@@ -537,8 +555,8 @@ async function startApp(b) {
   $('t_unit').textContent = admin ? 'ADMIN' : manager ? 'ผู้จัดการ' : S.me.unit;
   $('t_sub').textContent = admin ? 'ผู้ดูแลระบบ \u00b7 ดูได้ทุกหน่วยงาน' : manager ? 'ดูได้ทุกหน่วยงาน' : unitLabel(unitCfg(S.me.unit));
   const tabs = admin
-    ? [['summary', 'สรุป'], ['all', 'ติดตามรายแผนก'], ['print', 'พิมพ์ A4'], ['staff', 'รายชื่อเจ้าหน้าที่ (อัปโหลด)']]
-    : manager ? [['summary', 'สรุป'], ['all', 'ติดตามรายแผนก'], ['print', 'พิมพ์ A4']]
+    ? [['summary', 'สรุป'], ['all', 'ติดตามรายแผนก'], ['incidents', 'เหตุการณ์ผิดปกติ'], ['print', 'พิมพ์ A4'], ['staff', 'รายชื่อเจ้าหน้าที่ (อัปโหลด)']]
+    : manager ? [['summary', 'สรุป'], ['all', 'ติดตามรายแผนก'], ['incidents', 'เหตุการณ์ผิดปกติ'], ['print', 'พิมพ์ A4']]
     : [['mine', 'หน่วยงานของฉัน'], ['all', 'ติดตามรายแผนก'], ['print', 'พิมพ์รายงาน'], ['staff', 'ทะเบียนเจ้าหน้าที่ / ห้อง']];
   $('tabs').innerHTML = tabs.map(([k, t]) => `<button type="button" data-tab="${k}">${t}</button>`).join('');
   $('tabs').querySelectorAll('button').forEach(btn => btn.onclick = () => go(btn.dataset.tab));
@@ -588,7 +606,23 @@ function leaveGuard() {
   setTimeout(() => S.leaveArmed = false, 3000); return false;
 }
 
+function incList(group) {
+  const incs = [];
+  S.cfg.units.filter(u => !group || group === 'ALL' || u.group === group).forEach(u => shiftsOf(u).forEach(k => ((repAt(u, k) || {}).incidents || []).forEach(i => incs.push({ lab: shiftLab(u, k), i, u }))));
+  return incs;
+}
+// แท็บเหตุการณ์ผิดปกติ (ผู้จัดการ/Admin): ดูจากมือถือได้โดยไม่ต้องพิมพ์ A4
+function renderIncidentsTab() {
+  const g = S.incGroup || 'ALL', incs = incList(g);
+  const byType = {}; incs.forEach(x => byType[x.i.type] = (byType[x.i.type] || 0) + 1);
+  let h = `<div class="seg sumtabs noprint" style="position:static">${[['ALL', 'ทั้งหมด']].concat(S.cfg.groups.map(x => [x.key, x.name])).map(([k, t]) => `<button type="button" data-incgroup="${esc(k)}" class="${g === k ? 'on' : ''}">${esc(t)}<small>${incList(k).length || ''}</small></button>`).join('')}</div>`;
+  h += `<h2 class="grp">เหตุการณ์ผิดปกติ (${incs.length}) \u00b7 ${esc(thaiDate(S.date, true))}</h2>`;
+  if (incs.length) h += `<div class="counts" style="margin-bottom:10px">${Object.entries(byType).map(([k, n]) => `<span>${esc(k)} ${n}</span>`).join('')}</div>`;
+  return h + (incs.length ? incs.map((x, n) => incCardHtml(x.i, x.lab, n + 1)).join('') : '<div class="card muted">ไม่มีเหตุการณ์ผิดปกติของวันนี้</div>');
+}
 function render() {
+  const incBtn = document.querySelector('#tabs [data-tab="incidents"]');
+  if (incBtn && S.cfg) { const n = incList('ALL').length; incBtn.textContent = 'เหตุการณ์ผิดปกติ' + (n ? ' (' + n + ')' : ''); }
   $('tabs').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tab === S.tab));
   $('savebar').hidden = !S.editing;
   $('datebar').hidden = S.tab === 'staff';
@@ -596,6 +630,7 @@ function render() {
   if (S.tab === 'mine') v.innerHTML = S.editing ? '' : renderMine();
   else if (S.tab === 'all') v.innerHTML = S.viewUnit ? renderUnitDetail(S.viewUnit) : renderAll();
   else if (S.tab === 'summary') v.innerHTML = renderSummary();
+  else if (S.tab === 'incidents') v.innerHTML = renderIncidentsTab();
   else if (S.tab === 'print') v.innerHTML = renderPrint();
   else if (S.tab === 'staff') v.innerHTML = renderStaff();
   if (S.tab === 'mine' && S.editing) mountForm();
@@ -714,6 +749,14 @@ function ballTotals(u, v) {
 // ช่องกรอกลูกบอลสี อยู่แถวเดียวกับช่องจำนวนบนจอกว้าง และลงมาอยู่ด้านล่างบนมือถือ (แสดงเป็นลูกบอล ไม่มีคำบรรยาย)
 const ballGroups = (f, v) => S.cfg.balls.map(b => `<label class="bl"><span class="bd"><i class="ball ${b[0]}"></i><span>${esc(b[1])}</span></span><input type="number" inputmode="numeric" min="0" step="1" data-v="${esc(f.key)}_${b[0]}" value="${esc(v[f.key + '_' + b[0]] ?? '')}" placeholder="\u2013" aria-label="${esc(b[1])}"></label>`).join('');
 
+// ประเภทผู้ป่วยคงพยาบาล: ตาราง ประเภท | จำนวนรวม | ลูกบอลสี (บนมือถือจัดเป็นบรรทัด: ประเภท จำนวน แล้วลูกบอลอยู่บรรทัดถัดไป)
+function catCard(s, v) {
+  const tot = s.fields.reduce((a, f) => a + num(v[f.key]), 0);
+  const rows = s.fields.map(f => { const n = num(v[f.key]);
+    return `<tr><td class="ct">${esc(f.label)}</td><td class="cn">${n || '\u2013'}</td><td class="cb">${n ? ballText(v, f.key) : ''}</td></tr>`; }).join('');
+  return `<div class="card" style="grid-column:1/-1"><h3>${esc(s.title)}</h3><table class="cattab"><thead><tr><th>ประเภท</th><th>จำนวนรวม</th><th>ลูกบอลสี</th></tr></thead><tbody>${rows}</tbody>
+    <tfoot><tr><td class="ct">${esc(s.sum || 'รวม')}</td><td class="cn">${tot}</td><td class="cb"></td></tr></tfoot></table></div>`;
+}
 function listCard(s, v) {
   const rows = listRows(s, v);
   return `<div class="card"><h3>${esc(s.title)}</h3><div class="kv">${rows.map(r => `<div>${esc(listLabel(r.it, r))}</div><div class="v">${r.n}</div>`).join('') || '<div class="full muted">ยังไม่มีรายการ</div>'}
@@ -736,6 +779,7 @@ function renderReportView(u, r) {
   if (S.sub === 'patient') {
     const cards = u.form.sections.map(s => {
       if (s.type === 'list') return listCard(s, v);
+      if (s.categories) return catCard(s, v);
       if (s.type === 'grid') {
         return `<div class="card"><h3>${esc(s.title)}</h3><div class="grid-scroll"><table class="g"><tr><th></th>${s.cols.map(c => `<th>${esc(c[1])}</th>`).join('')}<th>รวม</th></tr>
           ${s.rows.map(rw => { const vals = s.cols.map(c => v[rw[0] + '_' + c[0]]); return `<tr><td>${esc(rw[1])}</td>${vals.map(x => `<td class="num">${show(x)}</td>`).join('')}<td class="num"><b>${vals.reduce((a, x) => a + num(x), 0)}</b></td></tr>`; }).join('')}</table></div></div>`;
@@ -1320,7 +1364,7 @@ function mapRole(raw) { return (S.titleMap || {})[normTitle(raw)] || builtinRole
 const SUGGEST = [
   [/อุบัติเหตุ/, 'ER'], [/อายุรกรรม/, 'OPD1'], [/ศัลยกรรม/, 'OPD3'], [/สูตินรีเวช|สูติ/, 'OBG-IVF'],
   [/กุมารเวช|เด็กสุขภาพดี|พัฒนาการเด็ก/, 'PC'], [/ตา\s*หู\s*คอ/, 'EENT'], [/ทันตกรรม/, 'Dent'],
-  [/ห้องผ่าตัด/, 'OR'], [/ห้องคลอด|ทารกแรกเกิด/, 'LR-NB'], [/ผู้ป่วยวิกฤต/, 'ICU'], [/ส่งเสริมสุขภาพ/, 'HPC'], [/ผิวหนัง/, 'ผิวหนัง'], [/แผนจีน/, 'แผนจีน'], [/CCC/i, 'CCC']
+  [/ห้องผ่าตัด/, 'OR'], [/ห้องคลอด/, 'LR'], [/ทารกแรกเกิด/, 'NB'], [/ผู้ป่วยวิกฤต/, 'ICU'], [/ส่งเสริมสุขภาพ/, 'HPC'], [/ผิวหนัง/, 'ผิวหนัง'], [/แผนจีน/, 'แผนจีน'], [/CCC/i, 'CCC']
 ];
 function suggestUnit(raw) {
   const hit = SUGGEST.find(x => x[0].test(raw));
@@ -1399,8 +1443,6 @@ function unitShiftBlocks(u) {
 }
 function renderSummary() {
   const g = S.sumGroup || 'OPD', gu = S.cfg.units.filter(u => u.group === g);
-  const incs = [];
-  gu.forEach(u => shiftsOf(u).forEach(k => ((repAt(u, k) || {}).incidents || []).forEach(i => incs.push({ lab: shiftLab(u, k), i }))));
   const nFull = S.cfg.units.filter(u => unitState(u) === 'full').length, miss = missingText();
   let h = `<div class="noprint" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px"><button type="button" class="btn" data-act="gotoprint">พิมพ์เอกสาร</button>
     <span class="meta" style="margin:0">ส่งรายงานครบ ${nFull}/${S.cfg.units.length} หน่วยงาน${miss ? ` \u00b7 <span style="color:var(--bad)">ยังไม่ครบ: ${miss}</span>` : ''}</span></div>`;
@@ -1417,8 +1459,6 @@ function renderSummary() {
       h += `<div class="card sbox"><div class="shead"><b>${esc(u.code)}</b> ${statusPill(u)}</div>${unitShiftBlocks(u)}</div>`;
     });
   });
-  h += `<h2 class="grp">เหตุการณ์ผิดปกติ (${incs.length})</h2>`;
-  h += incs.length ? incs.map((x, n) => incCardHtml(x.i, x.lab, n + 1)).join('') : '<div class="card muted">ไม่มีเหตุการณ์ผิดปกติ</div>';
   return h;
 }
 
@@ -1794,6 +1834,7 @@ function bindView() {
     } catch (e) { $('up_preview').innerHTML = `<p style="color:var(--bad)">${esc(e.message)}</p>`; }
   };
   v.querySelectorAll('[data-dept]').forEach(sel => sel.onchange = () => { S.bindSel[sel.dataset.dept] = sel.value; });
+  v.querySelectorAll('[data-incgroup]').forEach(b => b.onclick = () => { S.incGroup = b.dataset.incgroup; render(); });
   v.querySelectorAll('[data-sumgroup]').forEach(b => b.onclick = () => { S.sumGroup = b.dataset.sumgroup; render(); });
   v.querySelectorAll('[data-title]').forEach(sel => sel.onchange = () => { S.titleSel = S.titleSel || {}; S.titleSel[sel.dataset.title] = sel.value; });
   if (S.upRows && $('up_preview') && S.tab === 'staff' && S.upRows.length) drawUpPreview();
