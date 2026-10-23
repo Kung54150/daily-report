@@ -78,7 +78,8 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; }
   html { background: var(--bg); }
-  #bgimg { position: fixed; inset: 0; z-index: -1; display: none; background-size: cover; background-position: center top; }
+  #bgimg { position: fixed; inset: 0; z-index: -1; display: none; overflow: hidden; }
+  #bgpic { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-repeat: no-repeat; background-size: cover; background-position: center top; transform-origin: 50% 50%; }
   #bgimg::after { content: ""; position: absolute; inset: 0; background: var(--bg); opacity: var(--bgdim, .8); }
   html.has-bg #bgimg { display: block; }
   html.has-bg body { background: transparent; }
@@ -255,6 +256,7 @@
     .cattab tfoot tr { border-bottom: 0; border-top: 2px solid var(--line); margin-top: 2px; }
     .cattab tfoot td { border: 0; }
   }
+  .card.fit, #view > .note { width: fit-content; max-width: 100%; }
   .bw { display: none; }
   .a4 .bw { display: inline; }
   .a4 .ball { width: 10px; height: 10px; margin-right: 3px; vertical-align: -1px; }
@@ -420,7 +422,7 @@
 </style>
 </head>
 <body>
-<div id="bgimg" aria-hidden="true"></div>
+<div id="bgimg" aria-hidden="true"><div id="bgpic"></div></div>
 
 <!-- ===== กำลังโหลด / แจ้งข้อผิดพลาด (ไม่ให้เป็นหน้าว่าง) ===== -->
 <div id="boot" class="wrap" style="padding-block:56px;text-align:center">
@@ -570,7 +572,15 @@ function ensureNat() {
   const d = S.bg && S.bg.data;
   if (!d || (S._nat && S._nat.k === d.length)) return;
   const im = new Image();
-  im.onload = () => { S._nat = { k: d.length, w: im.naturalWidth, h: im.naturalHeight }; bgFrame(); if ($('settings') && !$('settings').hidden) renderSettings(); };
+  im.onload = () => {
+    // สีขอบบน/ล่างของรูป (ใช้เติมพื้นที่รอบรูปเมื่อซูมออกให้รูปไม่ลอย)
+    const cw = 40, ch = Math.max(6, Math.round(40 * im.naturalHeight / im.naturalWidth)), c = document.createElement('canvas');
+    c.width = cw; c.height = ch;
+    const cx = c.getContext('2d'); cx.drawImage(im, 0, 0, cw, ch);
+    const avg = (y0, y1) => { const px = cx.getImageData(0, y0, cw, y1 - y0).data; let r = 0, g = 0, b = 0; const n = px.length / 4; for (let i = 0; i < px.length; i += 4) { r += px[i]; g += px[i + 1]; b += px[i + 2]; } return 'rgb(' + Math.round(r / n) + ',' + Math.round(g / n) + ',' + Math.round(b / n) + ')'; };
+    S._nat = { k: d.length, w: im.naturalWidth, h: im.naturalHeight, top: avg(0, 2), bot: avg(ch - 2, ch) };
+    bgImageCss(); bgFrame(); if ($('settings') && !$('settings').hidden) renderSettings();
+  };
   im.src = d;
 }
 function bgGeom() {
@@ -584,19 +594,31 @@ function curP() {
   const pre = g ? [g.w >= g.W ? 100 - d[0] : d[0], g.h >= g.H ? 100 - d[1] : d[1]] : [50, 50];
   return [b.px != null ? b.px : pre[0], b.py != null ? b.py : pre[1]];
 }
+// ชั้นสีรอบรูป: fill = auto (ไล่สีตามขอบบน-ล่างของรูป) / theme (สีธีม) / custom (สีที่เลือกเอง)
+function bgFillCss() {
+  const b = S.bg || {}, n = S._nat && b.data && S._nat.k === b.data.length ? S._nat : null, mode = b.fill || 'auto';
+  if (mode === 'custom') return 'linear-gradient(' + (b.fillColor || '#ffffff') + ',' + (b.fillColor || '#ffffff') + ')';
+  return mode === 'auto' && n ? 'linear-gradient(' + n.top + ',' + n.bot + ')' : '';
+}
+function bgImageCss() {
+  const b = S.bg;
+  if (!b || !b.data) return;
+  $('bgpic').style.backgroundImage = 'url("' + b.data + '")';
+  $('bgimg').style.backgroundImage = bgFillCss() || 'none';
+}
 function bgFrame() {
-  const el = $('bgimg'), b = S.bg || {}, g = bgGeom();
-  el.style.transform = '';
-  if (!g) { el.style.backgroundSize = 'cover'; el.style.backgroundRepeat = ''; el.style.backgroundPosition = b.pos || 'center top'; return; }
+  const pic = $('bgpic'), b = S.bg || {}, g = bgGeom();
+  if (!g) { pic.style.left = '0'; pic.style.top = '0'; pic.style.width = '100%'; pic.style.height = '100%'; pic.style.backgroundSize = 'cover'; pic.style.backgroundPosition = b.pos || 'center top'; pic.style.transform = ''; return; }
   const p = curP();
-  el.style.backgroundSize = Math.round(g.w) + 'px ' + Math.round(g.h) + 'px'; el.style.backgroundRepeat = 'no-repeat';
-  el.style.backgroundPosition = Math.round(g.lx + (g.hx - g.lx) * p[0] / 100) + 'px ' + Math.round(g.ly + (g.hy - g.ly) * p[1] / 100) + 'px';
+  pic.style.left = Math.round(g.lx + (g.hx - g.lx) * p[0] / 100) + 'px'; pic.style.top = Math.round(g.ly + (g.hy - g.ly) * p[1] / 100) + 'px';
+  pic.style.width = Math.round(g.w) + 'px'; pic.style.height = Math.round(g.h) + 'px';
+  pic.style.backgroundSize = '100% 100%'; pic.style.backgroundPosition = '0 0'; pic.style.transform = b.rot ? 'rotate(' + b.rot + 'deg)' : '';
 }
 window.addEventListener('resize', () => { if (S.bg) bgFrame(); });
 function applyBg() {
   const r = document.documentElement;
-  if (S.bg && S.bg.data) { r.classList.add('has-bg'); $('bgimg').style.backgroundImage = 'url("' + S.bg.data + '")'; ensureNat(); bgFrame(); r.style.setProperty('--bgdim', String(S.bg.dim == null ? 0.8 : S.bg.dim)); }
-  else { r.classList.remove('has-bg'); $('bgimg').style.backgroundImage = ''; $('bgimg').style.transform = ''; r.style.removeProperty('--bgdim'); }
+  if (S.bg && S.bg.data) { r.classList.add('has-bg'); bgImageCss(); ensureNat(); bgFrame(); r.style.setProperty('--bgdim', String(S.bg.dim == null ? 0.8 : S.bg.dim)); }
+  else { r.classList.remove('has-bg'); $('bgimg').style.backgroundImage = ''; $('bgpic').style.backgroundImage = ''; $('bgpic').style.transform = ''; r.style.removeProperty('--bgdim'); }
 }
 applyBg();
 function shrinkImage(file, max) {
@@ -642,6 +664,10 @@ function renderSettings() {
       <label class="f" for="bg_zoom">ขนาดรูป (ซูมออก \u2194 ซูมเข้า) <b id="bg_zv">${Math.round((b.zoom || 1) * 100)}%</b></label><input type="range" id="bg_zoom" min="20" max="300" step="5" value="${Math.round((b.zoom || 1) * 100)}"${off}>
       <label class="f" for="bg_x">เลื่อนรูปไป ซ้าย \u2194 ขวา</label><input type="range" id="bg_x" min="0" max="100" step="1" value="${Math.round(cp[0])}"${off}>
       <label class="f" for="bg_y">เลื่อนรูปไป บน \u2195 ล่าง</label><input type="range" id="bg_y" min="0" max="100" step="1" value="${Math.round(cp[1])}"${off}>
+      <label class="f" for="bg_rot">หมุนรูป <b id="bg_rv">${Math.round(b.rot || 0)}\u00b0</b></label><input type="range" id="bg_rot" min="-180" max="180" step="1" value="${Math.round(b.rot || 0)}"${off}>
+      <div class="muted" style="font-size:13px">สีพื้นรอบรูป (เมื่อซูมออกจนรูปไม่เต็มจอ)</div>
+      <div class="optrow">${[['auto', 'ตามสีขอบรูป'], ['theme', 'สีธีม'], ['custom', 'เลือกเอง']].map(([k, n]) => `<button type="button" class="opt${(b.fill || 'auto') === k ? ' on' : ''}" data-bgfill="${k}"${off}>${n}</button>`).join('')}
+        <input type="color" id="bg_fillc" value="${esc(b.fillColor || '#ffffff')}" title="เลือกสี"${S.bg && b.fill === 'custom' ? '' : ' disabled'} style="flex:0 0 46px;padding:2px;height:auto"></div>
       <button class="btn ghost sm" type="button" id="bg_reset"${off}>คืนค่าขนาด/ตำแหน่งเดิม</button>`; })()}
       <button class="btn ghost" type="button" id="bg_clear"${S.bg ? '' : ' disabled'}>เอารูปพื้นหลังออก</button><div class="msg" id="bg_msg">รูปเก็บไว้ในเครื่องนี้เท่านั้น</div></div>
     ${loggedIn ? `<hr><h3>เปลี่ยนรหัสผ่านของฉัน</h3><form class="pw" id="pwForm" autocomplete="off">
@@ -680,7 +706,11 @@ function renderSettings() {
   const ensurePos = () => { const p = curP(); if (S.bg.px == null) { S.bg.px = p[0]; S.bg.py = p[1]; } };
   const frame = (k, f) => { $(k).oninput = e => { ensurePos(); S.bg[f.key] = f.val(+e.target.value); bgFrame(); }; $(k).onchange = () => store.set('bg', S.bg); };
   frame('bg_zoom', { key: 'zoom', val: v => v / 100 }); $('bg_zoom').addEventListener('input', e => { $('bg_zv').textContent = e.target.value + '%'; }); frame('bg_x', { key: 'px', val: v => v }); frame('bg_y', { key: 'py', val: v => v });
-  $('bg_reset').onclick = () => { delete S.bg.zoom; delete S.bg.px; delete S.bg.py; store.set('bg', S.bg); bgFrame(); renderSettings(); };
+  frame('bg_rot', { key: 'rot', val: v => v }); $('bg_rot').addEventListener('input', e => { $('bg_rv').textContent = e.target.value + '\u00b0'; });
+  box.querySelectorAll('[data-bgfill]').forEach(bt => bt.onclick = () => { if (!S.bg) return; S.bg.fill = bt.dataset.bgfill; store.set('bg', S.bg); bgImageCss(); bgFrame(); renderSettings(); });
+  $('bg_fillc').oninput = e => { S.bg.fillColor = e.target.value; bgImageCss(); bgFrame(); };
+  $('bg_fillc').onchange = () => store.set('bg', S.bg);
+  $('bg_reset').onclick = () => { delete S.bg.zoom; delete S.bg.px; delete S.bg.py; delete S.bg.rot; delete S.bg.fill; delete S.bg.fillColor; store.set('bg', S.bg); bgImageCss(); bgFrame(); renderSettings(); };
   $('bg_clear').onclick = () => { S.bg = null; store.set('bg', null); applyBg(); renderSettings(); };
   const rb = $('rs_btn');
   if (rb) rb.onclick = async () => {
@@ -812,7 +842,7 @@ async function loadDay() {
   if (S.editing && S.dirty) { S.date = S.draft.date; setDateUI(); toast('บันทึกหรือยกเลิกรายงานก่อนเปลี่ยนวันที่'); return; }
   S.editing = false;
   setDateUI();
-  $('view').innerHTML = '<div class="card muted">กำลังโหลด...</div>';
+  $('view').innerHTML = '<div class="card muted fit">กำลังโหลด...</div>';
   try { setDay(await api('getDay', S.token, S.date)); } catch (e) { return handleErr(e); }
   render();
 }
@@ -849,7 +879,7 @@ function renderIncidentsTab() {
   let h = `<div class="seg sumtabs noprint" style="position:static">${[['ALL', 'ทั้งหมด']].concat(S.cfg.groups.map(x => [x.key, x.name])).map(([k, t]) => `<button type="button" data-incgroup="${esc(k)}" class="${g === k ? 'on' : ''}">${esc(t)}<small>${incList(k).length || ''}</small></button>`).join('')}</div>`;
   h += `<h2 class="grp">เหตุการณ์ผิดปกติ (${incs.length}) \u00b7 ${esc(thaiDate(S.date, true))}</h2>`;
   if (incs.length) h += `<div class="counts" style="margin-bottom:10px">${Object.entries(byType).map(([k, n]) => `<span>${esc(k)} ${n}</span>`).join('')}</div>`;
-  return h + (incs.length ? incs.map((x, n) => incCardHtml(x.i, x.lab, n + 1)).join('') : '<div class="card muted">ไม่มีเหตุการณ์ผิดปกติของวันนี้</div>');
+  return h + (incs.length ? incs.map((x, n) => incCardHtml(x.i, x.lab, n + 1)).join('') : '<div class="card muted fit">ไม่มีเหตุการณ์ผิดปกติของวันนี้</div>');
 }
 function render() {
   const incBtn = document.querySelector('#tabs [data-tab="incidents"]');
@@ -876,7 +906,7 @@ function renderMine() {
   const rep = repOf(u.code, S.shift);
   const seg = u.shifts.length < 2 ? '' : `<div class="seg" style="position:static">${u.shifts.map(k => `<button type="button" data-mshift="${k}" class="${S.shift === k ? 'on' : ''}">เวร ${k}<small>${repOf(u.code, k) ? 'ส่งแล้ว' : 'ยังไม่ส่ง'}</small></button>`).join('')}</div>`;
   if (!rep) {
-    return `${seg}${u.form.draft ? draftNote() : ''}<div class="card"><h3>ยังไม่ได้ส่งรายงานเวร ${esc(S.shift)} ของ ${esc(thaiDate(S.date))}</h3>
+    return `${seg}${u.form.draft ? draftNote() : ''}<div class="card fit"><h3>ยังไม่ได้ส่งรายงานเวร ${esc(S.shift)} ของ ${esc(thaiDate(S.date))}</h3>
       <p class="muted" style="margin:0 0 12px">กรอกยอดผู้ป่วย อัตรากำลัง และเหตุการณ์ผิดปกติของหน่วยงาน ${esc(u.code)}</p>
       <button class="btn" data-act="edit" type="button">เริ่มกรอกรายงานเวร ${esc(S.shift)}</button></div>`;
   }
@@ -927,7 +957,7 @@ function renderUnitDetail(code) {
       <button class="btn ghost sm" data-act="back" type="button">\u2039 ติดตามรายแผนก</button>
       <b style="font-size:18px">${esc(code)}</b><span class="muted">${esc(unitLabel(u))}</span></div>
     ${r ? `<div class="meta">ส่งโดย ${esc(r.reporter)} \u00b7 แก้ไขล่าสุด ${esc(r.updatedAt)}</div><div style="margin-bottom:12px"><button class="btn ghost" data-act="gotoprint" data-punit="${esc(code)}" type="button">พิมพ์รายงานหน่วยงานนี้</button></div>${renderReportView(u, r)}`
-        : `<div class="card muted">หน่วยงานนี้ยังไม่ส่งรายงานเวร ${esc(S.vshift)} ของวันนี้</div>`}`;
+        : `<div class="card muted fit">หน่วยงานนี้ยังไม่ส่งรายงานเวร ${esc(S.vshift)} ของวันนี้</div>`}`;
 }
 
 /* ===== ค่าที่คำนวณ ===== */
@@ -1050,7 +1080,7 @@ function renderReportView(u, r) {
         <div class="pre" style="margin-top:6px">${esc(i.detail)}</div>
         ${i.action ? `<div class="muted pre" style="font-size:14px;margin-top:4px">การแก้ไขเบื้องต้น: ${esc(i.action)}</div>` : ''}
         ${(i.files || []).length ? `<div class="atts">${i.files.map(f => attChip(f, false)).join('')}</div>` : ''}</div>`).join('')
-      : '<div class="card muted">ไม่มีเหตุการณ์ผิดปกติ</div>';
+      : '<div class="card muted fit">ไม่มีเหตุการณ์ผิดปกติ</div>';
   }
   return subTabs(r) + body;
 }
@@ -1485,7 +1515,7 @@ function renderIncidents() {
       <input type="file" data-fileadd="${i}" multiple accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf">
       <div class="muted" style="font-size:12px;margin-top:4px">แนบได้สูงสุด 5 ไฟล์ \u00b7 รูปถูกย่ออัตโนมัติ \u00b7 PDF ไม่เกิน 5 MB \u00b7 กดชื่อไฟล์เพื่อดู \u00b7 ผู้จัดการพิมพ์รวมกับรายงานได้</div>
     </fieldset></div>`).join('')
-    || '<div class="card muted">ไม่มีเหตุการณ์ผิดปกติ \u2014 ถ้ามี กดปุ่มด้านล่างเพื่อเพิ่ม</div>';
+    || '<div class="card muted fit">ไม่มีเหตุการณ์ผิดปกติ \u2014 ถ้ามี กดปุ่มด้านล่างเพื่อเพิ่ม</div>';
   $('fm_incs').querySelectorAll('[data-delinc]').forEach(b => b.onclick = () => { d.incidents.splice(+b.dataset.delinc, 1); S.dirty = true; renderIncidents(); showSub(); });
 }
 
@@ -1723,7 +1753,7 @@ function renderPrint() {
   let pages;
   if (kind === 'month') {
     const key = scope + '|' + month;
-    if (!S.monthData || S.monthData.key !== key) { loadMonth(scope, month); return bar + '<div class="card muted">กำลังโหลดรายงานรายเดือน...</div>'; }
+    if (!S.monthData || S.monthData.key !== key) { loadMonth(scope, month); return bar + '<div class="card muted fit">กำลังโหลดรายงานรายเดือน...</div>'; }
     pages = [printMonthly(unitCfg(scope), month, S.monthData.reports) + sign];
   } else if (scope === 'all') pages = [{ html: printUnits(), printonly: true }, printOverview() + printIncidents() + sign];
   else pages = shiftsOf(unitCfg(scope)).map(k => printSingle(unitCfg(scope), k) + sign);
