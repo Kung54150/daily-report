@@ -162,6 +162,16 @@
   .sbox .miss { color: var(--bad); font-size: 14px; }
   .shb { margin-top: 8px; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px 6px; overflow: hidden; }
   .shb .shl { font-weight: 700; color: var(--accent); background: var(--accent-soft); margin: 0 -10px 6px; padding: 3px 10px; }
+  .ball { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; border: 1px solid rgba(0,0,0,.25); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .ball.g { background: #2e9e4f; } .ball.y { background: #f2c200; } .ball.o { background: #f08a00; } .ball.r { background: #d32f2f; }
+  .balls { display: grid; gap: 4px; padding: 2px 0 8px 12px; border-left: 3px solid var(--line); margin-bottom: 6px; }
+  .balls .ballhint { font-size: 13px; color: var(--muted); }
+  .ballin { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .bl { display: grid; gap: 2px; font-size: 13px; justify-items: start; }
+  .bl input { width: 100%; min-width: 0; }
+  .balls small.ok { color: var(--ok); } .balls small.bad { color: var(--bad); }
+  .sumtabs { margin-bottom: 12px; }
+  .a4.printonly { display: none; }
   .lstadd { display: grid; gap: 8px; }
   .addn { display: flex; gap: 8px; }
   .addn input { width: 110px; flex: 0 0 auto; }
@@ -299,6 +309,7 @@
     body::before, .top, .tabs, .datebar, .savebar, .noprint, .toast, #login { display: none !important; }
     main, .wrap { padding: 0 !important; max-width: none; }
     .a4 { box-shadow: none; margin: 0; width: auto; min-height: 0; }
+    .a4.printonly { display: block; }
     .a4 + .a4 { margin-top: 0; break-before: page; }
     .a4 thead { display: table-header-group; }
     .a4 + .a4 { margin-top: 0; break-before: page; }
@@ -665,6 +676,20 @@ const o2Text = i => i.o2mode ? (i.o2mode === 'Room air' ? 'Room air' : `${i.o2mo
 const listRows = (s, v) => (v[s.key] || []).map(r => Object.assign({ it: s.items.find(i => i.k === r.k) }, r));
 const listLabel = (it, r) => (it ? it.label : r.k) + (r.name ? ' \u00b7 ' + r.name : '');
 const listTotal = (s, v) => (v[s.key] || []).reduce((a, r) => a + num(r.n), 0);
+/* ===== ลูกบอลสีของผู้ป่วยคงพยาบาลแต่ละประเภท (เขียว เหลือง ส้ม แดง) ===== */
+const ballSum = (v, key) => S.cfg.balls.reduce((a, b) => a + num(v[key + '_' + b[0]]), 0);
+const ballDot = c => `<i class="ball ${c}"></i>`;
+// "ลูกบอลสีเขียว 1, ลูกบอลสีส้ม 3" (สีที่ไม่มีผู้ป่วยไม่แสดง)
+const ballText = (v, key) => S.cfg.balls.filter(b => num(v[key + '_' + b[0]])).map(b => `${ballDot(b[0])}ลูกบอลสี${b[1]} ${num(v[key + '_' + b[0]])}`).join(', ');
+function ballTotals(u, v) {
+  const out = { g: 0, y: 0, o: 0, r: 0 };
+  u.form.sections.filter(s => s.categories).forEach(s => s.fields.forEach(f => S.cfg.balls.forEach(b => { out[b[0]] += num(v[f.key + '_' + b[0]]); })));
+  return out;
+}
+const ballsRow = (f, v) => `<div class="frow text balls" data-ballsfor="${esc(f.key)}"><span class="ballhint">ลูกบอลสี \u2014 ระบุว่าสีไหนกี่ราย</span>
+  <div class="ballin">${S.cfg.balls.map(b => `<label class="bl"><i class="ball ${b[0]}"></i><span>${esc(b[1])}</span><input type="number" inputmode="numeric" min="0" step="1" data-v="${esc(f.key)}_${b[0]}" value="${esc(v[f.key + '_' + b[0]] ?? '')}" placeholder="0" aria-label="${esc(b[1])}"></label>`).join('')}</div>
+  <small data-ballchk="${esc(f.key)}"></small></div>`;
+
 function listCard(s, v) {
   const rows = listRows(s, v);
   return `<div class="card"><h3>${esc(s.title)}</h3><div class="kv">${rows.map(r => `<div>${esc(listLabel(r.it, r))}</div><div class="v">${r.n}</div>`).join('') || '<div class="full muted">ยังไม่มีรายการ</div>'}
@@ -697,6 +722,7 @@ function renderReportView(u, r) {
         let shown = show(val);
         if (f.type === 'time' && val) shown = esc(val) + ' น.';
         if (f.pctOf && num(v[f.pctOf])) shown += ` <span class="muted" style="font-weight:400">/${num(v[f.pctOf])} = ${(num(val) / num(v[f.pctOf]) * 100).toFixed(2)}%</span>`;
+        if (s.categories && ballText(v, f.key)) shown += `<div class="muted" style="font-size:13px;font-weight:400">${ballText(v, f.key)}</div>`;
         const nt = f.note && num(val) && v[f.key + '_note'] ? `<div class="full muted" style="font-size:13px">\u2514 ${esc(f.note)}: ${esc(v[f.key + '_note'])}</div>` : '';
         return `<div>${esc(f.label)}</div><div class="v">${shown}</div>${nt}`;
       }).join('');
@@ -758,7 +784,9 @@ function mountForm() {
         else if (f.type === 'time') pat += `<div class="frow"><span class="lab">${esc(f.label)} <small>24 \u0e0a\u0e21. \u0e1e\u0e34\u0e21\u0e1e\u0e4c 2030</small></span><input class="tin" type="text" inputmode="numeric" maxlength="5" placeholder="20:30" autocomplete="off" data-v="${esc(f.key)}" value="${esc(v[f.key] ?? '')}"></div>`;
         else if (f.calc) pat += `<div class="frow"><span class="lab"><b>${esc(f.label)}</b> <small>(คำนวณอัตโนมัติ)</small></span><div class="calc num" data-calc="${esc(f.key)}">0</div></div>`;
         else {
+          if (s.categories) { /* ลูกบอลสีตามหลังช่องจำนวน */ }
           pat += `<div class="frow"><span class="lab">${esc(f.label)} <small>${esc(f.unit)}</small>${f.pctOf ? ` <small data-pct="${esc(f.key)}"></small>` : ''}</span>${numInput(f.key)}</div>`;
+          if (s.categories) pat += ballsRow(f, v);
           if (f.note) pat += `<div class="frow text" data-notefor="${esc(f.key)}"><input class="notein" data-v="${esc(f.key)}_note" value="${esc(v[f.key + '_note'] ?? '')}" placeholder="${esc(f.note)} (พิมพ์เอง)" aria-label="${esc(f.note)}"></div>`;
         }
       });
@@ -952,6 +980,11 @@ function recalc() {
         if (f.calc) document.querySelector(`[data-calc="${f.key}"]`).textContent = fieldValue(u, v, f);
         if (f.pctOf) { const el = document.querySelector(`[data-pct="${f.key}"]`); el.textContent = num(v[f.pctOf]) ? `= ${(num(v[f.key]) / num(v[f.pctOf]) * 100).toFixed(2)}%` : ''; }
         if (f.note) { const row = document.querySelector(`[data-notefor="${f.key}"]`); if (row) row.hidden = !num(v[f.key]); }
+        if (s.categories) {
+          const row = document.querySelector(`[data-ballsfor="${f.key}"]`), chk = document.querySelector(`[data-ballchk="${f.key}"]`);
+          if (row) row.hidden = !num(v[f.key]);
+          if (chk) { const d = num(v[f.key]) - ballSum(v, f.key); chk.textContent = d === 0 ? '\u2713 ครบ' : d > 0 ? `ยังขาดอีก ${d} ราย` : `เกินมา ${-d} ราย`; chk.className = d === 0 ? 'ok' : 'bad'; }
+        }
       });
       if (s.sum) document.querySelector(`[data-sum="${si}"]`).textContent = sectionSum(s, v);
     }
@@ -1160,6 +1193,13 @@ $('sb_save').onclick = async () => {
   const uf = unitCfg(S.me.unit);
   for (const sc of uf.form.sections) for (const f of (sc.fields || [])) {
     if (f.type === 'time' && !validTime(d.values[f.key] || '')) { S.sub = 'patient'; showSub(); toast('เวลาไม่ถูกต้อง ใช้ 24 ชม. เช่น 2030'); const el = document.querySelector(`[data-v="${f.key}"]`); if (el) el.focus(); return; }
+    if (sc.categories) {
+      if (!num(d.values[f.key])) S.cfg.balls.forEach(b => delete d.values[f.key + '_' + b[0]]);
+      else if (ballSum(d.values, f.key) !== num(d.values[f.key])) {
+        S.sub = 'patient'; showSub(); toast(`กรุณาระบุลูกบอลสีให้ครบ: ${f.label} ${num(d.values[f.key])} ราย (ระบุแล้ว ${ballSum(d.values, f.key)})`);
+        const el = document.querySelector(`[data-v="${f.key}_g"]`); if (el) el.focus(); return;
+      }
+    }
     if (f.note && num(d.values[f.key]) > 0 && !String(d.values[f.key + '_note'] || '').trim()) {
       S.sub = 'patient'; showSub(); toast(`กรุณาระบุ: ${f.note} (${f.label})`);
       const el = document.querySelector(`[data-v="${f.key}_note"]`); if (el) el.focus(); return;
@@ -1337,18 +1377,26 @@ function unitShiftBlocks(u) {
     return two ? `<div class="shb"><div class="shl">เวร ${esc(k)}</div>${inner}</div>` : inner; }).join('');
 }
 function renderSummary() {
+  const g = S.sumGroup || 'OPD', gu = S.cfg.units.filter(u => u.group === g);
   const incs = [];
-  S.cfg.units.forEach(u => shiftsOf(u).forEach(k => ((repAt(u, k) || {}).incidents || []).forEach(i => incs.push({ lab: shiftLab(u, k), i }))));
+  gu.forEach(u => shiftsOf(u).forEach(k => ((repAt(u, k) || {}).incidents || []).forEach(i => incs.push({ lab: shiftLab(u, k), i }))));
   const nFull = S.cfg.units.filter(u => unitState(u) === 'full').length, miss = missingText();
   let h = `<div class="noprint" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px"><button type="button" class="btn" data-act="gotoprint">พิมพ์เอกสาร</button>
     <span class="meta" style="margin:0">ส่งรายงานครบ ${nFull}/${S.cfg.units.length} หน่วยงาน${miss ? ` \u00b7 <span style="color:var(--bad)">ยังไม่ครบ: ${miss}</span>` : ''}</span></div>`;
-  S.cfg.sections.forEach(sc => {
+  h += `<div class="seg sumtabs noprint" style="position:static">${S.cfg.groups.map(x => `<button type="button" data-sumgroup="${esc(x.key)}" class="${g === x.key ? 'on' : ''}">${esc(x.name)}</button>`).join('')}</div>`;
+  if (g === 'IPD') {
+    const bl = S.cfg.shifts.map(k => { const tt = { g: 0, y: 0, o: 0, r: 0 }, l = gu.filter(u => unitHas(u, k));
+      l.forEach(u => { const r = repAt(u, k); if (r) { const t = ballTotals(u, r.values || {}); S.cfg.balls.forEach(b => { tt[b[0]] += t[b[0]]; }); } });
+      return `<div class="ln"><b>เวร ${esc(k)}</b> \u00b7 ${S.cfg.balls.map(b => `${ballDot(b[0])}${esc(b[1])} ${tt[b[0]]}`).join(', ')}</div>`; }).join('');
+    h += `<div class="card sbox"><div class="shead"><b>ลูกบอลสีผู้ป่วยคงพยาบาล รวมทุกตึก</b></div>${bl}</div>`;
+  }
+  S.cfg.sections.filter(sc => sc.group === g).forEach(sc => {
     h += `<h2 class="grp">${esc(sc.label)}</h2>`;
     sc.units.map(unitCfg).forEach(u => {
       h += `<div class="card sbox"><div class="shead"><b>${esc(u.code)}</b> ${statusPill(u)}</div>${unitShiftBlocks(u)}</div>`;
     });
   });
-  h += `<h2 class="grp">เหตุการณ์ผิดปกติ รวมทุกหน่วยงาน (${incs.length})</h2>`;
+  h += `<h2 class="grp">เหตุการณ์ผิดปกติ (${incs.length})</h2>`;
   h += incs.length ? incs.map((x, n) => incCardHtml(x.i, x.lab, n + 1)).join('') : '<div class="card muted">ไม่มีเหตุการณ์ผิดปกติ</div>';
   return h;
 }
@@ -1385,9 +1433,9 @@ function renderPrint() {
     const key = scope + '|' + month;
     if (!S.monthData || S.monthData.key !== key) { loadMonth(scope, month); return bar + '<div class="card muted">กำลังโหลดรายงานรายเดือน...</div>'; }
     pages = [printMonthly(unitCfg(scope), month, S.monthData.reports) + sign];
-  } else if (scope === 'all') pages = [printUnits(), printOverview() + printIncidents() + sign];
+  } else if (scope === 'all') pages = [{ html: printUnits(), printonly: true }, printOverview() + printIncidents() + sign];
   else pages = shiftsOf(unitCfg(scope)).map(k => printSingle(unitCfg(scope), k) + sign);
-  return bar + `<div class="a4-scroll">${pages.map(p => `<div class="a4">${p}</div>`).join('')}</div>`;
+  return bar + (scope === 'all' && kind === 'day' ? '<div class="note noprint">หน้านี้แสดงเฉพาะภาพรวมและเหตุการณ์ผิดปกติ \u2014 เมื่อกดพิมพ์ ระบบจะพิมพ์หน้ารายงานแยกรายหน่วยงานนำหน้าด้วย (ไม่ต้องแสดงซ้ำกับหน้าสรุป)</div>' : '') + `<div class="a4-scroll">${pages.map(p => typeof p === 'string' ? `<div class="a4">${p}</div>` : `<div class="a4${p.printonly ? ' printonly' : ''}">${p.html}</div>`).join('')}</div>`;
 }
 
 // รายงานประจำเดือนของหน่วยงานเดียว: หน้า 1 ยอดรายวัน/เวร + รวม + เฉลี่ย \u00b7 หน้า 2 รายการรวมทั้งเดือน + เหตุการณ์ผิดปกติ
@@ -1475,6 +1523,16 @@ function printOverview() {
   h += `<h2>ผู้ป่วยใน</h2><table class="stat"><thead><tr><th>ตึก</th>${S.cfg.stdIpd.map(k => `<th>${L[k]}</th>`).join('')}${staffTh}</tr></thead>
     ${ipdBlocks.map(bk => rows(bk.list, S.cfg.stdIpd, true) + totRows(bk.list, S.cfg.stdIpd, 'รวม ' + bk.name, 'sub')).join('')}
     ${totRows(ipd, S.cfg.stdIpd, 'รวมทั้งหมด', 'tot')}</table>`;
+
+  const bt = (u, k) => { const r = repAt(u, k); return r ? ballTotals(u, r.values || {}) : null; };
+  const bRow = (u, k) => { const t = bt(u, k);
+    return t ? `<tr><td>${shiftLab(u, k)}</td>${S.cfg.balls.map(b => `<td class="n">${t[b[0]] || '\u2013'}</td>`).join('')}<td class="n b">${S.cfg.balls.reduce((a, b) => a + t[b[0]], 0) || '\u2013'}</td></tr>`
+      : `<tr><td>${shiftLab(u, k)}</td><td colspan="5" class="miss">ยังไม่รายงาน</td></tr>`; };
+  const bTot = (list, label, cls) => SH.filter(k => list.some(u => unitHas(u, k))).map(k => { const l = list.filter(u => unitHas(u, k)), tt = { g: 0, y: 0, o: 0, r: 0 };
+    l.forEach(u => { const t = bt(u, k); if (t) S.cfg.balls.forEach(b => { tt[b[0]] += t[b[0]]; }); });
+    return `<tr class="${cls}"><td>${esc(label)} \u00b7 ${esc(k)}</td>${S.cfg.balls.map(b => `<td class="n">${tt[b[0]]}</td>`).join('')}<td class="n">${S.cfg.balls.reduce((a, b) => a + tt[b[0]], 0)}</td></tr>`; }).join('');
+  h += `<h2>ลูกบอลสีผู้ป่วยคงพยาบาล (ผู้ป่วยใน)</h2><table class="stat"><thead><tr><th>ตึก / หน่วยงาน</th>${S.cfg.balls.map(b => `<th>${ballDot(b[0])}${esc(b[1])}</th>`).join('')}<th>รวม</th></tr></thead>
+    ${ipdBlocks.map(bk => bk.list.flatMap(u => shiftsOf(u).map(k => bRow(u, k))).join('') + bTot(bk.list, 'รวม ' + bk.name, 'sub')).join('')}${bTot(ipd, 'รวมทั้งหมด', 'tot')}</table>`;
 
   const cats = {};
   ipd.forEach(u => shiftsOf(u).forEach(k => { const r = repAt(u, k); if (r) Object.entries(categoryValues(u, r.values)).forEach(([c, n]) => { (cats[c] = cats[c] || {})[k] = (cats[c][k] || 0) + n; }); }));
@@ -1575,11 +1633,12 @@ function printLines(u, r) {
       if (f.type === 'time') return val ? `${esc(f.label)} ${esc(val)} น.` : '';
       if (f.calc) { calcs.push(`<b>${esc(f.label)} ${val}</b>`); return ''; }
       if (!num(val)) return '';
-      return `${esc(f.label)} ${val}${f.pctOf && num(v[f.pctOf]) ? ` (${(num(val) / num(v[f.pctOf]) * 100).toFixed(1)}%)` : ''}${f.note && v[f.key + '_note'] ? ' (' + esc(v[f.key + '_note']) + ')' : ''}`;
+      return `${esc(f.label)} ${val}${s.categories ? ' ราย' : ''}${s.categories && ballText(v, f.key) ? ' (' + ballText(v, f.key) + ')' : ''}${f.pctOf && num(v[f.pctOf]) ? ` (${(num(val) / num(v[f.pctOf]) * 100).toFixed(1)}%)` : ''}${f.note && v[f.key + '_note'] ? ' (' + esc(v[f.key + '_note']) + ')' : ''}`;
     }).filter(Boolean);
     const lf = vw.lead && s.fields.find(f => f.key === vw.lead), lv = lf ? fieldValue(u, v, lf) : '';
     const head = (u.form.sections.length > 1 ? esc(vw.title || s.title) : '') + (lf && lv !== undefined && lv !== '' ? ` ${lv} ${esc(lf.unit || '')}` : '') + (s.sum && !vw.nosum ? ` ${esc(s.sum)} ${sectionSum(s, v)}` : '');
     if (items.length || (head.trim() && !s.sum)) grp(head.trim() ? `<b>${head.trim()}</b>` : '', items);
+    if (s.categories) { const bt = ballTotals(u, v); if (S.cfg.balls.some(b => bt[b[0]])) grp('<b>ลูกบอลสีผู้ป่วยทั้งเวร</b>', [S.cfg.balls.map(b => `${ballDot(b[0])}${esc(b[1])} ${bt[b[0]]}`).join(', ') + ' ราย']); }
     calcs.forEach(l => grp(l, []));
     s.fields.filter(f => f.type === 'text' && v[f.key]).forEach(f => grp('', [`${esc(f.label)}: ${esc(v[f.key])}`]));
   });
@@ -1720,6 +1779,7 @@ function bindView() {
     } catch (e) { $('up_preview').innerHTML = `<p style="color:var(--bad)">${esc(e.message)}</p>`; }
   };
   v.querySelectorAll('[data-dept]').forEach(sel => sel.onchange = () => { S.bindSel[sel.dataset.dept] = sel.value; });
+  v.querySelectorAll('[data-sumgroup]').forEach(b => b.onclick = () => { S.sumGroup = b.dataset.sumgroup; render(); });
   v.querySelectorAll('[data-title]').forEach(sel => sel.onchange = () => { S.titleSel = S.titleSel || {}; S.titleSel[sel.dataset.title] = sel.value; });
   if (S.upRows && $('up_preview') && S.tab === 'staff' && S.upRows.length) drawUpPreview();
 

@@ -29,6 +29,9 @@ const PROBLEM_TYPES = [
 const SEVERITY = ['-', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
 const O2_MODES = ['Room air', 'Cannula', 'Mask', 'ET tube', 'HF'];
 
+// ลูกบอลสีของผู้ป่วยคงพยาบาลแต่ละประเภท (เขียว เหลือง ส้ม แดง) เก็บในช่อง <ประเภท>_g / _y / _o / _r
+const BALLS = [['g', 'เขียว'], ['y', 'เหลือง'], ['o', 'ส้ม'], ['r', 'แดง']];
+
 const STD_LABELS = {
   total: 'ผู้ป่วยทั้งหมด', admit: 'Admit', refer: 'Refer',
   carried: 'ยกมา', tr_in: 'รับย้าย', tr_out: 'ย้ายไป', dead: 'Dead', dc: 'จำหน่าย', remain: 'คงพยาบาล'
@@ -199,6 +202,11 @@ function stdValues_(form, vals) {
   });
   return out;
 }
+function ballValues_(form, vals) {
+  const out = { g: 0, y: 0, o: 0, r: 0 };
+  form.sections.filter(s => s.categories).forEach(s => s.fields.forEach(f => BALLS.forEach(b => { out[b[0]] += Number((vals || {})[f.key + '_' + b[0]]) || 0; })));
+  return out;
+}
 function categoryValues_(form, vals) {
   const out = {};
   form.sections.filter(s => s.categories).forEach(s => s.fields.forEach(f => {
@@ -229,7 +237,7 @@ function buildConfig_() {
   return {
     groups: GROUPS.map(g => ({ key: g.key, name: g.name })),
     sections: GROUPS.flatMap(g => subGroups_(g).map(s => ({ group: g.key, label: s.label, sub: s.sub, units: s.units }))),
-    units, roles: ROLES, roleAliases: ROLE_ALIASES, dutyTags: DUTY_TAGS, shifts: SHIFTS,
+    balls: BALLS, units, roles: ROLES, roleAliases: ROLE_ALIASES, dutyTags: DUTY_TAGS, shifts: SHIFTS,
     problemTypes: PROBLEM_TYPES, severity: SEVERITY, o2Modes: O2_MODES,
     stdLabels: STD_LABELS, stdOpd: STD_OPD, stdIpd: STD_IPD, categories: CATEGORIES
   };
