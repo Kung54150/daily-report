@@ -119,6 +119,28 @@ function login(unit, password) {
   return { token };
 }
 
+// เปลี่ยนรหัสผ่านของตนเอง (ทุกบทบาท: หน่วยงาน / MANAGER / ADMIN) — เครื่องอื่นของผู้ใช้นี้ถูกออกจากระบบ
+function changePassword(token, oldPw, newPw) {
+  auth_(token);
+  const code = JSON.parse(PropertiesService.getScriptProperties().getProperty('tok_' + token)).unit;
+  const next = String(newPw || '');
+  if (next.length < 4) throw new Error('รหัสผ่านใหม่ต้องมีอย่างน้อย 4 ตัวอักษร');
+  if (next.length > 64 || /\s/.test(next)) throw new Error('รหัสผ่านใหม่ห้ามมีช่องว่าง และยาวไม่เกิน 64 ตัวอักษร');
+  if (next === String(oldPw)) throw new Error('รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสเดิม');
+  withLock_(() => {
+    const sh = sheet_(SH_USERS), data = sh.getDataRange().getValues();
+    const i = data.findIndex((r, k) => k > 0 && String(r[0]) === code);
+    if (i < 0) throw new Error('ไม่พบผู้ใช้');
+    if (String(data[i][1]) !== String(oldPw)) throw new Error('รหัสผ่านเดิมไม่ถูกต้อง');
+    sh.getRange(i + 1, 2).setValue(next);
+  });
+  const props = PropertiesService.getScriptProperties();
+  Object.entries(props.getProperties()).forEach(([k, v]) => {
+    if (k.indexOf('tok_') === 0 && k !== 'tok_' + token) { try { if (JSON.parse(v).unit === code) props.deleteProperty(k); } catch (e) {} }
+  });
+  return { ok: true };
+}
+
 function logout(token) {
   PropertiesService.getScriptProperties().deleteProperty('tok_' + token);
 }
