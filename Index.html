@@ -543,8 +543,11 @@ const S = { token: null, me: null, cfg: null, date: todayStr(), day: {}, staff: 
 /* ===== ธีม (โหมดสว่าง/มืด/อัตโนมัติ + สีหลัก) และเปลี่ยนรหัสผ่านของตนเอง ===== */
 const THEME_MODES = [['auto', 'อัตโนมัติ'], ['light', 'สว่าง'], ['dark', 'มืด']];
 const THEME_ACCENTS = [['teal', '#8fd9cf', 'มิ้นต์', 0], ['blue', '#9cc7f5', 'ฟ้า', 0], ['rose', '#f5b5cf', 'ชมพู', 0], ['ekachai', '#a5dfb4', 'รพ.เอกชัย', 0], ['navy', '#1f3a68', 'กรมท่า', 1], ['forest', '#2c5f3f', 'เขียวเข้ม', 1]];
-// ธีมรูปภาพ: [รหัส, ชื่อ, สีหลักที่คู่กัน, โหมด, ความเข้มของชั้นทับรูปเริ่มต้น]
-const PHOTO_THEMES = [['blackpink', 'BlackPink', 'rose', 'light', 0.8], ['babymonster', 'BabyMonster', 'orange', 'light', 0.8], ['bts', 'BTS', 'purple', 'light', 0.78], ['bigbang', 'BigBang', 'blue', 'dark', 0.8], ['bus', 'Bus', 'blue', 'light', 0.8], ['gd', 'GD', 'burgundy', 'dark', 0.78]];
+// ธีมรูปภาพ: [รหัส, ชื่อ, สีหลักที่คู่กัน, โหมด, ความเข้มของชั้นทับรูปเริ่มต้น, ตำแหน่งรูปพื้นหลัง]
+const PHOTO_THEMES = [['blackpink', 'BlackPink', 'rose', 'light', 0.8, 'center top'], ['babymonster', 'BabyMonster', 'orange', 'light', 0.8, 'center 80%'], ['bts', 'BTS', 'purple', 'light', 0.78, 'center'],
+  ['bigbang', 'BigBang', 'blue', 'dark', 0.8, 'center 40%'], ['bus', 'Bus', 'blue', 'light', 0.8, 'center'], ['gd', 'GD', 'burgundy', 'dark', 0.78, 'center 20%'],
+  ['songkang', 'ซงคัง', 'navy', 'light', 0.8, 'center 15%'], ['leechaemin', 'อีแชมิน', 'slate', 'light', 0.8, 'center 30%'], ['seokangjoon', 'ซอคังจุน', 'teal', 'light', 0.8, 'center 25%'],
+  ['got7', 'Got7', 'blue', 'light', 0.8, 'center 78%'], ['jackson', 'Jackson Wang', 'burgundy', 'dark', 0.78, 'center 25%']];
 S.theme = Object.assign({ mode: 'auto', accent: 'teal' }, store.get('theme') || {});
 function applyTheme() {
   const r = document.documentElement, t = S.theme;
@@ -556,7 +559,7 @@ applyTheme();
 S.bg = store.get('bg');
 function applyBg() {
   const r = document.documentElement;
-  if (S.bg && S.bg.data) { r.classList.add('has-bg'); $('bgimg').style.backgroundImage = 'url("' + S.bg.data + '")'; r.style.setProperty('--bgdim', String(S.bg.dim == null ? 0.8 : S.bg.dim)); }
+  if (S.bg && S.bg.data) { r.classList.add('has-bg'); $('bgimg').style.backgroundImage = 'url("' + S.bg.data + '")'; $('bgimg').style.backgroundPosition = S.bg.pos || 'center top'; r.style.setProperty('--bgdim', String(S.bg.dim == null ? 0.8 : S.bg.dim)); }
   else { r.classList.remove('has-bg'); $('bgimg').style.backgroundImage = ''; r.style.removeProperty('--bgdim'); }
 }
 applyBg();
@@ -606,7 +609,7 @@ function renderSettings() {
     msg.textContent = 'กำลังโหลดรูป...'; msg.className = 'msg';
     try {
       const data = await api('getThemePhoto', p[0]);
-      S.bg = { data, dim: p[4], preset: p[0] }; S.theme.accent = p[2]; S.theme.mode = p[3];
+      S.bg = { data, dim: p[4], preset: p[0], pos: p[5] }; S.theme.accent = p[2]; S.theme.mode = p[3];
       store.set('bg', S.bg); store.set('theme', S.theme); applyBg(); applyTheme(); renderSettings();
     } catch (err) { msg.textContent = err.message; msg.className = 'msg bad'; }
   });
