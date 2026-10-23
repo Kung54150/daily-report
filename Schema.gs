@@ -148,10 +148,10 @@ const FORMS = {
     { title: 'แพทย์', fields: [N_('doctor', 'แพทย์ออกตรวจ', 'คน')] }
   ] },
   PC: { total: 'ยอดรวมทั้งหมด', std: {
-    total: ['vac', 'breast', 'vac_nodoc', 'well_nb', 'well_refuse', 'sick', 'sick_admit', 'sick_icu', 'sick_nb', 'sick_refuse', 'dev_act', 'dev_speech', 'dev_doc', 'dev_psy', 'dev_drug', 'dev_psych'],
+    total: ['vac', 'breast', 'vac_nodoc', 'well_nb', 'sick', 'sick_admit', 'sick_icu', 'sick_nb', 'dev_act', 'dev_speech', 'dev_doc', 'dev_psy', 'dev_drug', 'dev_psych'],
     admit: ['well_nb', 'sick_admit', 'sick_icu', 'sick_nb'] }, sections: [
-    { title: 'เด็กดี', sum: 'รวม', fields: [N_('vac', 'วัคซีนตามอายุ'), N_('breast', 'คลินิกนมแม่'), N_('vac_nodoc', 'วัคซีน ไม่พบแพทย์'), N_('well_nb', 'Admit NB'), N_('well_refuse', 'ปฏิเสธ Admit')] },
-    { title: 'เด็กป่วย', sum: 'รวม', fields: [N_('sick', 'เด็กป่วย'), N_('sick_admit', 'Admit'), N_('sick_icu', 'Admit ICU'), N_('sick_nb', 'Admit NB'), N_('sick_refuse', 'ปฏิเสธ Admit')] },
+    { title: 'เด็กดี', sum: 'รวม', fields: [N_('vac', 'วัคซีนตามอายุ'), N_('breast', 'คลินิกนมแม่'), N_('vac_nodoc', 'วัคซีน ไม่พบแพทย์'), N_('well_nb', 'Admit NB'), Object.assign(N_('well_refuse', 'ปฏิเสธการรักษา'), { noSum: true })] },
+    { title: 'เด็กป่วย', sum: 'รวม', fields: [N_('sick', 'เด็กป่วย OPD case'), N_('sick_admit', 'Admit ward'), N_('sick_icu', 'Admit ICU'), N_('sick_nb', 'Admit NB'), Object.assign(N_('sick_refuse', 'ปฏิเสธการรักษา'), { noSum: true })] },
     { title: 'ศูนย์พัฒนาการเด็ก', sum: 'รวม', fields: [N_('dev_act', 'นักกิจกรรม'), N_('dev_speech', 'ฝึกพูด'), N_('dev_doc', 'หมอ'), N_('dev_psy', 'นักจิต'), N_('dev_drug', 'ซื้อยา'), N_('dev_psych', 'จิตเวช')] }
   ] },
 
