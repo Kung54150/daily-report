@@ -966,7 +966,7 @@ function fieldValue(u, vals, f) {
   if (f.calc) return f.calc.plus.reduce((a, k) => a + num(vals[k]), 0) - f.calc.minus.reduce((a, k) => a + num(vals[k]), 0);
   return vals[f.key];
 }
-const sectionSum = (s, vals) => s.fields.filter(f => !f.type && !f.calc).reduce((a, f) => a + num(vals[f.key]), 0);
+const sectionSum = (s, vals) => s.fields.filter(f => !f.type && !f.calc && !f.noSum).reduce((a, f) => a + num(vals[f.key]), 0);
 const roleCounts = staff => S.cfg.roles.map(r => [r, staff.filter(s => s.role === r && s.tag !== 'ออกหน่วย').length]).filter(x => x[1]);
 // ยอดมาตรฐาน / ประเภทผู้ป่วย (สำเนาเดียวกับ Schema.gs)
 function fieldNum(form, vals, key) {
@@ -1053,7 +1053,7 @@ function renderReportView(u, r) {
         if (f.pctOf && num(v[f.pctOf])) shown += ` <span class="muted" style="font-weight:400">/${num(v[f.pctOf])} = ${(num(val) / num(v[f.pctOf]) * 100).toFixed(2)}%</span>`;
         if (s.categories && ballText(v, f.key)) shown += `<div class="muted" style="font-size:13px;font-weight:400">${ballText(v, f.key)}</div>`;
         if (f.note && num(val) && v[f.key + '_note']) shown += ` <span class="muted" style="font-weight:400;font-size:13px">(${esc(v[f.key + '_note'])})</span>`;
-        return `<div>${esc(f.label)}</div><div class="v">${shown}</div>`;
+        return `<div>${esc(f.label)}${f.noSum ? ' <small class="muted">(ไม่นับในยอดรวม)</small>' : ''}</div><div class="v">${shown}</div>`;
       }).join('');
       const sum = s.sum ? `<div class="total">${esc(s.sum)}</div><div class="total v">${sectionSum(s, v)}</div>` : '';
       return `<div class="card"><h3>${esc(s.title)}</h3><div class="kv">${rows}${sum}</div></div>`;
@@ -1117,7 +1117,7 @@ function mountForm() {
           if (s.categories) pat += `<div class="frow ext cat"><span class="lab">${esc(f.label)} <small>${esc(f.unit)}</small></span><div class="calc cnt gray" data-catcnt="${esc(f.key)}" title="รวมจากลูกบอลสีอัตโนมัติ ไม่ต้องกรอก">${num(v[f.key])}</div><div class="ballin extra">${ballGroups(f, v)}</div></div>`;
           else {
             const extra = f.note ? `<input class="notein extra off" data-notefor="${esc(f.key)}" data-v="${esc(f.key)}_note" value="${esc(v[f.key + '_note'] ?? '')}" placeholder="${esc(f.note)} (พิมพ์เอง)" aria-label="${esc(f.note)}">` : '';
-            pat += `<div class="frow${extra ? ' ext noted' : ''}"><span class="lab">${esc(f.label)} <small>${esc(f.unit)}</small>${f.pctOf ? ` <small data-pct="${esc(f.key)}"></small>` : ''}</span>${numInput(f.key, 'class="cnt"')}${extra}</div>`;
+            pat += `<div class="frow${extra ? ' ext noted' : ''}"><span class="lab">${esc(f.label)} <small>${esc(f.unit)}${f.noSum ? ' \u00b7 ไม่นับในยอดรวม' : ''}</small>${f.pctOf ? ` <small data-pct="${esc(f.key)}"></small>` : ''}</span>${numInput(f.key, 'class="cnt"')}${extra}</div>`;
           }
         }
       });
