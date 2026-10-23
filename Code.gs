@@ -167,6 +167,11 @@ function saveReport(token, rep) {
     : s.fields.filter(f => !f.calc).flatMap(f => (f.note ? [f.key, f.key + '_note'] : [f.key]).concat(s.categories ? BALLS.map(b => f.key + '_' + b[0]) : [])));
   const values = {};
   keys.forEach(k => { if (rep.values && rep.values[k] !== undefined && rep.values[k] !== '') values[k] = rep.values[k]; });
+  // จำนวนผู้ป่วยแต่ละประเภท = ผลรวมลูกบอลสี (ระบบรวมให้ ไม่ใช่ค่าที่กรอกเอง)
+  form.sections.filter(s => s.categories).forEach(s => s.fields.forEach(f => {
+    const n = BALLS.reduce((a, b) => a + (Number(values[f.key + '_' + b[0]]) || 0), 0);
+    if (n > 0) values[f.key] = n;
+  }));
   // รายการแบบเลือก + เพิ่ม (เช่น HPC): ตรวจรายการ/ชื่อ แล้วคำนวณยอดรวมเอง
   form.sections.filter(s => s.type === 'list').forEach(s => {
     const rows = [];
