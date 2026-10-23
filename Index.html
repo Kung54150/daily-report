@@ -1360,14 +1360,12 @@ function renderStaffPicker() {
   const d = S.draft, unit = S.me.unit;
   const chosen = new Set(d.staff.map(s => s.name));
   const mine = S.staff.filter(s => s.unit === unit && !chosen.has(s.name));
-  const others = S.staff.filter(s => s.unit && s.unit !== unit && !chosen.has(s.name));
-  const opt = s => `<option value="${esc(s.id)}">${esc(s.name)} (${esc(s.role)}${s.unit !== unit ? ' \u00b7 ' + esc(s.unit) : ''})</option>`;
+  const opt = s => `<option value="${esc(s.id)}">${esc(s.name)} (${esc(s.role)})</option>`;
   $('fm_staffbody').innerHTML = `
     <label class="f" for="ns_pick">เพิ่มผู้ปฏิบัติงานเวรนี้</label>
     <select id="ns_pick">
       <option value="">\u2014 เลือกชื่อเจ้าหน้าที่ \u2014</option>
       <optgroup label="ทะเบียน ${esc(unit)}">${mine.map(opt).join('')}</optgroup>
-      ${others.length ? `<optgroup label="หน่วยงานอื่น (มาช่วย)">${others.map(opt).join('')}</optgroup>` : ''}
       <option value="__new">\uff0b พิมพ์ชื่อใหม่ (ไม่มีในรายการ)</option>
     </select>
     <div class="addrow" id="ns_newrow" hidden>
