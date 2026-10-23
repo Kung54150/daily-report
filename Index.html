@@ -1642,12 +1642,12 @@ function printLines(u, r) {
       s.rows.forEach(rw => { const parts = s.cols.map(c => [c[1], num(v[rw[0] + '_' + c[0]])]).filter(x => x[1]); const t = parts.reduce((a, x) => a + x[1], 0); grp(`<b>${esc(rw[1])} ${t}</b>`, [parts.map(x => esc(x[0]) + ' ' + x[1]).join(', ')]); });
       return;
     }
-    const calcs = [], vw = (SUMMARY_VIEW[u.code] || {})[s.title] || {}, bstk = ballStack(ballTotals(u, v));
+    const calcs = [], vw = (SUMMARY_VIEW[u.code] || {})[s.title] || {}, btxt = ballList(ballTotals(u, v));
     const items = s.fields.filter(f => f.type !== 'text').map(f => {
       if (f.key === vw.lead) return '';
       const val = fieldValue(u, v, f);
       if (f.type === 'time') return val ? `${esc(f.label)} ${esc(val)} น.` : '';
-      if (f.calc) { calcs.push(f.key === 'remain' && bstk ? `<span class="rem"><b>${esc(f.label)} ${val}</b>${bstk}</span>` : `<b>${esc(f.label)} ${val}</b>`); return ''; }
+      if (f.calc) { calcs.push(`<b>${esc(f.label)} ${val}</b>${f.key === 'remain' && btxt ? ' (' + btxt + ')' : ''}`); return ''; }
       if (!num(val)) return '';
       return `${esc(f.label)} ${val}${s.categories ? ' ราย' : ''}${s.categories && ballText(v, f.key) ? ' (' + ballText(v, f.key) + ')' : ''}${f.pctOf && num(v[f.pctOf]) ? ` (${(num(val) / num(v[f.pctOf]) * 100).toFixed(1)}%)` : ''}${f.note && v[f.key + '_note'] ? ' (' + esc(v[f.key + '_note']) + ')' : ''}`;
     }).filter(Boolean);
