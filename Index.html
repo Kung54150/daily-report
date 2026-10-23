@@ -558,10 +558,20 @@ function applyTheme() {
 applyTheme();
 // รูปพื้นหลังส่วนตัว: เลือกจากเครื่อง ย่อรูปแล้วเก็บในเบราว์เซอร์ของผู้ใช้เท่านั้น (ไม่อัปโหลดขึ้นระบบ)
 S.bg = store.get('bg');
+// ตำแหน่ง/ขนาดรูปพื้นหลัง: px, py = จุดสนใจ 0-100%, zoom = 1-3 เท่า (ไม่ตั้ง = ใช้ตำแหน่งของธีม)
+function parsePos(pos) {
+  const m = { left: 0, top: 0, center: 50, right: 100, bottom: 100 }, one = t => (t in m ? m[t] : parseFloat(t));
+  const p = String(pos || 'center top').split(/\s+/);
+  return [one(p[0]), one(p[1] == null ? 'center' : p[1])].map(x => (isNaN(x) ? 50 : x));
+}
+function bgFrame() {
+  const b = S.bg || {}, d = parsePos(b.pos), x = b.px != null ? b.px : d[0], y = b.py != null ? b.py : d[1], z = b.zoom || 1, el = $('bgimg');
+  el.style.backgroundPosition = x + '% ' + y + '%'; el.style.transformOrigin = x + '% ' + y + '%'; el.style.transform = z > 1 ? 'scale(' + z + ')' : '';
+}
 function applyBg() {
   const r = document.documentElement;
-  if (S.bg && S.bg.data) { r.classList.add('has-bg'); $('bgimg').style.backgroundImage = 'url("' + S.bg.data + '")'; $('bgimg').style.backgroundPosition = S.bg.pos || 'center top'; r.style.setProperty('--bgdim', String(S.bg.dim == null ? 0.8 : S.bg.dim)); }
-  else { r.classList.remove('has-bg'); $('bgimg').style.backgroundImage = ''; r.style.removeProperty('--bgdim'); }
+  if (S.bg && S.bg.data) { r.classList.add('has-bg'); $('bgimg').style.backgroundImage = 'url("' + S.bg.data + '")'; bgFrame(); r.style.setProperty('--bgdim', String(S.bg.dim == null ? 0.8 : S.bg.dim)); }
+  else { r.classList.remove('has-bg'); $('bgimg').style.backgroundImage = ''; $('bgimg').style.transform = ''; r.style.removeProperty('--bgdim'); }
 }
 applyBg();
 function shrinkImage(file, max) {
@@ -603,6 +613,11 @@ function renderSettings() {
     <div class="pw"><input type="file" id="bg_file" accept="image/*">
       <label class="f" for="bg_dim">ความเข้มของชั้นทับรูป (ยิ่งมาก ตัวหนังสือยิ่งอ่านง่าย)</label>
       <input type="range" id="bg_dim" min="40" max="95" step="5" value="${Math.round((S.bg && S.bg.dim != null ? S.bg.dim : 0.8) * 100)}"${S.bg ? '' : ' disabled'}>
+      ${(() => { const b = S.bg || {}, d = parsePos(b.pos), off = S.bg ? '' : ' disabled'; return `
+      <label class="f" for="bg_zoom">ขนาดรูป (ซูมเข้า)</label><input type="range" id="bg_zoom" min="100" max="300" step="5" value="${Math.round((b.zoom || 1) * 100)}"${off}>
+      <label class="f" for="bg_x">เลื่อนซ้าย \u2194 ขวา</label><input type="range" id="bg_x" min="0" max="100" step="1" value="${Math.round(b.px != null ? b.px : d[0])}"${off}>
+      <label class="f" for="bg_y">เลื่อนบน \u2195 ล่าง</label><input type="range" id="bg_y" min="0" max="100" step="1" value="${Math.round(b.py != null ? b.py : d[1])}"${off}>
+      <button class="btn ghost sm" type="button" id="bg_reset"${off}>คืนค่าขนาด/ตำแหน่งเดิม</button>`; })()}
       <button class="btn ghost" type="button" id="bg_clear"${S.bg ? '' : ' disabled'}>เอารูปพื้นหลังออก</button><div class="msg" id="bg_msg">รูปเก็บไว้ในเครื่องนี้เท่านั้น</div></div>
     ${loggedIn ? `<hr><h3>เปลี่ยนรหัสผ่านของฉัน</h3><form class="pw" id="pwForm" autocomplete="off">
       <input type="password" id="pw_old" placeholder="รหัสผ่านเดิม" autocomplete="current-password" required>
@@ -637,6 +652,9 @@ function renderSettings() {
   };
   $('bg_dim').oninput = e => { S.bg.dim = +e.target.value / 100; document.documentElement.style.setProperty('--bgdim', String(S.bg.dim)); };
   $('bg_dim').onchange = () => store.set('bg', S.bg);
+  const frame = (k, f) => { $(k).oninput = e => { S.bg[f.key] = f.val(+e.target.value); bgFrame(); }; $(k).onchange = () => store.set('bg', S.bg); };
+  frame('bg_zoom', { key: 'zoom', val: v => v / 100 }); frame('bg_x', { key: 'px', val: v => v }); frame('bg_y', { key: 'py', val: v => v });
+  $('bg_reset').onclick = () => { delete S.bg.zoom; delete S.bg.px; delete S.bg.py; store.set('bg', S.bg); bgFrame(); renderSettings(); };
   $('bg_clear').onclick = () => { S.bg = null; store.set('bg', null); applyBg(); renderSettings(); };
   const rb = $('rs_btn');
   if (rb) rb.onclick = async () => {
