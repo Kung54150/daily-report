@@ -40,6 +40,21 @@
   :root[data-accent="ekachai"] { --accent: #a5dfb4; --accent-ink: #123d22; --accent-strong: #2e8a4f; --accent-soft: #e6f6ea; }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"])[data-accent="ekachai"] { --accent: #a5dfb4; --accent-ink: #0f2f1a; --accent-strong: #a5dfb4; --accent-soft: #1c3a26; } }
   :root[data-theme="dark"][data-accent="ekachai"] { --accent: #a5dfb4; --accent-ink: #0f2f1a; --accent-strong: #a5dfb4; --accent-soft: #1c3a26; }
+  :root[data-accent="navy"] { --accent: #1f3a68; --accent-ink: #ffffff; --accent-strong: #1f3a68; --accent-soft: #e3e9f4; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"])[data-accent="navy"] { --accent: #3d63a8; --accent-ink: #ffffff; --accent-strong: #9bb7ec; --accent-soft: #1b2a47; } }
+  :root[data-theme="dark"][data-accent="navy"] { --accent: #3d63a8; --accent-ink: #ffffff; --accent-strong: #9bb7ec; --accent-soft: #1b2a47; }
+  :root[data-accent="deepteal"] { --accent: #0e6f6a; --accent-ink: #ffffff; --accent-strong: #0e6f6a; --accent-soft: #dcefed; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"])[data-accent="deepteal"] { --accent: #1f8f88; --accent-ink: #ffffff; --accent-strong: #6fd3cb; --accent-soft: #17393a; } }
+  :root[data-theme="dark"][data-accent="deepteal"] { --accent: #1f8f88; --accent-ink: #ffffff; --accent-strong: #6fd3cb; --accent-soft: #17393a; }
+  :root[data-accent="burgundy"] { --accent: #7a2a3a; --accent-ink: #ffffff; --accent-strong: #7a2a3a; --accent-soft: #f3e3e6; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"])[data-accent="burgundy"] { --accent: #a14558; --accent-ink: #ffffff; --accent-strong: #e8a3b1; --accent-soft: #3a1f27; } }
+  :root[data-theme="dark"][data-accent="burgundy"] { --accent: #a14558; --accent-ink: #ffffff; --accent-strong: #e8a3b1; --accent-soft: #3a1f27; }
+  :root[data-accent="forest"] { --accent: #2c5f3f; --accent-ink: #ffffff; --accent-strong: #2c5f3f; --accent-soft: #e1efe6; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"])[data-accent="forest"] { --accent: #3e8559; --accent-ink: #ffffff; --accent-strong: #8fd3a9; --accent-soft: #1b3427; } }
+  :root[data-theme="dark"][data-accent="forest"] { --accent: #3e8559; --accent-ink: #ffffff; --accent-strong: #8fd3a9; --accent-soft: #1b3427; }
+  :root[data-accent="slate"] { --accent: #3f4a5a; --accent-ink: #ffffff; --accent-strong: #3f4a5a; --accent-soft: #e6e9ee; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"])[data-accent="slate"] { --accent: #566275; --accent-ink: #ffffff; --accent-strong: #b4c0d2; --accent-soft: #262d38; } }
+  :root[data-theme="dark"][data-accent="slate"] { --accent: #566275; --accent-ink: #ffffff; --accent-strong: #b4c0d2; --accent-soft: #262d38; }
   .themebtn { position: fixed; top: 12px; right: 12px; z-index: 6; background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 5px 12px; font-size: 13px; cursor: pointer; }
   #settings { position: fixed; z-index: 20; top: 58px; right: 12px; width: min(350px, calc(100vw - 24px)); max-height: calc(100vh - 76px); overflow: auto; background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.28); padding: 14px; display: grid; gap: 10px; }
   #settings h3 { margin: 0; font-size: 15px; }
@@ -516,7 +531,8 @@ function toast(t) { const el = $('toast'); el.textContent = t; el.hidden = false
 const S = { token: null, me: null, cfg: null, date: todayStr(), day: {}, staff: [], tab: 'mine', sub: 'patient', viewUnit: null, editing: false, draft: null };
 /* ===== ธีม (โหมดสว่าง/มืด/อัตโนมัติ + สีหลัก) และเปลี่ยนรหัสผ่านของตนเอง ===== */
 const THEME_MODES = [['auto', 'อัตโนมัติ'], ['light', 'สว่าง'], ['dark', 'มืด']];
-const THEME_ACCENTS = [['teal', '#8fd9cf', 'มิ้นต์'], ['blue', '#9cc7f5', 'ฟ้า'], ['purple', '#c9b6f2', 'ม่วง'], ['rose', '#f5b5cf', 'ชมพู'], ['orange', '#f8c99a', 'พีช'], ['ekachai', '#a5dfb4', 'รพ.เอกชัย']];
+const THEME_ACCENTS = [['teal', '#8fd9cf', 'มิ้นต์', 0], ['blue', '#9cc7f5', 'ฟ้า', 0], ['purple', '#c9b6f2', 'ม่วง', 0], ['rose', '#f5b5cf', 'ชมพู', 0], ['orange', '#f8c99a', 'พีช', 0], ['ekachai', '#a5dfb4', 'รพ.เอกชัย', 0],
+  ['navy', '#1f3a68', 'กรมท่า', 1], ['deepteal', '#0e6f6a', 'เขียวหม่น', 1], ['burgundy', '#7a2a3a', 'เลือดหมู', 1], ['forest', '#2c5f3f', 'เขียวเข้ม', 1], ['slate', '#3f4a5a', 'เทาเข้ม', 1]];
 S.theme = Object.assign({ mode: 'auto', accent: 'teal' }, store.get('theme') || {});
 function applyTheme() {
   const r = document.documentElement, t = S.theme;
@@ -528,7 +544,7 @@ function renderSettings() {
   const t = S.theme, box = $('settings'), loggedIn = !!S.me;
   box.innerHTML = `<h3>ธีม</h3>
     <div class="optrow">${THEME_MODES.map(([k, n]) => `<button type="button" class="opt${t.mode === k ? ' on' : ''}" data-tmode="${k}">${n}</button>`).join('')}</div>
-    <div class="swatches">${THEME_ACCENTS.map(([k, c, n]) => `<button type="button" class="sw${t.accent === k ? ' on' : ''}" style="background:${c}" data-taccent="${k}" title="${n}" aria-label="${n}"></button>`).join('')}</div>
+    ${[[0, 'พาสเทล'], [1, 'เข้ม / สุภาพ']].map(([g, nm]) => `<div class="muted" style="font-size:13px">${nm}</div><div class="swatches">${THEME_ACCENTS.filter(x => x[3] === g).map(([k, c, n]) => `<button type="button" class="sw${t.accent === k ? ' on' : ''}" style="background:${c}" data-taccent="${k}" title="${n}" aria-label="${n}"></button>`).join('')}</div>`).join('')}
     ${loggedIn ? `<hr><h3>เปลี่ยนรหัสผ่านของฉัน</h3><form class="pw" id="pwForm" autocomplete="off">
       <input type="password" id="pw_old" placeholder="รหัสผ่านเดิม" autocomplete="current-password" required>
       <input type="password" id="pw_new" placeholder="รหัสผ่านใหม่ (อย่างน้อย 4 ตัว ไม่มีช่องว่าง)" autocomplete="new-password" required>
