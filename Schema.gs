@@ -5,7 +5,7 @@
  * section = { title, fields: [...], sum?: 'ป้ายยอดรวม' }
  *         | { title, type: 'grid', rows: [[key, label]], cols: [[key, label]] }
  * field   = { key, label, unit?, type?: 'num'|'text'|'time', calc?, pctOf? }
- *   calc  = { plus: [keys], minus: [keys] } → คำนวณอัตโนมัติ แก้ไม่ได้
+ *   calc  = { plus: [keys], minus: [keys] } → คำนวณอัตโนมัติ แก้ไม่ได้ (manual: true = ผู้ใช้กรอกเอง สูตรใช้เฉพาะรายงานเก่าที่ไม่ได้เก็บค่า)
  *   pctOf = key → แสดงเปอร์เซ็นต์เทียบกับช่องนั้น
  *
  * std = ยอดมาตรฐานสำหรับวิเคราะห์ข้ามหน่วยงาน { ชื่อยอด: key | [keys ที่นำมารวม] }
@@ -75,7 +75,7 @@ const IPD_CENSUS = {
     Object.assign(N_('tr_out', 'ย้ายไป'), { note: 'ย้ายไปที่ไหน' }),
     Object.assign(N_('refer', 'Refer'), { note: 'Refer ไปที่ไหน' }), N_('dead', 'Dead'), N_('dc', 'จำหน่าย'),
     Object.assign(N_('remain', 'คงพยาบาล'), {
-      calc: { plus: ['carried', 'admit', 'tr_in'], minus: ['tr_out', 'refer', 'dead', 'dc'] }
+      calc: { plus: ['carried', 'admit', 'tr_in'], minus: ['tr_out', 'refer', 'dead', 'dc'], manual: true }
     })
   ]
 };
@@ -192,7 +192,7 @@ const GROUPS = [
 // ===== คำนวณยอด (ใช้ทั้งเซิร์ฟเวอร์และหน้าเว็บ — หน้าเว็บมีสำเนาใน Index.html) =====
 function fieldNum_(form, vals, key) {
   for (const s of form.sections) for (const f of (s.fields || [])) {
-    if (f.key === key && f.calc) return f.calc.plus.reduce((a, k) => a + (Number(vals[k]) || 0), 0) - f.calc.minus.reduce((a, k) => a + (Number(vals[k]) || 0), 0);
+    if (f.key === key && f.calc && !(f.calc.manual && vals[key] !== undefined && vals[key] !== '')) return f.calc.plus.reduce((a, k) => a + (Number(vals[k]) || 0), 0) - f.calc.minus.reduce((a, k) => a + (Number(vals[k]) || 0), 0);
   }
   return Number(vals[key]) || 0;
 }

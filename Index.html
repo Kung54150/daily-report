@@ -149,6 +149,7 @@
   .frow.text { grid-template-columns: 1fr; }
   .frow .lab small { color: var(--muted); }
   .frow input[type=number] { text-align: center; }
+  .remwarn { color: var(--bad); font-size: 13px; font-weight: 600; margin: 2px 0 6px; } .remwarn.ok { color: var(--ok); } .remwarn:empty { display: none; }
   .frow .calc { text-align: center; font-weight: 700; padding: 9px 0; background: var(--accent-soft); border-radius: 8px; }
   .sumline { display: flex; justify-content: space-between; padding-top: 8px; margin-top: 4px; border-top: 2px solid var(--line); font-weight: 600; }
   .grid-scroll { overflow-x: auto; }
@@ -284,6 +285,7 @@
   td .rem { display: flex; justify-content: center; }
   td .rem > span { font-weight: 700; }
   .sumtabs { margin-bottom: 12px; }
+  .seg.sumtabs { position: sticky; top: var(--stickTop, 98px); box-shadow: 0 2px 6px rgba(0,0,0,.12); }
   .a4.printonly { display: none; }
   .lstadd { display: grid; gap: 8px; }
   .addn { display: flex; gap: 8px; }
@@ -640,7 +642,8 @@ function bgFrame() {
   pic.style.width = Math.round(g.w) + 'px'; pic.style.height = Math.round(g.h) + 'px';
   pic.style.backgroundSize = '100% 100%'; pic.style.backgroundPosition = '0 0'; pic.style.transform = b.rot ? 'rotate(' + b.rot + 'deg)' : '';
 }
-window.addEventListener('resize', () => { if (S.bg) bgFrame(); });
+function setStickTop() { const t = document.querySelector('.tabs'); if (t) document.documentElement.style.setProperty('--stickTop', Math.round(parseFloat(getComputedStyle(t).top) + t.offsetHeight) + 'px'); }
+window.addEventListener('resize', () => { setStickTop(); if (S.bg) bgFrame(); });
 function applyBg() {
   const r = document.documentElement;
   if (S.bg && S.bg.data) { r.classList.add('has-bg'); bgImageCss(); ensureNat(); bgFrame(); r.style.setProperty('--bgdim', String(S.bg.dim == null ? 0.8 : S.bg.dim)); r.style.setProperty('--cardfit', String(S.bg.card == null ? 0 : S.bg.card)); }
@@ -906,12 +909,13 @@ function incList(group) {
 function renderIncidentsTab() {
   const g = S.incGroup || 'ALL', incs = incList(g);
   const byType = {}; incs.forEach(x => byType[x.i.type] = (byType[x.i.type] || 0) + 1);
-  let h = `<div class="seg sumtabs noprint" style="position:static">${[['ALL', 'ทั้งหมด']].concat(S.cfg.groups.map(x => [x.key, x.name])).map(([k, t]) => `<button type="button" data-incgroup="${esc(k)}" class="${g === k ? 'on' : ''}">${esc(t)}<small>${incList(k).length || ''}</small></button>`).join('')}</div>`;
+  let h = `<div class="seg sumtabs noprint">${[['ALL', 'ทั้งหมด']].concat(S.cfg.groups.map(x => [x.key, x.name])).map(([k, t]) => `<button type="button" data-incgroup="${esc(k)}" class="${g === k ? 'on' : ''}">${esc(t)}<small>${incList(k).length || ''}</small></button>`).join('')}</div>`;
   h += `<h2 class="grp">เหตุการณ์ผิดปกติ (${incs.length}) \u00b7 ${esc(thaiDate(S.date, true))}</h2>`;
   if (incs.length) h += `<div class="counts" style="margin-bottom:10px">${Object.entries(byType).map(([k, n]) => `<span>${esc(k)} ${n}</span>`).join('')}</div>`;
   return h + (incs.length ? incs.map((x, n) => incCardHtml(x.i, x.lab, n + 1)).join('') : '<div class="card muted fit">ไม่มีเหตุการณ์ผิดปกติของวันนี้</div>');
 }
 function render() {
+  setStickTop();
   const incBtn = document.querySelector('#tabs [data-tab="incidents"]');
   if (incBtn && S.cfg) { const n = incList('ALL').length; incBtn.textContent = 'เหตุการณ์ผิดปกติ' + (n ? ' (' + n + ')' : ''); }
   $('tabs').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tab === S.tab));
@@ -992,15 +996,16 @@ function renderUnitDetail(code) {
 
 /* ===== ค่าที่คำนวณ ===== */
 const allFields = u => u.form.sections.flatMap(s => s.type === 'grid' ? [] : s.fields);
+const hasVal = (vals, k) => vals[k] !== undefined && vals[k] !== '' && vals[k] !== null;
 function fieldValue(u, vals, f) {
-  if (f.calc) return f.calc.plus.reduce((a, k) => a + num(vals[k]), 0) - f.calc.minus.reduce((a, k) => a + num(vals[k]), 0);
+  if (f.calc && !(f.calc.manual && hasVal(vals, f.key))) return f.calc.plus.reduce((a, k) => a + num(vals[k]), 0) - f.calc.minus.reduce((a, k) => a + num(vals[k]), 0);
   return vals[f.key];
 }
 const sectionSum = (s, vals) => s.fields.filter(f => !f.type && !f.calc && !f.noSum).reduce((a, f) => a + num(vals[f.key]), 0);
 const roleCounts = staff => S.cfg.roles.map(r => [r, staff.filter(s => s.role === r && s.tag !== 'ออกหน่วย').length]).filter(x => x[1]);
 // ยอดมาตรฐาน / ประเภทผู้ป่วย (สำเนาเดียวกับ Schema.gs)
 function fieldNum(form, vals, key) {
-  for (const s of form.sections) for (const f of (s.fields || [])) if (f.key === key && f.calc) return f.calc.plus.reduce((a, k) => a + num(vals[k]), 0) - f.calc.minus.reduce((a, k) => a + num(vals[k]), 0);
+  for (const s of form.sections) for (const f of (s.fields || [])) if (f.key === key && f.calc && !(f.calc.manual && hasVal(vals, key))) return f.calc.plus.reduce((a, k) => a + num(vals[k]), 0) - f.calc.minus.reduce((a, k) => a + num(vals[k]), 0);
   return num(vals[key]);
 }
 function stdValues(u, vals) {
@@ -1142,17 +1147,18 @@ function mountForm() {
         if (f.type === 'text' && f.rooms && roomsFor(S.me.unit).length) pat += `<div class="frow text"><span class="lab">${esc(f.label)}</span><div data-rooms="${esc(f.key)}"></div></div>`;
         else if (f.type === 'text') pat += `<div class="frow text"><label class="lab" for="v_${esc(f.key)}">${esc(f.label)}</label><textarea id="v_${esc(f.key)}" data-v="${esc(f.key)}" rows="2">${esc(v[f.key] ?? '')}</textarea></div>`;
         else if (f.type === 'time') pat += `<div class="frow"><span class="lab">${esc(f.label)} <small>24 \u0e0a\u0e21. \u0e1e\u0e34\u0e21\u0e1e\u0e4c 2030</small></span><input class="tin" type="text" inputmode="numeric" maxlength="5" placeholder="20:30" autocomplete="off" data-v="${esc(f.key)}" value="${esc(v[f.key] ?? '')}"></div>`;
-        else if (f.calc) pat += `<div class="frow"><span class="lab"><b>${esc(f.label)}</b> <small>(คำนวณอัตโนมัติ)</small></span><div class="calc num" data-calc="${esc(f.key)}">0</div></div>`;
+        else if (f.calc && !f.calc.manual) pat += `<div class="frow"><span class="lab"><b>${esc(f.label)}</b> <small>(คำนวณอัตโนมัติ)</small></span><div class="calc num" data-calc="${esc(f.key)}">0</div></div>`;
         else {
           if (s.categories) pat += `<div class="frow ext cat"><span class="lab">${esc(f.label)} <small>${esc(f.unit)}</small></span><div class="calc cnt gray" data-catcnt="${esc(f.key)}" title="รวมจากลูกบอลสีอัตโนมัติ ไม่ต้องกรอก">${num(v[f.key])}</div><div class="ballin extra">${ballGroups(f, v)}</div></div>`;
           else {
             const extra = f.note ? `<input class="notein extra off" data-notefor="${esc(f.key)}" data-v="${esc(f.key)}_note" value="${esc(v[f.key + '_note'] ?? '')}" placeholder="${esc(f.note)} (พิมพ์เอง)" aria-label="${esc(f.note)}">` : '';
-            pat += `<div class="frow${extra ? ' ext noted' : ''}"><span class="lab">${esc(f.label)} <small>${esc(f.unit)}${f.noSum ? ' \u00b7 ไม่นับในยอดรวม' : ''}</small>${f.pctOf ? ` <small data-pct="${esc(f.key)}"></small>` : ''}</span>${numInput(f.key, 'class="cnt"')}${extra}</div>`;
+            pat += `<div class="frow${extra ? ' ext noted' : ''}"><span class="lab">${esc(f.label)} <small>${esc(f.unit)}${f.noSum ? ' \u00b7 ไม่นับในยอดรวม' : ''}</small>${f.pctOf ? ` <small data-pct="${esc(f.key)}"></small>` : ''}</span>${numInput(f.key, 'class="cnt"')}${extra}</div>${f.calc && f.calc.manual ? '<div class="remwarn" data-remwarn></div>' : ''}`;
           }
         }
       });
       if (s.fields.some(f => f.rooms)) pat += `<div style="margin-top:8px"><button type="button" class="btn ghost sm" data-roomedit>\u270e แก้ไขรายการห้อง (เลขห้อง / ชื่อ)</button></div><div id="room_editor"></div>`;
       if (s.sum) pat += `<div class="sumline"><span>${esc(s.sum)}</span><span class="num" data-sum="${si}">0</span></div>`;
+      if (s.categories && allFields(u).some(f => f.calc && f.calc.manual)) pat += '<div class="remwarn" data-remwarn></div>';
     }
     pat += '</div>';
   });
@@ -1338,13 +1344,24 @@ function onFormInput(e) {
   else if (t.dataset.duty) { const [i, k] = t.dataset.duty.split(':'); d.staff[i][k] = t.value; if (k === 'tag' || k === 'role') { renderStaffPicker(); showSub(); } }
 }
 
+// ยอดคงพยาบาล (กรอกเอง) ต้องเท่ากับผลรวมลูกบอลสีทุกประเภท
+function remCheck(u, v) {
+  const rf = allFields(u).find(f => f.calc && f.calc.manual);
+  if (!rf) return;
+  const cat = u.form.sections.filter(s => s.categories).reduce((a, s) => a + sectionSum(s, v), 0), has = hasVal(v, rf.key), rem = num(v[rf.key]);
+  let msg = '', ok = false;
+  if (!has && cat > 0) msg = `ยังไม่ได้กรอก${rf.label} (ลูกบอลสีรวม ${cat} ราย)`;
+  else if (has && cat !== rem) msg = rem === 0 && cat === 0 ? '' : `ลูกบอลสีรวม ${cat} ราย ${cat < rem ? 'ขาด ' + (rem - cat) : 'เกิน ' + (cat - rem)} ราย จาก${rf.label} ${rem} ราย`;
+  else if (has && cat === rem && cat > 0) { msg = `ลูกบอลสีรวมตรงกับ${rf.label} (${rem} ราย)`; ok = true; }
+  document.querySelectorAll('[data-remwarn]').forEach(el => { el.textContent = msg; el.classList.toggle('ok', ok); });
+}
 function recalc() {
   const u = unitCfg(S.me.unit), v = S.draft.values;
   u.form.sections.forEach((s, si) => {
     if (s.type === 'grid') s.rows.forEach(rw => { const el = document.querySelector(`[data-rowsum="${si}:${rw[0]}"]`); if (el) el.textContent = s.cols.reduce((a, c) => a + num(v[rw[0] + '_' + c[0]]), 0); });
     else {
       s.fields.forEach(f => {
-        if (f.calc) document.querySelector(`[data-calc="${f.key}"]`).textContent = fieldValue(u, v, f);
+        if (f.calc && !f.calc.manual) document.querySelector(`[data-calc="${f.key}"]`).textContent = fieldValue(u, v, f);
         if (f.pctOf) { const el = document.querySelector(`[data-pct="${f.key}"]`); el.textContent = num(v[f.pctOf]) ? `= ${(num(v[f.key]) / num(v[f.pctOf]) * 100).toFixed(2)}%` : ''; }
         if (f.note) { const row = document.querySelector(`[data-notefor="${f.key}"]`); if (row) row.classList.toggle('off', !num(v[f.key])); }
         if (s.categories) { const el = document.querySelector(`[data-catcnt="${f.key}"]`); if (el) el.textContent = num(v[f.key]); }
@@ -1352,6 +1369,7 @@ function recalc() {
       if (s.sum) document.querySelector(`[data-sum="${si}"]`).textContent = sectionSum(s, v);
     }
   });
+  remCheck(u, v);
   if (u.form.total) $('fm_total').textContent = u.form.sections.filter(s => s.sum).reduce((a, s) => a + sectionSum(s, v), 0);
 }
 
@@ -1735,7 +1753,7 @@ function renderSummary() {
   const nFull = S.cfg.units.filter(u => unitState(u) === 'full').length, miss = missingText();
   let h = `<div class="noprint" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px"><button type="button" class="btn" data-act="gotoprint">พิมพ์เอกสาร</button>
     <span class="meta" style="margin:0">ส่งรายงานครบ ${nFull}/${S.cfg.units.length} หน่วยงาน${miss ? ` \u00b7 <span style="color:var(--bad)">ยังไม่ครบ: ${miss}</span>` : ''}</span></div>`;
-  h += `<div class="seg sumtabs noprint" style="position:static">${S.cfg.groups.map(x => `<button type="button" data-sumgroup="${esc(x.key)}" class="${g === x.key ? 'on' : ''}">${esc(x.name)}</button>`).join('')}</div>`;
+  h += `<div class="seg sumtabs noprint">${S.cfg.groups.map(x => `<button type="button" data-sumgroup="${esc(x.key)}" class="${g === x.key ? 'on' : ''}">${esc(x.name)}</button>`).join('')}</div>`;
   if (g === 'IPD') {
     const bl = S.cfg.shifts.map(k => { const tt = { g: 0, y: 0, o: 0, r: 0 }, l = gu.filter(u => unitHas(u, k));
       l.forEach(u => { const r = repAt(u, k); if (r) { const t = ballTotals(u, r.values || {}); S.cfg.balls.forEach(b => { tt[b[0]] += t[b[0]]; }); } });

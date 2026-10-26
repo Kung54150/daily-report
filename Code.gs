@@ -240,7 +240,7 @@ function saveReport(token, rep) {
   const form = myUnit.form;
   const keys = form.sections.flatMap(s => s.type === 'grid'
     ? s.rows.flatMap(r => s.cols.map(c => r[0] + '_' + c[0]))
-    : s.fields.filter(f => !f.calc).flatMap(f => (f.note ? [f.key, f.key + '_note'] : [f.key]).concat(s.categories ? BALLS.map(b => f.key + '_' + b[0]) : [])));
+    : s.fields.filter(f => !f.calc || f.calc.manual).flatMap(f => (f.note ? [f.key, f.key + '_note'] : [f.key]).concat(s.categories ? BALLS.map(b => f.key + '_' + b[0]) : [])));
   const values = {};
   keys.forEach(k => { if (rep.values && rep.values[k] !== undefined && rep.values[k] !== '') values[k] = rep.values[k]; });
   // จำนวนผู้ป่วยแต่ละประเภท = ผลรวมลูกบอลสี (ระบบรวมให้ ไม่ใช่ค่าที่กรอกเอง)
