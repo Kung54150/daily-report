@@ -141,6 +141,11 @@
   .pill.warn { background: var(--warn-soft); color: var(--warn); }
   .pill.plain { background: var(--sunk); color: var(--muted); }
   .note { font-size: 13px; background: var(--warn-soft); color: var(--warn); border-radius: 8px; padding: 8px 10px; margin-bottom: 12px; }
+  #busy { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.28); display: flex; align-items: center; justify-content: center; }
+  #busy[hidden] { display: none; }
+  #busy .busybox { background: var(--surface); color: var(--fg); border-radius: 14px; padding: 20px 26px; display: grid; gap: 12px; justify-items: center; box-shadow: 0 10px 40px rgba(0,0,0,.35); font-size: 15px; }
+  #busy .spin { width: 42px; height: 42px; border-radius: 50%; border: 4px solid var(--line); border-top-color: var(--accent-strong); animation: busyspin .8s linear infinite; }
+  @keyframes busyspin { to { transform: rotate(360deg); } }
   .toast { position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 18px; border-radius: 99px; z-index: 20; font-size: 14px; max-width: calc(100% - 32px); }
 
   /* ===== Form ===== */
@@ -539,10 +544,33 @@ setTimeout(function () {
   <div class="vbody" id="v_body"></div>
 </div>
 <div class="toast" id="toast" hidden></div>
+<div id="busy" class="noprint" hidden role="status" aria-live="polite"><div class="busybox"><div class="spin"></div><div id="busy_t">กำลังดำเนินการ...</div></div></div>
 
 <script>
 /* ===== เรียกฝั่งเซิร์ฟเวอร์ (Apps Script) ===== */
+// วงกลมหมุนกลางจอระหว่างติดต่อเซิร์ฟเวอร์ อัปโหลด/ดาวน์โหลด และอ่านไฟล์ (หน่วง 0.25 วินาทีเพื่อไม่ให้กะพริบเมื่อเร็วมาก)
+const Busy = {
+  n: 0, t: null,
+  start(msg, now) {
+    Busy.n++;
+    const el = document.getElementById('busy'); if (!el) return;
+    document.getElementById('busy_t').textContent = msg || 'กำลังดำเนินการ...';
+    if (!el.hidden || Busy.t) return;
+    if (now) el.hidden = false; else Busy.t = setTimeout(() => { Busy.t = null; if (Busy.n > 0) el.hidden = false; }, 250);
+  },
+  end() {
+    Busy.n = Math.max(0, Busy.n - 1);
+    if (Busy.n > 0) return;
+    clearTimeout(Busy.t); Busy.t = null;
+    const el = document.getElementById('busy'); if (el) el.hidden = true;
+  },
+  async wrap(msg, fn, now) { Busy.start(msg, now); try { return await fn(); } finally { Busy.end(); } }
+};
 function api(fn, ...args) {
+  Busy.start(/^(upload|save|reset|change)/.test(fn) ? 'กำลังบันทึก...' : /^get(Att|Theme)/.test(fn) ? 'กำลังโหลดไฟล์...' : null);
+  return apiRaw(fn, ...args).finally(() => Busy.end());
+}
+function apiRaw(fn, ...args) {
   return new Promise((resolve, reject) => {
     if (window.google && google.script && google.script.run) {
       google.script.run.withSuccessHandler(resolve).withFailureHandler(e => reject(e && e.message ? e : new Error(String(e))))[fn](...args);
@@ -745,7 +773,7 @@ function renderSettings() {
   });
   $('bg_file').onchange = async e => {
     const f = e.target.files[0]; if (!f) return;
-    try { S.bg = { data: await shrinkImage(f, 1400), dim: (S.bg && S.bg.dim) || 0.8 }; store.set('bg', S.bg); applyBg(); renderSettings(); }
+    try { S.bg = { data: await Busy.wrap('กำลังเตรียมรูปพื้นหลัง...', () => shrinkImage(f, 1400), true), dim: (S.bg && S.bg.dim) || 0.8 }; store.set('bg', S.bg); applyBg(); renderSettings(); }
     catch (err) { $('bg_msg').textContent = err.message; $('bg_msg').className = 'msg bad'; }
   };
   $('bg_dim').oninput = e => { S.bg.dim = +e.target.value / 100; document.documentElement.style.setProperty('--bgdim', String(S.bg.dim)); };
@@ -1507,7 +1535,7 @@ $('view').addEventListener('change', async e => {
     if (x.files.length >= ATT_MAX_FILES) { toast('แนบได้สูงสุด ' + ATT_MAX_FILES + ' ไฟล์ต่อเหตุการณ์'); break; }
     try {
       toast('กำลังอัปโหลด ' + f.name + ' ...');
-      const p = await prepAttachment(f);
+      const p = await Busy.wrap('กำลังเตรียมไฟล์...', () => prepAttachment(f), true);
       const r = await api('uploadAttachment', S.token, p);
       S.att[r.id] = { name: r.name, mime: r.mime, data: p.data };
       x.files.push({ id: r.id, name: r.name, mime: r.mime, size: r.size }); S.dirty = true;
@@ -1792,6 +1820,7 @@ function downloadTemplate() {
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   a.download = 'roster-template.csv';
   document.body.appendChild(a); a.click(); a.remove();
+  Busy.start('กำลังดาวน์โหลดไฟล์...', true); setTimeout(() => Busy.end(), 700);
 }
 
 /* ===== สรุป (หน้าจอ ผู้จัดการ): อ่านบนมือถือได้ เรียงลงข้างล่างคอลัมน์เดียว ไม่ต้องเลื่อนซ้ายขวา ===== */
@@ -2231,7 +2260,7 @@ function bindView() {
     const f = $('up_file').files[0]; if (!f) return;
     $('up_preview').innerHTML = '<p class="muted">กำลังอ่านไฟล์...</p>';
     try {
-      const { rows, bad } = await readRoster(f);
+      const { rows, bad } = await Busy.wrap('กำลังอ่านไฟล์...', () => readRoster(f), true);
       S.upRows = rows; S.upBad = bad;
       drawUpPreview();
     } catch (e) { $('up_preview').innerHTML = `<p style="color:var(--bad)">${esc(e.message)}</p>`; }
