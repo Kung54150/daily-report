@@ -335,9 +335,9 @@
   .hnrow { display: flex; flex-wrap: wrap; gap: 8px 16px; }
   .hnrow > div { flex: 0 1 210px; min-width: 150px; }
   .hnrow > div:last-child { flex-basis: 170px; }
-  .age3 { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 8px; }
-  .agei { display: flex; align-items: center; gap: 6px; margin: 0; }
-  .agei input { width: 76px; flex: none; min-width: 0; text-align: center; } .agei small { color: var(--muted); white-space: nowrap; }
+  .age3 { display: flex; flex-wrap: nowrap; gap: 8px 14px; margin-bottom: 8px; }
+  .agei { display: flex; align-items: center; gap: 5px; margin: 0; flex: 0 1 112px; min-width: 0; }
+  .agei input { width: 100%; max-width: 76px; flex: 1 1 0; min-width: 0; padding-inline: 4px; text-align: center; } .agei small { color: var(--muted); white-space: nowrap; flex: none; }
   .vsgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); gap: 8px; margin-top: 8px; }
   .vs { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 8px; padding: 2px 8px; background: var(--surface); }
   .vs span { font-weight: 600; font-size: 14px; }
@@ -1784,7 +1784,7 @@ function incFormHtml(list, cs) {
     </div>`}
     <fieldset><legend>ข้อมูลผู้ป่วย</legend>
       <label class="f">ชื่อ-สกุลผู้ป่วย</label><input ${at}="${i}:patient" value="${esc(x.patient)}">
-      <label class="f">อายุ <small>(ระบุปี เดือน หรือวัน ได้ตามต้องการ เช่น ทารก 8 เดือน)</small></label>
+      <label class="f">อายุ <small>(กรอกช่องเดียวก็ได้)</small></label>
       <div class="age3">${(() => { const a = parseAge(x.age); return [['y', a.y, 'ปี', 150], ['m', a.m, 'เดือน', 11], ['d', a.d, 'วัน', 31]].map(([k, val, u, mx]) => `<label class="agei"><input ${agAttr}="${i}:${k}" type="number" inputmode="numeric" min="0" max="${mx}" step="1" value="${esc(val)}" placeholder="0"><small>${u}</small></label>`).join(''); })()}</div>
       <div class="hnrow">
         <div><label class="f">HN</label><input ${at}="${i}:hn" value="${esc(x.hn)}"></div>
