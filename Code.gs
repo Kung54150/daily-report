@@ -203,14 +203,15 @@ function getBoot(token) {
 // ===== รายงาน =====
 function getDay(token, date) {
   const me = auth_(token);
+  const myZone = me.role === 'unit' ? (GROUPS.find(g => g.units.indexOf(me.unit) >= 0) || { units: [me.unit] }).units : [];
   const reports = {};
   sheet_(SH_REPORTS).getDataRange().getValues().slice(1)
     .filter(r => fmtDate_(r[0]) === date)
     .forEach(r => {
       const rep = JSON.parse(r[4]), sh = rowShift_(r[5], rep.shift);
       rep.shift = sh;
-      // เหตุการณ์ผิดปกติ / รายงานเคส: หน่วยงานเห็นเฉพาะของตนเอง (ผู้จัดการและ Admin เห็นทั้งหมด)
-      if (me.role === 'unit' && String(r[1]) !== me.unit) { rep.incidents = []; rep.cases = []; }
+      // เหตุการณ์ผิดปกติ / รายงานเคส: หน่วยงานเห็นเฉพาะใน Zone ของตนเอง (OPD / IPD / Special Unit) ผู้จัดการและ Admin เห็นทั้งหมด
+      if (me.role === 'unit' && myZone.indexOf(String(r[1])) < 0) { rep.incidents = []; rep.cases = []; }
       (reports[r[1]] = reports[r[1]] || {})[sh] = rep;
     });
   return { reports }; // { หน่วยงาน: { Day: รายงาน, Night: รายงาน } }

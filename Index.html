@@ -865,7 +865,7 @@ async function startApp(b) {
   const tabs = admin
     ? [['summary', 'สรุป'], ['all', 'ติดตามรายแผนก'], ['incidents', 'เหตุการณ์ผิดปกติ'], ['print', 'พิมพ์ A4'], ['staff', 'รายชื่อเจ้าหน้าที่ (อัปโหลด)']]
     : manager ? [['summary', 'สรุป'], ['all', 'ติดตามรายแผนก'], ['incidents', 'เหตุการณ์ผิดปกติ'], ['print', 'พิมพ์ A4']]
-    : [['mine', 'หน่วยงานของฉัน'], ['summary', 'สรุป'], ['all', 'ติดตามรายแผนก'], ['print', 'พิมพ์รายงาน'], ['staff', 'ทะเบียนเจ้าหน้าที่ / ห้อง']];
+    : [['mine', 'หน่วยงานของฉัน'], ['summary', 'สรุป'], ['all', 'ติดตามรายแผนก'], ['incidents', 'เหตุการณ์ผิดปกติ'], ['print', 'พิมพ์รายงาน'], ['staff', 'ทะเบียนเจ้าหน้าที่ / ห้อง']];
   $('tabs').innerHTML = tabs.map(([k, t]) => `<button type="button" data-tab="${k}">${t}</button>`).join('');
   $('tabs').querySelectorAll('button').forEach(btn => btn.onclick = () => go(btn.dataset.tab));
   S.tab = tabs[0][0]; S.home = tabs[0][0];
@@ -921,10 +921,10 @@ function incList(group) {
 }
 // แท็บเหตุการณ์ผิดปกติ (ผู้จัดการ/Admin): ดูจากมือถือได้โดยไม่ต้องพิมพ์ A4
 function renderIncidentsTab() {
-  const g = S.incGroup || 'ALL', incs = incList(g);
+  const zoneOnly = S.me.role === 'unit', g = zoneOnly ? unitCfg(S.me.unit).group : (S.incGroup || 'ALL'), incs = incList(g);
   const byType = {}; incs.forEach(x => byType[x.i.type] = (byType[x.i.type] || 0) + 1);
-  let h = `<div class="seg sumtabs noprint">${[['ALL', 'ทั้งหมด']].concat(S.cfg.groups.map(x => [x.key, x.name])).map(([k, t]) => `<button type="button" data-incgroup="${esc(k)}" class="${g === k ? 'on' : ''}">${esc(t)}<small>${incList(k).length || ''}</small></button>`).join('')}</div>`;
-  h += `<h2 class="grp">เหตุการณ์ผิดปกติ (${incs.length}) \u00b7 ${esc(thaiDate(S.date, true))}</h2>`;
+  let h = zoneOnly ? '' : `<div class="seg sumtabs noprint">${[['ALL', 'ทั้งหมด']].concat(S.cfg.groups.map(x => [x.key, x.name])).map(([k, t]) => `<button type="button" data-incgroup="${esc(k)}" class="${g === k ? 'on' : ''}">${esc(t)}<small>${incList(k).length || ''}</small></button>`).join('')}</div>`;
+  h += `<h2 class="grp">เหตุการณ์ผิดปกติ${zoneOnly ? ' \u00b7 ' + esc(S.cfg.groups.find(x => x.key === g).name) : ''} (${incs.length}) \u00b7 ${esc(thaiDate(S.date, true))}</h2>`;
   if (incs.length) h += `<div class="counts" style="margin-bottom:10px">${Object.entries(byType).map(([k, n]) => `<span>${esc(k)} ${n}</span>`).join('')}</div>`;
   return h + (incs.length ? incs.map((x, n) => incCardHtml(x.i, x.lab, n + 1)).join('') : '<div class="card muted fit">ไม่มีเหตุการณ์ผิดปกติของวันนี้</div>');
 }
@@ -968,6 +968,8 @@ function renderMine() {
 const draftNote = () => '<div class="note">แบบฟอร์มของหน่วยงานนี้เป็นตัวอย่าง รอปรับตามรูปแบบรายงานจริง</div>';
 
 /* ===== ทุกหน่วยงาน ===== */
+// แผนกที่รายงานครบขึ้นก่อน ส่งไม่ครบถัดมา ยังไม่รายงานเลยอยู่ล่างสุด (เท่ากันเรียงตามรายชื่อที่กำหนด)
+const byProgress = list => list.map((u, i) => [u, i]).sort((a, b) => ({ full: 0, part: 1 }[unitState(a[0])] ?? 2) - ({ full: 0, part: 1 }[unitState(b[0])] ?? 2) || a[1] - b[1]).map(x => x[0]);
 function renderAll() {
   const us = S.cfg.units, st = us.map(unitState), n = x => st.filter(y => y === x).length;
   let html = `<div class="card"><h3>ส่งรายงานครบ <span class="num">${n('full')}/${us.length}</span> หน่วยงาน <span class="sub">\u00b7 ส่งไม่ครบ ${n('part')} \u00b7 ยังไม่ส่ง ${n('none')}</span></h3>
@@ -975,7 +977,7 @@ function renderAll() {
     <div class="muted" style="font-size:13px">แตะที่หน่วยงานเพื่อดูรายละเอียด${S.me.role !== 'unit' ? '' : ' \u00b7 แก้ไขได้เฉพาะหน่วยงานของตนเอง'}</div></div>`;
   S.cfg.sections.forEach(sc => {
     html += `<h2 class="grp">${esc(sc.label)}</h2><div class="ulist">`;
-    sc.units.map(unitCfg).forEach(u => {
+    byProgress(sc.units.map(unitCfg)).forEach(u => {
       const reps = shiftsOf(u).filter(k => repAt(u, k)), incN = reps.reduce((a, k) => a + (repAt(u, k).incidents || []).length, 0);
       html += `<button type="button" class="ucard${u.code === S.me.unit ? ' mine' : ''}" data-unit="${esc(u.code)}">
         <span class="code">${esc(u.code)} ${statusPill(u)}</span>
@@ -1078,8 +1080,9 @@ function listCard(s, v) {
 
 /* ===== แท็บย่อยของหน่วยงาน ===== */
 const SUBS = [['patient', 'รายงานผู้ป่วย'], ['staff', 'อัตรากำลัง'], ['incident', 'เหตุการณ์ผิดปกติ']];
+const sameZone = code => { const a = unitCfg(code), b = unitCfg(S.me.unit); return !!(a && b && a.group === b.group); };
 function subTabs(r) {
-  const others = S.me.role === 'unit' && r && r.unit && r.unit !== S.me.unit; // เหตุการณ์ผิดปกติ/รายงานเคสเห็นเฉพาะแผนกตนเอง
+  const others = S.me.role === 'unit' && r && r.unit && !sameZone(r.unit); // เหตุการณ์ผิดปกติ/รายงานเคสเห็นเฉพาะ Zone ของตนเอง
   const staffN = r ? roleCounts(r.staff || []).map(([k, n]) => k + ' ' + n).join(' ') : '';
   const incN = r ? (r.incidents || []).length : 0;
   const badge = { staff: staffN, incident: incN ? String(incN) : '' };
@@ -1088,7 +1091,7 @@ function subTabs(r) {
 
 /* ===== มุมมองอ่านอย่างเดียว ===== */
 function renderReportView(u, r) {
-  if (S.me.role === 'unit' && r.unit && r.unit !== S.me.unit && S.sub === 'incident') S.sub = 'patient';
+  if (S.me.role === 'unit' && r.unit && !sameZone(r.unit) && S.sub === 'incident') S.sub = 'patient';
   const v = r.values || {};
   let body = '';
   if (S.sub === 'patient') {
@@ -1671,7 +1674,7 @@ function renderStaff() {
     ${list.map(s => S.editStaff === s.id
       ? `<div class="srow edit"><input id="es_name" value="${esc(s.name)}"><select id="es_role">${S.cfg.roles.map(r => `<option${r === s.role ? ' selected' : ''}>${esc(r)}</option>`).join('')}</select>
          ${admin ? `<select id="es_unit" style="grid-column:1/-1"><option value="">\u2014 ยังไม่ผูกแผนก \u2014</option>${unitOptgroups(s.unit)}</select>` : ''}<span class="acts"><button type="button" class="btn sm" data-sact="save" data-id="${s.id}">บันทึก</button><button type="button" class="btn ghost sm" data-sact="cancel">ยกเลิก</button></span></div>`
-      : `<div class="srow"><span>${esc(s.name)} ${s.source === 'upload' ? '<span class="pill plain">จากไฟล์</span>' : '<span class="pill warn">เพิ่มเอง</span>'}${s.fileDept && s.fileDept !== s.unit ? ` <small class="muted">${esc(s.fileDept)}</small>` : ''}</span><b>${esc(s.role)}</b>
+      : `<div class="srow"><span>${esc(s.name)} ${s.source === 'upload' ? '<span class="pill plain">จากไฟล์</span>' : '<span class="pill warn">เพิ่มเอง</span>'}${s.fileDept && s.fileDept !== s.unit ? ` <small class="muted">${esc(s.fileDept)}</small>` : ''}${s.title ? `<br><small class="muted">ตำแหน่งในไฟล์: ${esc(s.title)}</small>` : ''}</span><select data-staffrole="${s.id}" aria-label="ตำแหน่ง" style="width:auto;padding:4px 6px">${S.cfg.roles.map(r => `<option${r === s.role ? ' selected' : ''}>${esc(r)}</option>`).join('')}</select>
          <span class="acts">${S.delStaff === s.id
            ? `<button type="button" class="btn danger sm" data-sact="del" data-id="${s.id}">ยืนยันลบ</button>`
            : `<button type="button" class="btn ghost sm" data-sact="edit" data-id="${s.id}">แก้ไข</button><button type="button" class="btn ghost sm" data-sact="askdel" data-id="${s.id}">ลบ</button>`}</span></div>`).join('')
@@ -1830,7 +1833,7 @@ function renderSummary() {
   }
   S.cfg.sections.filter(sc => sc.group === g).forEach(sc => {
     h += `<h2 class="grp">${esc(sc.label)}</h2>`;
-    sc.units.map(unitCfg).forEach(u => {
+    byProgress(sc.units.map(unitCfg)).forEach(u => {
       h += `<div class="card sbox"><div class="shead"><b>${esc(u.code)}</b> ${statusPill(u)}</div>${unitShiftBlocks(u, true)}</div>`;
     });
   });
@@ -2215,6 +2218,11 @@ function bindView() {
   if ($('p_month')) $('p_month').onchange = () => { if ($('p_month').value) { S.printMonth = $('p_month').value; render(); } };
   v.querySelectorAll('[data-unit].ucard').forEach(b => b.onclick = () => (b.dataset.unit === S.me.unit ? go('mine') : go('all', b.dataset.unit)));
   v.querySelectorAll('[data-sact]').forEach(b => b.onclick = () => staffAction(b.dataset.sact, b.dataset.id, b.dataset.unit));
+  v.querySelectorAll('[data-staffrole]').forEach(sel => sel.onchange = async () => {
+    const st = S.staff.find(x => x.id === +sel.dataset.staffrole); if (!st) return;
+    try { await api('saveStaff', S.token, { id: st.id, unit: st.unit, name: st.name, role: sel.value }); await loadStaff(); toast('เปลี่ยนตำแหน่ง ' + st.name + ' เป็น ' + sel.value + ' แล้ว'); } catch (e) { handleErr(e); }
+    render();
+  });
   if ($('st_unit')) $('st_unit').onchange = () => { S.staffUnit = $('st_unit').value; render(); };
   if ($('up_file')) $('up_file').onchange = async () => {
     const f = $('up_file').files[0]; if (!f) return;
