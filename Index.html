@@ -1459,7 +1459,16 @@ const reduceFormHtml = rd => `<div class="card"><h3>ลดอัตรากำ�
       </div>
       <label class="f" for="rd_detail">รายละเอียด</label><textarea id="rd_detail" rows="2" placeholder="เช่น RN 15-19 น. / NA ขาด 1 คน 9-17 น.">${esc(rd.detail || '')}</textarea></div>`;
 // ชื่อต้นอย่างเดียว (ตัดคำนำหน้าและนามสกุล) สำหรับหน้าสรุป
-const firstName = n => String(n || '').trim().replace(/^(นางสาว|น\.ส\.|นส\.|นาง|นาย|คุณ|ด\.ช\.|ด\.ญ\.)\s*/, '').split(/\s+/)[0] || String(n || '').trim();
+const firstName = n => {
+  // ตัดคำนำหน้า (น.ส. นาย นาง นางสาว คุณ ด.ช. ฯลฯ) ออกก่อน แล้วเอาชื่อต้นอย่างเดียว; คำเต็มต้องตามด้วยช่องว่าง เพื่อไม่ตัดชื่อที่ขึ้นต้นเหมือนกัน เช่น นายิกา
+  let t = String(n || '').trim(), prev;
+  do {
+    prev = t;
+    t = t.replace(/^(?:ว่าที่\s*)?(?:ร\.[ตทอ]\.(?:หญิง)?|น\.ส\.?|นส\.|ด\.ช\.|ด\.ญ\.|ดร\.|ผศ\.|รศ\.|ศ\.|นพ\.|พญ\.|ทพ\.|ทญ\.|ภก\.|ภญ\.)\s*/, '')
+         .replace(/^(?:นางสาว|นาง|นาย|คุณ|เด็กชาย|เด็กหญิง|Miss|Mrs?\.?|Ms\.?)\s+/i, '').trim();
+  } while (t !== prev);
+  return t.split(/\s+/)[0] || String(n || '').trim();
+};
 // ตำแหน่งของคนในเวร: ค่าที่บันทึกไว้ในรายงาน หรือค้นจากทะเบียนของหน่วยงาน
 const dutyPos = (s, unit) => s.pos || (() => { const r = S.staff.find(x => x.name === s.name && x.unit === unit); return posLabel(r ? r.title : '', s.role); })();
 function renderStaffPicker() {
