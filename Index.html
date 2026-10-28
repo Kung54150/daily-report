@@ -332,6 +332,9 @@
   fieldset { border: 1px solid var(--line); border-radius: 8px; margin: 12px 0 0; padding: 4px 12px 12px; min-width: 0; }
   legend { font-size: 13px; font-weight: 600; color: var(--accent-strong); padding: 0 6px; }
   .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .age3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 6px; }
+  .agei { display: flex; align-items: center; gap: 6px; margin: 0; }
+  .agei input { min-width: 0; text-align: center; } .agei small { color: var(--muted); white-space: nowrap; }
   .vsgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); gap: 8px; margin-top: 8px; }
   .vs { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 8px; padding: 2px 8px; background: var(--surface); }
   .vs span { font-weight: 600; font-size: 14px; }
@@ -1083,6 +1086,10 @@ function categoryValues(u, vals) {
   }));
   return out;
 }
+// อายุ: เก็บเป็นข้อความ เช่น "60" (ข้อมูลเดิม = ปี) หรือ "2 ปี 5 เดือน" / "8 เดือน" / "15 วัน" (ทารกและเด็กเล็กระบุเดือน/วันได้)
+const parseAge = a => { const t = String(a == null ? '' : a).trim(); if (/^\d+$/.test(t)) return { y: t, m: '', d: '' }; const g = re => { const m = re.exec(t); return m ? m[1] : ''; }; return { y: g(/(\d+)\s*ปี/), m: g(/(\d+)\s*เดือน/), d: g(/(\d+)\s*วัน/) }; };
+const composeAge = (y, m, d) => [num(y) > 0 ? num(y) + ' ปี' : '', num(m) > 0 ? num(m) + ' เดือน' : '', num(d) > 0 ? num(d) + ' วัน' : ''].filter(Boolean).join(' ');
+const ageText = a => { const t = String(a == null ? '' : a).trim(); return /^\d+$/.test(t) ? t + ' ปี' : t; };
 const vitals = i => [['BP', i.bp, 'mmHg'], ['PR', i.pr, 'ครั้ง/min'], ['RR', i.rr, 'ครั้ง/min'], ['T', i.temp, '\u00b0C'], ['O2 sat', i.spo2, '%']].filter(x => x[1] !== '' && x[1] != null);
 const o2Text = i => i.o2mode ? (i.o2mode === 'Room air' ? 'Room air' : `${i.o2mode}${i.o2flow ? ' ' + i.o2flow : ''}`) : '';
 
@@ -1181,7 +1188,7 @@ function renderReportView(u, r) {
     const incs = r.incidents || [];
     body = incs.length ? incs.map((i, n) => `<div class="card inc-view">
         <div class="inc-head"><span>${n + 1}. ${esc(i.type)}</span><span class="pill ${i.severity && i.severity !== '-' ? 'warn' : 'plain'}">ระดับ ${esc(i.severity || '-')}</span></div>
-        <div class="pt">${i.patient ? `<b>${esc(i.patient)}</b>` : '<span class="muted">ไม่ระบุชื่อผู้ป่วย</span>'}${i.age ? ` \u00b7 อายุ ${esc(i.age)} ปี` : ''}${i.hn ? ` \u00b7 HN ${esc(i.hn)}` : ''}</div>
+        <div class="pt">${i.patient ? `<b>${esc(i.patient)}</b>` : '<span class="muted">ไม่ระบุชื่อผู้ป่วย</span>'}${i.age ? ` \u00b7 อายุ ${esc(ageText(i.age))}` : ''}${i.hn ? ` \u00b7 HN ${esc(i.hn)}` : ''}</div>
         <div class="muted" style="font-size:14px">${i.time ? `มารับบริการ ${esc(i.time)} น.` : ''}${i.time && i.doctor ? ' \u00b7 ' : ''}${i.doctor ? `แพทย์เจ้าของไข้ ${esc(i.doctor)}` : ''}</div>
         ${vitals(i).length || i.o2mode ? `<div class="vsline">${vitals(i).map(([k, x, unit]) => `<span><small>${k}</small> ${esc(x)} <small>${unit}</small></span>`).join('')}${i.o2mode ? `<span><small>O2</small> ${esc(o2Text(i))}</span>` : ''}</div>` : ''}
         <div class="pre" style="margin-top:6px">${esc(i.detail)}</div>
@@ -1529,6 +1536,16 @@ $('view').addEventListener('keydown', e => {
 function onFormInput(e) {
   const t = e.target, d = S.draft;
   S.dirty = true;
+  const agk = t.dataset && (t.dataset.ag || t.dataset.agc);
+  if (agk) {
+    // อายุ: ปี / เดือน / วัน รวมเป็นข้อความเก็บในช่อง age (เดือนไม่เกิน 11 วันไม่เกิน 31)
+    const [i, part] = agk.split(':'), list = t.dataset.agc ? d.cases : d.incidents, card = t.closest('.card');
+    if (part === 'm' && num(t.value) > 11) t.value = '11';
+    if (part === 'd' && num(t.value) > 31) t.value = '31';
+    const g = p => { const el = card.querySelector(`[${t.dataset.agc ? 'data-agc' : 'data-ag'}="${i}:${p}"]`); return el ? el.value : ''; };
+    list[i].age = composeAge(g('y'), g('m'), g('d'));
+    return;
+  }
   if (t.classList && t.classList.contains('tin')) t.value = typingTime(t.value);
   if (t.dataset.v) {
     d.values[t.dataset.v] = t.type === 'number' ? (t.value === '' ? '' : Number(t.value)) : t.value;
@@ -1754,7 +1771,7 @@ async function hydratePrint() {
 }
 
 function incFormHtml(list, cs) {
-  const at = cs ? 'data-cs' : 'data-inc', flow = cs ? 'data-o2flowc' : 'data-o2flow', fadd = cs ? 'data-fileaddc' : 'data-fileadd';
+  const agAttr = cs ? 'data-agc' : 'data-ag', at = cs ? 'data-cs' : 'data-inc', flow = cs ? 'data-o2flowc' : 'data-o2flow', fadd = cs ? 'data-fileaddc' : 'data-fileadd';
   const vin = (i, k, label, unit, mode, ph) => `<label class="vs"><span>${label}</span><input ${at}="${i}:${k}" value="${esc(list[i][k] || '')}" inputmode="${mode}" placeholder="${ph || ''}"><small>${unit}</small></label>`;
   return list.map((x, i) => `<div class="card inc${cs ? ' case' : ''}">
     <div class="inc-head"><span>${cs ? 'เคสที่' : 'เหตุการณ์ที่'} ${i + 1}</span><button type="button" class="x" data-del${cs ? 'case' : 'inc'}="${i}" aria-label="ลบ">\u00d7</button></div>
@@ -1764,8 +1781,9 @@ function incFormHtml(list, cs) {
     </div>`}
     <fieldset><legend>ข้อมูลผู้ป่วย</legend>
       <label class="f">ชื่อ-สกุลผู้ป่วย</label><input ${at}="${i}:patient" value="${esc(x.patient)}">
+      <label class="f">อายุ <small>(ระบุปี เดือน หรือวัน ได้ตามต้องการ เช่น ทารก 8 เดือน)</small></label>
+      <div class="age3">${(() => { const a = parseAge(x.age); return [['y', a.y, 'ปี', 150], ['m', a.m, 'เดือน', 11], ['d', a.d, 'วัน', 31]].map(([k, val, u, mx]) => `<label class="agei"><input ${agAttr}="${i}:${k}" type="number" inputmode="numeric" min="0" max="${mx}" step="1" value="${esc(val)}" placeholder="0"><small>${u}</small></label>`).join(''); })()}</div>
       <div class="row3">
-        <div><label class="f">อายุ (ปี)</label><input ${at}="${i}:age" inputmode="numeric" value="${esc(x.age)}"></div>
         <div><label class="f">HN</label><input ${at}="${i}:hn" value="${esc(x.hn)}"></div>
         <div><label class="f">เวลามารับบริการ <small>(พิมพ์ 2030)</small></label><input class="tin" type="text" inputmode="numeric" maxlength="5" placeholder="20:30" autocomplete="off" ${at}="${i}:time" value="${esc(x.time)}"></div>
       </div>
@@ -1998,7 +2016,7 @@ function downloadTemplate() {
 function incCardHtml(i, unitLabelText, n) {
   const vs = vitals(i);
   return `<div class="card inc-view"><div class="inc-head"><span>${n}. ${esc(unitLabelText)} \u00b7 ${esc(i.type)}</span><span class="pill ${i.severity && i.severity !== '-' ? 'warn' : 'plain'}">ระดับ ${esc(i.severity || '-')}</span></div>
-    <div class="pt">${i.patient ? `<b>${esc(i.patient)}</b>` : '<span class="muted">ไม่ระบุชื่อผู้ป่วย</span>'}${i.age ? ` \u00b7 อายุ ${esc(i.age)} ปี` : ''}${i.hn ? ` \u00b7 HN ${esc(i.hn)}` : ''}</div>
+    <div class="pt">${i.patient ? `<b>${esc(i.patient)}</b>` : '<span class="muted">ไม่ระบุชื่อผู้ป่วย</span>'}${i.age ? ` \u00b7 อายุ ${esc(ageText(i.age))}` : ''}${i.hn ? ` \u00b7 HN ${esc(i.hn)}` : ''}</div>
     <div class="muted" style="font-size:14px">${i.time ? `มารับบริการ ${esc(i.time)} น.` : ''}${i.time && i.doctor ? ' \u00b7 ' : ''}${i.doctor ? `แพทย์เจ้าของไข้ ${esc(i.doctor)}` : ''}</div>
     ${vs.length || i.o2mode ? `<div class="vsline">${vs.map(([k, x, unit]) => `<span><small>${k}</small> ${esc(x)} <small>${unit}</small></span>`).join('')}${i.o2mode ? `<span><small>O2</small> ${esc(o2Text(i))}</span>` : ''}</div>` : ''}
     <div class="pre" style="margin-top:6px">${esc(i.detail)}</div>
@@ -2008,7 +2026,7 @@ function incCardHtml(i, unitLabelText, n) {
 function caseCardHtml(i, n) {
   const vs = vitals(i);
   return `<div class="card inc-view case"><div class="inc-head"><span>เคสที่ ${n}</span></div>
-    <div class="pt">${i.patient ? `<b>${esc(i.patient)}</b>` : '<span class="muted">ไม่ระบุชื่อผู้ป่วย</span>'}${i.age ? ` \u00b7 อายุ ${esc(i.age)} ปี` : ''}${i.hn ? ` \u00b7 HN ${esc(i.hn)}` : ''}</div>
+    <div class="pt">${i.patient ? `<b>${esc(i.patient)}</b>` : '<span class="muted">ไม่ระบุชื่อผู้ป่วย</span>'}${i.age ? ` \u00b7 อายุ ${esc(ageText(i.age))}` : ''}${i.hn ? ` \u00b7 HN ${esc(i.hn)}` : ''}</div>
     <div class="muted" style="font-size:14px">${i.time ? `มารับบริการ ${esc(i.time)} น.` : ''}${i.time && i.doctor ? ' \u00b7 ' : ''}${i.doctor ? `แพทย์เจ้าของไข้ ${esc(i.doctor)}` : ''}</div>
     ${vs.length || i.o2mode ? `<div class="vsline">${vs.map(([k, x, unit]) => `<span><small>${k}</small> ${esc(x)} <small>${unit}</small></span>`).join('')}${i.o2mode ? `<span><small>O2</small> ${esc(o2Text(i))}</span>` : ''}</div>` : ''}
     <div class="pre" style="margin-top:6px">${esc(i.detail)}</div>
@@ -2208,7 +2226,7 @@ function casesPrint() {
 function incTable(incs, first, cs) {
   return `<table><thead><tr><th>${first || 'หน่วยงาน'}</th><th>ผู้ป่วย</th><th>V/S</th>${cs ? '' : '<th>ประเภท / ระดับ</th>'}<th>รายละเอียด / การแก้ไข</th></tr></thead>
     ${incs.map(i => `<tr><td>${esc(i.unit)}</td>
-      <td>${esc(i.patient || '-')}${i.age ? `<br>อายุ ${esc(i.age)} ปี` : ''}${i.hn ? `<br>HN ${esc(i.hn)}` : ''}${i.time ? `<br>มา ${esc(i.time)} น.` : ''}${i.doctor ? `<br>แพทย์ ${esc(i.doctor)}` : ''}</td>
+      <td>${esc(i.patient || '-')}${i.age ? `<br>อายุ ${esc(ageText(i.age))}` : ''}${i.hn ? `<br>HN ${esc(i.hn)}` : ''}${i.time ? `<br>มา ${esc(i.time)} น.` : ''}${i.doctor ? `<br>แพทย์ ${esc(i.doctor)}` : ''}</td>
       <td>${vitals(i).map(([k, x, unit]) => `${k} ${esc(x)}${unit === '%' ? '%' : unit === '\u00b0C' ? '\u00b0C' : ''}`).join('<br>')}${i.o2mode ? `<br>O2: ${esc(o2Text(i))}` : ''}</td>
       ${cs ? '' : `<td>${esc(i.type)}<br>ระดับ ${esc(i.severity || '-')}</td>`}
       <td>${esc(i.detail)}${i.action ? `<br><i>แก้ไข: ${esc(i.action)}</i>` : ''}</td></tr>${(i.files || []).length ? `<tr class="attrow"><td></td><td colspan="${cs ? 3 : 4}"><div class="attbox">${i.files.map(f => `<figure data-attfile="${esc(f.id)}"><figcaption>ไฟล์แนบ: ${esc(f.name)}</figcaption></figure>`).join('')}</div></td></tr>` : ''}`).join('')}</table>`;
@@ -2317,7 +2335,7 @@ function printLines(u, r, withInc) {
   if (r.notes) grp('<b>เรื่องแจ้ง</b>', [esc(r.notes).replace(/\n/g, ' / ')]);
   const one = t => esc(String(t || '').replace(/\s*\n\s*/g, ' / '));
   const caseText = (i, head) => {
-    const pt = [i.patient, i.age ? 'อายุ ' + i.age + ' ปี' : '', i.hn ? 'HN ' + i.hn : ''].filter(Boolean).join(' ');
+    const pt = [i.patient, i.age ? 'อายุ ' + ageText(i.age) : '', i.hn ? 'HN ' + i.hn : ''].filter(Boolean).join(' ');
     const vs = vitals(i).map(([k, x, unit]) => `${k} ${esc(x)}${unit === '%' ? '%' : unit === '\u00b0C' ? '\u00b0C' : ''}`).join(', ') + (i.o2mode ? (vitals(i).length ? ', ' : '') + 'O2: ' + esc(o2Text(i)) : '');
     const who = [i.time ? 'มา ' + esc(i.time) + ' น.' : '', i.doctor ? 'แพทย์ ' + esc(i.doctor) : ''].filter(Boolean).join(' \u00b7 ');
     return head + (pt ? ' \u00b7 <b>' + esc(pt) + '</b>' : '') + (who ? '<br>' + who : '') + (vs ? '<br>' + vs : '') + (i.detail ? '<br>' + one(i.detail) : '') + (i.action ? `<br><i>แก้ไข: ${one(i.action)}</i>` : '');
