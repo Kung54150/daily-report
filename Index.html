@@ -5,6 +5,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>รายงานยอดประจำวัน</title>
+<script>try{var __t=JSON.parse(localStorage.getItem("dr.theme")||"null")||{},__r=document.documentElement;if(__t.mode==="light"||__t.mode==="dark")__r.setAttribute("data-theme",__t.mode);if(__t.accent&&__t.accent!=="teal")__r.setAttribute("data-accent",__t.accent);}catch(e){}</script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=Sarabun:wght@400;600&display=swap">
 <style>
   /* Layout: แถบหัว + แท็บ + วันที่ติดด้านบน, เนื้อหาคอลัมน์เดียวบนมือถือ, 2 คอลัมน์บนจอกว้าง */
@@ -143,8 +144,9 @@
   .note { font-size: 13px; background: var(--warn-soft); color: var(--warn); border-radius: 8px; padding: 8px 10px; margin-bottom: 12px; }
   #busy { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.28); display: flex; align-items: center; justify-content: center; }
   #busy[hidden] { display: none; }
+  #boot .spin { margin-top: 20vh; }
   #busy .busybox { background: var(--surface); color: var(--fg); border-radius: 14px; padding: 20px 26px; display: grid; gap: 12px; justify-items: center; box-shadow: 0 10px 40px rgba(0,0,0,.35); font-size: 15px; }
-  #busy .spin { width: 42px; height: 42px; border-radius: 50%; border: 4px solid var(--line); border-top-color: var(--accent-strong); animation: busyspin .8s linear infinite; }
+  .spin { width: 42px; height: 42px; border-radius: 50%; border: 4px solid var(--line); border-top-color: var(--accent-strong); animation: busyspin .8s linear infinite; }
   @keyframes busyspin { to { transform: rotate(360deg); } }
   .toast { position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 18px; border-radius: 99px; z-index: 20; font-size: 14px; max-width: calc(100% - 32px); }
 
@@ -455,6 +457,7 @@
 
 <!-- ===== กำลังโหลด / แจ้งข้อผิดพลาด (ไม่ให้เป็นหน้าว่าง) ===== -->
 <div id="boot" class="wrap" style="padding-block:56px;text-align:center">
+  <div class="spin" style="margin:0 auto 12px"></div>
   <div id="boot_msg" class="muted">กำลังโหลด...</div>
   <button class="btn ghost sm" id="boot_retry" type="button" hidden style="margin-top:14px" onclick="location.reload()">ลองใหม่</button>
 </div>
@@ -556,7 +559,7 @@ const Busy = {
     const el = document.getElementById('busy'); if (!el) return;
     document.getElementById('busy_t').textContent = msg || 'กำลังดำเนินการ...';
     if (!el.hidden || Busy.t) return;
-    if (now) el.hidden = false; else Busy.t = setTimeout(() => { Busy.t = null; if (Busy.n > 0) el.hidden = false; }, 250);
+    if (now) el.hidden = false; else Busy.t = setTimeout(() => { Busy.t = null; const bt = document.getElementById('boot'); if (Busy.n > 0 && (!bt || bt.hidden)) el.hidden = false; }, 250);
   },
   end() {
     Busy.n = Math.max(0, Busy.n - 1);
@@ -858,15 +861,17 @@ const unitOptgroups = (sel, prefix) => S.cfg.sections.map(sc => `<optgroup label
 })();
 
 async function showLogin() {
-  $('app').hidden = true; $('login').hidden = false; $('boot').hidden = true; window.__ready = true;
-  if ($('l_unit').options.length) return;
-  let info;
-  try { info = await api('getLoginInfo'); }
-  catch (e) { $('l_msg').textContent = 'โหลดรายชื่อหน่วยงานไม่สำเร็จ: ' + e.message + ' (ลองรีเฟรชหน้านี้)'; return; }
-  $('l_unit').innerHTML = info.groups.map(g => g.sections.map(sc => `<optgroup label="${esc(sc.label)}">${sc.units.map(u => `<option>${esc(u)}</option>`).join('')}</optgroup>`).join('')).join('')
-    + '<optgroup label="ผู้บริหาร / ผู้ดูแลระบบ"><option value="MANAGER">ผู้จัดการ</option><option value="ADMIN">Admin (ผู้ดูแลระบบ)</option></optgroup>';
-  const last = store.get('lastUnit'); if (last) $('l_unit').value = last;
-  if (info.hint) { $('l_hint').hidden = false; $('l_hint').textContent = info.hint; }
+  $('app').hidden = true;
+  if (!$('l_unit').options.length) {
+    try {
+      const info = await api('getLoginInfo');
+      $('l_unit').innerHTML = info.groups.map(g => g.sections.map(sc => `<optgroup label="${esc(sc.label)}">${sc.units.map(u => `<option>${esc(u)}</option>`).join('')}</optgroup>`).join('')).join('')
+        + '<optgroup label="ผู้บริหาร / ผู้ดูแลระบบ"><option value="MANAGER">ผู้จัดการ</option><option value="ADMIN">Admin (ผู้ดูแลระบบ)</option></optgroup>';
+      const last = store.get('lastUnit'); if (last) $('l_unit').value = last;
+      if (info.hint) { $('l_hint').hidden = false; $('l_hint').textContent = info.hint; }
+    } catch (e) { $('l_msg').textContent = 'โหลดรายชื่อหน่วยงานไม่สำเร็จ: ' + e.message + ' (ลองรีเฟรชหน้านี้)'; }
+  }
+  $('login').hidden = false; $('boot').hidden = true; window.__ready = true;
 }
 
 $('loginForm').addEventListener('submit', async e => {
@@ -888,7 +893,7 @@ $('t_logout').onclick = async () => {
 
 async function startApp(b) {
   S.me = b.me; S.cfg = b.config;
-  $('login').hidden = true; $('boot').hidden = true; $('app').hidden = false; window.__ready = true;
+  $('login').hidden = true; $('boot').hidden = false; // แสดงหน้าโหลดค้างไว้จนข้อมูลพร้อม ไม่ให้เห็นหน้าเปล่ากะพริบ
   const admin = S.me.role === 'admin', manager = S.me.role === 'manager';
   $('t_unit').textContent = admin ? 'ADMIN' : manager ? 'ผู้จัดการ' : S.me.unit;
   $('t_sub').textContent = admin ? 'ผู้ดูแลระบบ \u00b7 ดูได้ทุกหน่วยงาน' : manager ? 'ดูได้ทุกหน่วยงาน' : unitLabel(unitCfg(S.me.unit));
@@ -905,8 +910,10 @@ async function startApp(b) {
     try { S.aliases = await api('getAliases', S.token); } catch (e) { handleErr(e); }
     try { setTitles(await api('getTitleBindings', S.token)); } catch (e) { handleErr(e); }
   }
-  await loadStaff();
-  await loadDay();
+  try { await loadStaff(); await loadDay(); }
+  finally {
+    if ($('login').hidden) { $('boot').hidden = true; $('app').hidden = false; window.__ready = true; setStickTop(); }
+  }
 }
 
 function setDateUI() { $('d_date').value = S.date; $('d_text').textContent = fmtDMY(S.date); $('d_label').textContent = thaiDate(S.date, true); }
