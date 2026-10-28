@@ -12,6 +12,7 @@
 const SH_USERS = 'ผู้ใช้';
 const SH_REPORTS = 'รายงาน';
 const SH_INCIDENTS = 'เหตุการณ์ผิดปกติ';
+const SH_CASES = 'รายงานเคส';
 const SH_STAFF = 'ทะเบียนเจ้าหน้าที่';
 const SH_STATS = 'สถิติ';
 const SH_ROOMS = 'ห้อง';
@@ -21,10 +22,13 @@ const ATT_MAX_BYTES = 6 * 1024 * 1024; // ไฟล์แนบสูงสุ�
 const ATT_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'application/pdf': 'pdf' };
 const ROOMS_PER_IPD = 25; // ห้องเริ่มต้นของแต่ละตึกผู้ป่วยใน เช่น A401 ถึง A425 (แก้ไขได้ในชีต 'ห้อง')
 const INC_FIELDS = ['type', 'severity', 'patient', 'age', 'hn', 'time', 'doctor', 'bp', 'pr', 'rr', 'temp', 'spo2', 'o2mode', 'o2flow', 'detail', 'action'];
+const CASE_FIELDS = INC_FIELDS.slice(2); // รายงานเคส = เหมือนเหตุการณ์ผิดปกติ แต่ไม่มีประเภทและระดับความรุนแรง
 const HEADERS = {
   [SH_USERS]: ['หน่วยงาน', 'รหัสผ่าน'],
   [SH_REPORTS]: ['วันที่', 'หน่วยงาน', 'ผู้รายงาน', 'แก้ไขล่าสุด', 'ข้อมูล (JSON)', 'เวร'],
   [SH_INCIDENTS]: ['วันที่', 'หน่วยงาน', 'ประเภท', 'ระดับความรุนแรง', 'ชื่อ-สกุลผู้ป่วย', 'อายุ', 'HN', 'เวลามารับบริการ', 'แพทย์เจ้าของไข้',
+    'BP (mmHg)', 'PR (/min)', 'RR (/min)', 'T (°C)', 'O2 sat (%)', 'O2', 'O2 ที่ให้', 'รายละเอียด', 'การแก้ไขเบื้องต้น', 'ผู้รายงาน', 'ไฟล์แนบ', 'เวร'],
+  [SH_CASES]: ['วันที่', 'หน่วยงาน', 'ชื่อ-สกุลผู้ป่วย', 'อายุ', 'HN', 'เวลามารับบริการ', 'แพทย์เจ้าของไข้',
     'BP (mmHg)', 'PR (/min)', 'RR (/min)', 'T (°C)', 'O2 sat (%)', 'O2', 'O2 ที่ให้', 'รายละเอียด', 'การแก้ไขเบื้องต้น', 'ผู้รายงาน', 'ไฟล์แนบ', 'เวร'],
   // ยอดมาตรฐานแบบแถวยาว ใช้ทำ Pivot / Looker Studio ภายหลัง
   [SH_STATS]: ['วันที่', 'กลุ่ม', 'หน่วยงาน', 'หมวด', 'รายการ', 'จำนวน', 'ตึก', 'เวร'],
@@ -270,13 +274,8 @@ function saveReport(token, rep) {
     staff: (rep.staff || []).filter(s => s && s.name).map(s => ({ name: String(s.name), role: s.role || '', tag: s.tag || '', tagNote: s.tagNote || '' })),
     reduce: rep.reduce || {},
     notes: String(rep.notes || ''),
-    incidents: (rep.incidents || []).filter(i => i && String(i.detail || '').trim())
-      .map(i => {
-        const o = {}; INC_FIELDS.forEach(k => { o[k] = String(i[k] == null ? '' : i[k]); });
-        o.files = (i.files || []).filter(x => x && x.id).slice(0, 5)
-          .map(x => ({ id: String(x.id), name: String(x.name || '').slice(0, 80), mime: String(x.mime || ''), size: Number(x.size) || 0 }));
-        return o;
-      })
+    incidents: cleanCases_(rep.incidents, INC_FIELDS),
+    cases: cleanCases_(rep.cases, CASE_FIELDS)
   };
   const unitInfo = buildConfig_().units.find(u => u.code === me.unit);
   const stats = statRows_(unitInfo, clean);
@@ -296,12 +295,31 @@ function saveReport(token, rep) {
         [clean.date, clean.unit].concat(INC_FIELDS.map(k => i[k]), [clean.reporter, i.files.map(x => x.name).join(', '), clean.shift])));
     }
 
+    const cs = sheet_(SH_CASES);
+    ensureHeaders_(cs, HEADERS[SH_CASES]);
+    deleteRows_(cs, r => fmtDate_(r[0]) === clean.date && r[1] === clean.unit && rowShift_(r[CASE_FIELDS.length + 4]) === clean.shift);
+    if (clean.cases.length) {
+      cs.getRange(cs.getLastRow() + 1, 1, clean.cases.length, CASE_FIELDS.length + 5).setValues(clean.cases.map(i =>
+        [clean.date, clean.unit].concat(CASE_FIELDS.map(k => i[k]), [clean.reporter, i.files.map(x => x.name).join(', '), clean.shift])));
+    }
+
     const st = sheet_(SH_STATS);
     ensureHeaders_(st, HEADERS[SH_STATS]);
     deleteRows_(st, r => fmtDate_(r[0]) === clean.date && r[2] === clean.unit && rowShift_(r[7]) === clean.shift);
     if (stats.length) st.getRange(st.getLastRow() + 1, 1, stats.length, 8).setValues(stats);
   });
   return { ok: true };
+}
+
+// เหตุการณ์ผิดปกติ / รายงานเคส: เก็บเฉพาะรายการที่มีรายละเอียด และจำกัดฟิลด์ตามที่กำหนด
+function cleanCases_(list, fields) {
+  return (list || []).filter(i => i && String(i.detail || '').trim())
+    .map(i => {
+      const o = {}; fields.forEach(k => { o[k] = String(i[k] == null ? '' : i[k]); });
+      o.files = (i.files || []).filter(x => x && x.id).slice(0, 5)
+        .map(x => ({ id: String(x.id), name: String(x.name || '').slice(0, 80), mime: String(x.mime || ''), size: Number(x.size) || 0 }));
+      return o;
+    });
 }
 
 // ยอดมาตรฐาน + ประเภทผู้ป่วย + อัตรากำลัง ของรายงานหนึ่งฉบับ (แถวละหนึ่งค่า)
@@ -328,6 +346,7 @@ function statRows_(u, rep) {
   });
   ['RN', 'PN', 'NA'].forEach(r => { if (Number(rep.reduce[r])) rows.push(row('ลดอัตรากำลัง (ชม.)', r, Number(rep.reduce[r]))); });
   rep.incidents.forEach(i => rows.push(row('เหตุการณ์ผิดปกติ', i.type, 1)));
+  if (rep.cases.length) rows.push(row('รายงานเคส', 'เคส', rep.cases.length));
   return rows;
 }
 
@@ -393,8 +412,8 @@ function saveRooms(token, unit, list) {
   (list || []).forEach(r => {
     const no = String(r && r.no || '').trim(), name = String(r && r.name || '').trim();
     if (!no) return;
-    const key = (name || no).toLowerCase();
-    if (seen[key]) throw new Error('ชื่อห้องซ้ำ: ' + (name || no));
+    const key = no.toLowerCase();
+    if (seen[key]) throw new Error('เลขห้องซ้ำ: ' + no);
     seen[key] = true; clean.push([unit, no, name]);
   });
   if (clean.length > 300) throw new Error('จำนวนห้องมากเกินไป');
