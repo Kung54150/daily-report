@@ -159,6 +159,10 @@
   #dlg { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; padding: 16px; }
   #dlg .dlgbox { background: var(--surface); color: var(--fg); border-radius: 14px; padding: 18px; max-width: 420px; width: 100%; max-height: 85vh; overflow: auto; box-shadow: 0 10px 40px rgba(0,0,0,.35); }
   #dlg .dlgbox h3 { margin: 0 0 8px; color: var(--bad); }
+  .sug { display: grid; gap: 2px; margin: 4px 0; padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); box-shadow: 0 4px 14px rgba(0,0,0,.15); }
+  .sug[hidden] { display: none; }
+  .sug .sugi { text-align: left; border: 0; background: transparent; padding: 8px 10px; border-radius: 6px; cursor: pointer; color: var(--fg); font-size: 15px; }
+  .sug .sugi:hover { background: var(--accent-soft); }
   .remwarn { color: var(--bad); font-size: 13px; font-weight: 600; margin: 2px 0 6px; } .remwarn.ok { color: var(--ok); } .remwarn:empty { display: none; }
   .frow .calc { text-align: center; font-weight: 700; padding: 9px 0; background: var(--accent-soft); border-radius: 8px; }
   .sumline { display: flex; justify-content: space-between; padding-top: 8px; margin-top: 4px; border-top: 2px solid var(--line); font-weight: 600; }
@@ -1033,6 +1037,7 @@ function statusPill(u) {
 }
 // ตัวเลขหลักบนการ์ด: คงพยาบาล หรือช่องแรก
 function headline(u, r) {
+  if (u.form.sections.some(x => x.type === 'docs')) return 'ผู้รับบริการ ' + num((r.values || {})[u.form.sections.find(x => x.type === 'docs').totalKey]);
   const f = allFields(u).find(f => f.calc) || allFields(u).find(f => !f.type);
   if (!f) { const t = stdValues(u, r.values).total; return t === undefined ? '' : 'ยอดรวม ' + t; }
   return `${f.label} ${fieldValue(u, r.values, f)}`;
@@ -1083,7 +1088,8 @@ const o2Text = i => i.o2mode ? (i.o2mode === 'Room air' ? 'Room air' : `${i.o2mo
 
 /* ===== รายการแบบเลือกจาก Drop down แล้วกดเพิ่ม (เช่น HPC) ===== */
 const listRows = (s, v) => (v[s.key] || []).map(r => Object.assign({ it: s.items.find(i => i.k === r.k) }, r));
-const listLabel = (it, r) => (it ? it.label : r.k) + (r.name ? ' \u00b7 ' + r.name : '');
+const listLabel = (it, r) => (it && it.custom ? (r.name || it.label) : (it ? it.label : r.k) + (r.name ? ' \u00b7 ' + r.name : ''));
+const listUnit = s => s.unit || 'ราย';
 const listTotal = (s, v) => (v[s.key] || []).reduce((a, r) => a + num(r.n), 0);
 /* ===== ลูกบอลสีของผู้ป่วยคงพยาบาลแต่ละประเภท (เขียว เหลือง ส้ม แดง) ===== */
 const ballSum = (v, key) => S.cfg.balls.reduce((a, b) => a + num(v[key + '_' + b[0]]), 0);
@@ -1110,6 +1116,12 @@ function catCard(s, v) {
   return `<div class="card" style="grid-column:1/-1"><h3>${esc(s.title)}</h3><table class="cattab"><thead><tr><th>ประเภท</th><th>จำนวนรวม</th><th>ลูกบอลสี</th></tr></thead><tbody>${rows}</tbody>
     <tfoot><tr><td class="ct">${esc(s.sum || 'รวม')}</td><td class="cn">${tot}</td><td class="cb"></td></tr></tfoot></table></div>`;
 }
+function docsCard(s, v) {
+  const docs = v[s.key] || [];
+  return `<div class="card"><h3>${esc(s.title)}</h3>${docs.map(d => `<div style="margin-bottom:8px"><b>${esc(d.name || '(ไม่ระบุชื่อ)')}</b> <span class="muted">${num(d.n)} ${esc(s.unit)}</span>
+    <div class="kv">${(d.rows || []).map(r => `<div>${esc(listLabel(s.items.find(x => x.k === r.k), r))}</div><div class="v">${r.n}</div>`).join('') || '<div class="full muted">\u2013</div>'}</div></div>`).join('') || '<div class="muted">ยังไม่มีรายการ</div>'}
+    <div class="kv"><div class="total">${esc(s.totalLabel)}</div><div class="total v">${num(v[s.totalKey])}</div></div></div>`;
+}
 function listCard(s, v) {
   const rows = listRows(s, v);
   return `<div class="card"><h3>${esc(s.title)}</h3><div class="kv">${rows.map(r => `<div>${esc(listLabel(r.it, r))}</div><div class="v">${r.n}</div>`).join('') || '<div class="full muted">ยังไม่มีรายการ</div>'}
@@ -1135,6 +1147,7 @@ function renderReportView(u, r) {
   if (S.sub === 'patient') {
     const cards = u.form.sections.map(s => {
       if (s.type === 'list') return listCard(s, v);
+      if (s.type === 'docs') return docsCard(s, v);
       if (s.categories) return catCard(s, v);
       if (s.type === 'grid') {
         return `<div class="card"><h3>${esc(s.title)}</h3><div class="grid-scroll"><table class="g"><tr><th></th>${s.cols.map(c => `<th>${esc(c[1])}</th>`).join('')}<th>รวม</th></tr>
@@ -1190,8 +1203,23 @@ function startEdit(unit) {
   const rep = repOf(euUnit(), S.shift);
   S.draft = rep ? JSON.parse(JSON.stringify(rep)) : { date: S.date, unit: euUnit(), values: {}, staff: [], reduce: {}, notes: '', incidents: [], cases: [], reporter: store.get('reporter') || '' };
   S.draft.date = S.date; S.draft.shift = S.shift; S.draft.cases = S.draft.cases || [];
-  S.editing = true; S.dirty = false;
+  S.editing = true; S.dirty = false; S.docSt = {};
   render(); window.scrollTo(0, 0);
+  prefillCarry();
+}
+// ยอดสะสมที่ยกมา (เช่น ยอด ปกส. ของทันตกรรม): ถ้ายังไม่มีค่าให้ดึงยอดรวมจากรายงานล่าสุดก่อนวันนี้ (ปีเดียวกัน) ถ้าไม่มีให้กรอกเอง
+async function prefillCarry() {
+  const eu = euUnit(), u = unitCfg(eu), d = S.draft;
+  let f = null; u.form.sections.forEach(x => (x.fields || []).forEach(y => { if (y.carryFrom) f = y; }));
+  const blank = () => d.values[f.key] === undefined || d.values[f.key] === '';
+  if (!f || !blank()) return;
+  try {
+    const r = await api('getCarry', S.token, eu, S.date, f.carryFrom);
+    if (!r || !S.editing || S.draft !== d || !blank()) return;
+    d.values[f.key] = r.value;
+    const el = document.querySelector(`[data-v="${f.key}"]`); if (el) el.value = r.value;
+    recalc(true); toast('ยก' + f.label + ' มาจากวันที่ ' + fmtDMY(r.date) + ' (แก้ไขได้)');
+  } catch (e) { /* ไม่มีข้อมูลก่อนหน้า: กรอกเอง */ }
 }
 
 function mountForm() {
@@ -1204,6 +1232,7 @@ function mountForm() {
   u.form.sections.forEach((s, si) => {
     pat += `<div class="card"><h3>${esc(s.title)}</h3>`;
     if (s.type === 'list') pat += `<div data-list="${esc(s.key)}"></div>`;
+    else if (s.type === 'docs') pat += `<div data-docs="${esc(s.key)}"></div>`;
     else if (s.type === 'grid') {
       pat += `<div class="grid-scroll"><table class="g"><tr><th></th>${s.cols.map(c => `<th>${esc(c[1])}</th>`).join('')}<th>รวม</th></tr>
         ${s.rows.map(rw => `<tr><td>${esc(rw[1])}</td>${s.cols.map(c => `<td>${numInput(rw[0] + '_' + c[0])}</td>`).join('')}<td class="num"><b data-rowsum="${si}:${esc(rw[0])}">0</b></td></tr>`).join('')}</table></div>`;
@@ -1242,7 +1271,7 @@ function mountForm() {
 
   $('view').innerHTML = `<div id="fm_tabs"></div>
     <div data-panel="patient">${pat}</div><div data-panel="staff">${staff}</div><div data-panel="incident">${inc}</div>`;
-  renderStaffPicker(); renderIncidents(); renderCases(); renderRoomPickers(); renderLists(); S.overWarned = false; recalc(true); showSub();
+  renderStaffPicker(); renderIncidents(); renderCases(); renderRoomPickers(); renderLists(); renderDocs(); S.overWarned = false; recalc(true); showSub();
   $('fm_addinc').onclick = () => {
     d.incidents.push({ type: S.cfg.problemTypes[0], severity: '-', patient: '', age: '', hn: '', time: '', doctor: '', bp: '', pr: '', rr: '', temp: '', spo2: '', o2mode: 'Room air', o2flow: '', detail: '', action: '' });
     S.dirty = true; renderIncidents(); showSub();
@@ -1255,31 +1284,129 @@ function mountForm() {
   };
   $('sb_msg').textContent = repOf(euUnit(), S.shift) ? 'กำลังแก้ไขรายงานเวร ' + S.shift + ' ที่ส่งแล้ว' : 'รายงานเวร ' + S.shift + ' ยังไม่ได้บันทึก';
 }
+// แนะนำชื่อรายการ: เรียงตามความคล้ายกับที่พิมพ์ (มีคำนั้นอยู่ / ตัวอักษรคู่ซ้ำกัน) จากชื่อที่เคยใช้ + รายการในเมนู
+function procSuggest(items, rows, memKey, typed) {
+  const q = String(typed || '').toLowerCase().replace(/\s+/g, '');
+  if (q.length < 1) return [];
+  const bg = t => { const a = []; for (let i = 0; i < t.length - 1; i++) a.push(t.slice(i, i + 2)); return a; };
+  const qb = bg(q), seen = new Set();
+  const score = label => {
+    const t = label.toLowerCase().replace(/\s+/g, '');
+    if (t === q) return 0;
+    if (t.indexOf(q) === 0) return 5; if (t.indexOf(q) >= 0) return 4; if (q.indexOf(t) >= 0 && t.length >= 3) return 3;
+    const tb = bg(t); if (!qb.length || !tb.length) return 0;
+    const hit = qb.filter(x => tb.indexOf(x) >= 0).length, dice = 2 * hit / (qb.length + tb.length);
+    return dice >= 0.4 ? 2 * dice : 0;
+  };
+  const mem = ((S.cfg.procs || {})[euUnit()] || {})[memKey] || [], drafted = (rows || []).filter(r => r.name).map(r => r.name);
+  const cands = [];
+  items.filter(i => !i.custom).forEach(i => cands.push({ label: i.label, builtin: true, k: i.k }));
+  mem.concat(drafted).forEach(n => cands.push({ label: n }));
+  return cands.map(c => Object.assign(c, { sc: score(c.label) })).filter(c => c.sc > 0)
+    .sort((a, b) => b.sc - a.sc).filter(c => { const k = c.label.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 6);
+}
+// หลังบันทึก: จำชื่อที่พิมพ์เอง (หัตถการ / ชื่อแพทย์) ไว้ในหน้านี้ด้วย (ฝั่งเซิร์ฟเวอร์จำไว้ให้แล้ว)
+function rememberProcs(unit, form, values) {
+  S.cfg.procs = S.cfg.procs || {};
+  const norm = t => String(t).toLowerCase().replace(/\s+/g, '');
+  const add = (key, name) => { const u = S.cfg.procs[unit] = S.cfg.procs[unit] || {}, l = u[key] = u[key] || []; if (name && !l.some(n => norm(n) === norm(name))) l.unshift(name); };
+  form.sections.filter(x => x.type === 'list').forEach(sec => (values[sec.key] || []).forEach(r => {
+    const it = sec.items.find(i => i.k === r.k); if (it && it.custom && r.name) add(sec.key, r.name);
+  }));
+  form.sections.filter(x => x.type === 'docs').forEach(sec => (values[sec.key] || []).forEach(d => {
+    if (d.name) add(sec.key + ':doc', d.name);
+    (d.rows || []).forEach(r => { const it = sec.items.find(i => i.k === r.k); if (it && it.custom && r.name) add(sec.key, r.name); });
+  }));
+}
+// รายการ "เลือกจากดรอปดาวน์ + ใส่จำนวน + เพิ่มรายการเอง (พิมพ์ชื่อ มีคำแนะนำ)" ใช้ร่วมกันทั้งรายการทั่วไป (HPC / EENT) และหัตถการรายแพทย์
+// o = { items, rows, unit, totalLabel, memKey, onChange(), rerender() }
+function mountList(box, o) {
+  const rows = o.rows, st = o.state || (box._st = box._st || { k: '', name: '', n: '1' });
+  const it = o.items.find(i => i.k === st.k);
+  const total = () => rows.reduce((a, r) => a + num(r.n), 0);
+  const sync = () => { o.onChange(); const el = box.querySelector('[data-ltotal]'); if (el) el.textContent = total(); };
+  const canAdd = () => !!it && num(st.n) >= 1 && (!it.ask || st.name.trim() !== '');
+  box.innerHTML = `<div class="lstadd"><select data-lsel aria-label="เลือกรายการ"><option value="">— เลือกรายการ —</option>${o.items.map(i => `<option value="${esc(i.k)}"${i.k === st.k ? ' selected' : ''}>${esc(i.label)}</option>`).join('')}</select>
+      ${it && it.ask ? `<input data-lname value="${esc(st.name)}" maxlength="80" autocomplete="off" placeholder="${esc(it.ask)} (ต้องระบุก่อนจึงจะเพิ่มได้)" aria-label="${esc(it.ask)}">${it.custom ? '<div class="sug" data-sug hidden></div>' : ''}` : ''}
+      <div class="addn"><input data-ln type="number" inputmode="numeric" min="1" step="1" value="${esc(st.n)}" aria-label="จำนวน (${esc(o.unit)})"><button type="button" class="btn" data-ladd${canAdd() ? '' : ' disabled'}>+ เพิ่ม</button></div></div>
+      <div class="lrows">${rows.map((r, i) => `<div class="lrow"><span>${esc(listLabel(o.items.find(x => x.k === r.k), r))}</span><input type="number" inputmode="numeric" min="0" step="1" data-lcount="${i}" value="${esc(r.n)}" aria-label="จำนวน"><button type="button" class="btn ghost sm" data-ldel="${i}" aria-label="ลบรายการ">×</button></div>`).join('') || '<div class="muted" style="padding:6px 0">ยังไม่มีรายการ — เลือกรายการแล้วกด + เพิ่ม</div>'}</div>
+      <div class="sumline"><span>${esc(o.totalLabel)}</span><span class="num" data-ltotal>${total()}</span></div>`;
+  const upd = () => { box.querySelector('[data-ladd]').disabled = !canAdd(); };
+  box.querySelector('[data-lsel]').onchange = e => { st.k = e.target.value; st.name = ''; o.rerender(); };
+  const nm = box.querySelector('[data-lname]');
+  if (nm) {
+    nm.oninput = e => { st.name = e.target.value; upd(); drawSug(); };
+    // ชื่อที่พิมพ์คล้ายคำที่เคยใช้ (หรือชื่อรายการที่มีอยู่แล้ว) จะขึ้นให้เลือก
+    const sug = box.querySelector('[data-sug]');
+    const drawSug = () => {
+      if (!sug) return;
+      const list = procSuggest(o.items, rows, o.memKey, st.name);
+      sug.hidden = !list.length;
+      sug.innerHTML = list.map((x, i) => `<button type="button" class="sugi" data-si="${i}">${esc(x.label)}${x.builtin ? ' <small>(รายการในเมนู)</small>' : ''}</button>`).join('');
+      sug.querySelectorAll('[data-si]').forEach(b => b.onmousedown = ev => {
+        ev.preventDefault();
+        const x = list[+b.dataset.si];
+        if (x.builtin) { st.k = x.k; st.name = ''; o.rerender(); } else { st.name = x.label; nm.value = x.label; upd(); sug.hidden = true; }
+      });
+    };
+    nm.onfocus = drawSug; nm.onblur = () => setTimeout(() => { if (sug) sug.hidden = true; }, 150);
+  }
+  box.querySelector('[data-ln]').oninput = e => { st.n = e.target.value; upd(); };
+  box.querySelector('[data-ladd]').onclick = () => {
+    if (!canAdd()) return;
+    const name = it.ask ? st.name.trim() : '', n = Math.floor(num(st.n)), same = rows.find(r => r.k === it.k && String(r.name || '').toLowerCase() === name.toLowerCase());
+    if (same) { same.n = num(same.n) + n; toast('มีรายการนี้อยู่แล้ว — รวมจำนวนให้'); } else rows.push({ k: it.k, name, n });
+    st.k = ''; st.name = ''; st.n = '1'; o.onChange(); o.rerender();
+  };
+  box.querySelectorAll('[data-lcount]').forEach(inp => inp.oninput = () => { rows[+inp.dataset.lcount].n = Math.max(0, Math.floor(num(inp.value))); sync(); });
+  box.querySelectorAll('[data-ldel]').forEach(b => b.onclick = () => { rows.splice(+b.dataset.ldel, 1); o.onChange(); o.rerender(); });
+}
 function renderLists() {
   const v = S.draft.values;
   document.querySelectorAll('[data-list]').forEach(box => {
     const s = unitCfg(euUnit()).form.sections.find(x => x.key === box.dataset.list);
-    const rows = v[s.key] = v[s.key] || [], st = box._st = box._st || { k: '', name: '', n: '1' };
-    const it = s.items.find(i => i.k === st.k);
-    const sync = () => { v[s.totalKey] = listTotal(s, v); S.dirty = true; const el = box.querySelector('[data-ltotal]'); if (el) el.textContent = v[s.totalKey]; };
-    const canAdd = () => !!it && num(st.n) >= 1 && (!it.ask || st.name.trim() !== '');
-    box.innerHTML = `<div class="lstadd"><select data-lsel aria-label="เลือกรายการ"><option value="">\u2014 เลือกรายการ \u2014</option>${s.items.map(i => `<option value="${esc(i.k)}"${i.k === st.k ? ' selected' : ''}>${esc(i.label)}</option>`).join('')}</select>
-      ${it && it.ask ? `<input data-lname value="${esc(st.name)}" maxlength="80" placeholder="${esc(it.ask)} (ต้องระบุก่อนจึงจะเพิ่มได้)" aria-label="${esc(it.ask)}">` : ''}
-      <div class="addn"><input data-ln type="number" inputmode="numeric" min="1" step="1" value="${esc(st.n)}" aria-label="จำนวน (ราย)"><button type="button" class="btn" data-ladd${canAdd() ? '' : ' disabled'}>+ เพิ่ม</button></div></div>
-      <div class="lrows">${rows.map((r, i) => `<div class="lrow"><span>${esc(listLabel(s.items.find(x => x.k === r.k), r))}</span><input type="number" inputmode="numeric" min="0" step="1" data-lcount="${i}" value="${esc(r.n)}" aria-label="จำนวน"><button type="button" class="btn ghost sm" data-ldel="${i}" aria-label="ลบรายการ">\u00d7</button></div>`).join('') || '<div class="muted" style="padding:6px 0">ยังไม่มีรายการ \u2014 เลือกรายการแล้วกด + เพิ่ม</div>'}</div>
-      <div class="sumline"><span>${esc(s.totalLabel)}</span><span class="num" data-ltotal>${listTotal(s, v)}</span></div>`;
-    const upd = () => { box.querySelector('[data-ladd]').disabled = !canAdd(); };
-    box.querySelector('[data-lsel]').onchange = e => { st.k = e.target.value; st.name = ''; renderLists(); };
-    const nm = box.querySelector('[data-lname]'); if (nm) nm.oninput = e => { st.name = e.target.value; upd(); };
-    box.querySelector('[data-ln]').oninput = e => { st.n = e.target.value; upd(); };
-    box.querySelector('[data-ladd]').onclick = () => {
-      if (!canAdd()) return;
-      const name = it.ask ? st.name.trim() : '', n = Math.floor(num(st.n)), same = rows.find(r => r.k === it.k && String(r.name || '').toLowerCase() === name.toLowerCase());
-      if (same) { same.n = num(same.n) + n; toast('มีรายการนี้อยู่แล้ว \u2014 รวมจำนวนให้'); } else rows.push({ k: it.k, name, n });
-      st.k = ''; st.name = ''; st.n = '1'; sync(); renderLists();
-    };
-    box.querySelectorAll('[data-lcount]').forEach(inp => inp.oninput = () => { rows[+inp.dataset.lcount].n = Math.max(0, Math.floor(num(inp.value))); sync(); });
-    box.querySelectorAll('[data-ldel]').forEach(b => b.onclick = () => { rows.splice(+b.dataset.ldel, 1); sync(); renderLists(); });
+    const rows = v[s.key] = v[s.key] || [];
+    mountList(box, { items: s.items, rows, unit: listUnit(s), totalLabel: s.totalLabel, memKey: s.key, rerender: renderLists,
+      onChange: () => { v[s.totalKey] = listTotal(s, v); S.dirty = true; } });
+  });
+}
+// ทันตกรรม: แพทย์หลายท่าน (พิมพ์ชื่อเอง / กดชื่อที่เคยใช้) แต่ละท่านมีจำนวนเคสและหัตถการ ยอดรวมแผนกรวมจากเคสของแพทย์ทุกท่าน
+function renderDocs() {
+  const v = S.draft.values;
+  document.querySelectorAll('[data-docs]').forEach(box => {
+    const s = unitCfg(euUnit()).form.sections.find(x => x.key === box.dataset.docs);
+    const docs = v[s.key] = v[s.key] || [];
+    if (!docs.length) docs.push({ name: '', n: '', rows: [] });
+    const known = (((S.cfg.procs || {})[euUnit()] || {})[s.key + ':doc'] || []), low = t => String(t || '').toLowerCase().replace(/\s+/g, '');
+    const total = () => docs.reduce((a, d) => a + num(d.n), 0);
+    const sync = () => { v[s.totalKey] = total(); S.dirty = true; const el = box.querySelector('[data-dtotal]'); if (el) el.textContent = v[s.totalKey]; recalc(true); };
+    v[s.totalKey] = total();
+    box.innerHTML = docs.map((d, i) => {
+      const others = new Set(docs.filter((x, j) => j !== i).map(x => low(x.name)));
+      const chips = known.filter(n => !others.has(low(n)));
+      return `<div class="card doc"><div class="inc-head"><span>แพทย์ท่านที่ ${i + 1}</span><button type="button" class="x" data-ddel="${i}" aria-label="ลบแพทย์">×</button></div>
+        <label class="f">ชื่อแพทย์ <small>(พิมพ์เอง หรือกดชื่อที่เคยใช้)</small></label>
+        <input data-dname="${i}" value="${esc(d.name)}" maxlength="60" autocomplete="off" placeholder="เช่น ทพ.วิทวัส">
+        ${chips.length ? `<div class="chips" style="margin-top:6px">${chips.map((n, k) => `<button type="button" class="chip${low(n) === low(d.name) ? ' on' : ''}" data-dchip="${i}:${k}">${esc(n)}</button>`).join('')}</div>` : ''}
+        <label class="f">จำนวนผู้รับบริการของแพทย์ท่านนี้ <small>(${esc(s.unit)})</small></label>
+        <input type="number" inputmode="numeric" min="0" step="1" data-dn="${i}" value="${esc(d.n)}" placeholder="0">
+        <div class="muted" style="font-size:13px;margin:8px 0 4px">หัตถการ — คนไข้ 1 คนทำได้หลายอย่าง จำนวนหัตถการจึงไม่ต้องเท่าจำนวนเคส</div>
+        <div data-dprocs="${i}"></div></div>`;
+    }).join('') + `<button type="button" class="addinc" data-dadd>+ เพิ่มแพทย์</button>
+      <div class="sumline"><span>${esc(s.totalLabel)}</span><span class="num" data-dtotal>${total()}</span></div>`;
+    box.querySelectorAll('[data-dprocs]').forEach(el => {
+      const di = +el.dataset.dprocs, d = docs[di]; d.rows = d.rows || [];
+      S.docSt = S.docSt || {}; const state = S.docSt[di] = S.docSt[di] || { k: '', name: '', n: '1' };
+      mountList(el, { state, items: s.items, rows: d.rows, unit: s.procUnit || 'ครั้ง', totalLabel: 'รวมหัตถการ', memKey: s.key, rerender: renderDocs, onChange: () => { S.dirty = true; } });
+    });
+    box.querySelectorAll('[data-dname]').forEach(inp => inp.oninput = () => { docs[+inp.dataset.dname].name = inp.value; S.dirty = true; });
+    box.querySelectorAll('[data-dn]').forEach(inp => inp.oninput = () => { docs[+inp.dataset.dn].n = inp.value === '' ? '' : Math.max(0, Math.floor(num(inp.value))); sync(); });
+    box.querySelectorAll('[data-dchip]').forEach(b => b.onclick = () => {
+      const [i, k] = b.dataset.dchip.split(':').map(Number), others = new Set(docs.filter((x, j) => j !== i).map(x => low(x.name)));
+      docs[i].name = known.filter(n => !others.has(low(n)))[k]; S.dirty = true; renderDocs();
+    });
+    box.querySelectorAll('[data-ddel]').forEach(b => b.onclick = () => { const di = +b.dataset.ddel; docs.splice(di, 1); const old = S.docSt || {}, nx = {}; Object.keys(old).forEach(k => { if (+k < di) nx[k] = old[k]; else if (+k > di) nx[+k - 1] = old[k]; }); S.docSt = nx; sync(); renderDocs(); });
+    box.querySelector('[data-dadd]').onclick = () => { docs.push({ name: '', n: '', rows: [] }); S.dirty = true; renderDocs(); const c = box.querySelectorAll('.doc'); c[c.length - 1].scrollIntoView({ block: 'start', behavior: 'smooth' }); };
   });
 }
 function showSub() {
@@ -1699,6 +1826,7 @@ $('sb_save').onclick = async () => {
   $('sb_save').disabled = true; $('sb_msg').textContent = 'กำลังบันทึก...';
   try {
     await api('saveReport', S.token, d);
+    try { rememberProcs(euUnit(), uf.form, d.values); } catch (e) {}
     store.set('reporter', d.reporter);
     S.editing = false; S.dirty = false;
     setDay(await api('getDay', S.token, S.date)); S.monthData = null;
@@ -1979,7 +2107,9 @@ function printMonthly(u, month, reps) {
   const boxes = [];
   u.form.sections.forEach(s => {
     const lines = [];
-    if (s.type === 'list') {
+    if (s.type === 'docs') {
+      reps.forEach(r => (( r.values || {})[s.key] || []).forEach(d => { const nm = d.name || '(ไม่ระบุชื่อ)'; lines.push([nm + ' (เคส)', num(d.n)]); (d.rows || []).forEach(x => lines.push([listLabel(s.items.find(i => i.k === x.k), x) + ' \u00b7 ' + nm, num(x.n)])); }));
+    } else if (s.type === 'list') {
       const agg = {};
       reps.forEach(r => listRows(s, r.values || {}).forEach(x => { const k = listLabel(x.it, x); agg[k] = (agg[k] || 0) + num(x.n); }));
       Object.entries(agg).sort((a, b) => b[1] - a[1]).forEach(([k, n]) => lines.push([k, n]));
@@ -2103,7 +2233,9 @@ function printSingle(u, shift) {
   h += `<div class="st">ผู้รายงาน ${esc(r.reporter)} \u00b7 แก้ไขล่าสุด ${esc(r.updatedAt)}</div><h2>รายงานผู้ป่วย</h2><div class="cols">`;
   u.form.sections.forEach(s => {
     h += `<div class="ub"><b>${esc(s.title)}</b>`;
-    if (s.type === 'list') {
+    if (s.type === 'docs') {
+      h += '<table class="stat">' + (v[s.key] || []).map(d => `<tr><td><b>${esc(d.name || '(ไม่ระบุชื่อ)')}</b></td><td class="n">${num(d.n)}</td></tr>` + (d.rows || []).map(r => `<tr><td>&nbsp;&nbsp;${esc(listLabel(s.items.find(x => x.k === r.k), r))}</td><td class="n">${r.n}</td></tr>`).join('')).join('') + `<tr class="tot"><td>${esc(s.totalLabel)}</td><td class="n">${num(v[s.totalKey])}</td></tr></table>`;
+    } else if (s.type === 'list') {
       h += '<table class="stat">' + (listRows(s, v).map(r => `<tr><td>${esc(listLabel(r.it, r))}</td><td class="n">${r.n}</td></tr>`).join('') || '<tr><td colspan="2">\u2013</td></tr>') + `<tr class="tot"><td>${esc(s.totalLabel)}</td><td class="n">${listTotal(s, v)}</td></tr></table>`;
     } else if (s.type === 'grid') {
       h += `<table class="stat"><tr><th></th>${s.cols.map(c => `<th>${esc(c[1])}</th>`).join('')}<th>รวม</th></tr>${s.rows.map(rw => { const xs = s.cols.map(c => num(v[rw[0] + '_' + c[0]])); return `<tr><td>${esc(rw[1])}</td>${xs.map(x => `<td class="n">${x || '\u2013'}</td>`).join('')}<td class="n b">${xs.reduce((a, x) => a + x, 0)}</td></tr>`; }).join('')}</table>`;
@@ -2131,6 +2263,7 @@ function printSingle(u, shift) {
 // ปรับการแสดงผลในเอกสารสรุปของบางหัวข้อ: title = ชื่อหัวข้อที่แสดง, lead = ช่องที่นำค่ามาต่อท้ายหัวข้อ (ไม่ซ้ำในรายละเอียด), nosum = ไม่แสดงบรรทัดรวม
 const SUMMARY_VIEW = {
   ER: { 'ยอดผู้รับบริการ': { title: 'ยอดผู้รับบริการทั้งหมด', lead: 'total' }, 'OPD Case แบ่งตามประเภท (Triage)': { title: 'แยกตามประเภท Triage', nosum: true } },
+  EENT: { 'ยอดผู้ป่วย': { title: 'จำนวนคนไข้ทั้งหมด', lead: 'total', nosum: true } },
   OPD1: { 'ยอดรวม': { title: 'ยอดรวม Med+Psy', lead: 'total' }, 'ผู้ป่วยอายุรกรรม': { lead: 'med' }, 'ผู้ป่วยจิตเวช': { lead: 'psy' } }
 };
 // รายการหลักเป็นตัวหนา รายละเอียดขึ้นบรรทัดใหม่ขึ้นต้นด้วย -
@@ -2138,7 +2271,12 @@ function printLines(u, r, withInc) {
   const v = r.values || {}, out = [];
   const grp = (head, details) => out.push(`<div class="lg">${head ? `<div class="ln m">${head}</div>` : ''}${details.filter(Boolean).map(d => `<div class="ln dt">- ${d}</div>`).join('')}</div>`);
   u.form.sections.forEach(s => {
-    if (s.type === 'list') { const rows = listRows(s, v); if (rows.length) grp(`<b>${esc(s.totalLabel)} ${listTotal(s, v)} ราย</b>`, rows.map(r => `${esc(listLabel(r.it, r))} ${r.n}`)); return; }
+    if (s.type === 'docs') {
+      grp(`<b>${esc(s.title)} ${num(v[s.totalKey])} ${esc(s.unit)}</b>`, []);
+      (v[s.key] || []).forEach(d => grp(`<b>${esc(d.name || '(ไม่ระบุชื่อ)')} ${num(d.n)} ${esc(s.unit)}</b>`, (d.rows || []).map(r => `${esc(listLabel(s.items.find(x => x.k === r.k), r))} ${r.n}`)));
+      return;
+    }
+    if (s.type === 'list') { const rows = listRows(s, v); if (rows.length) grp(`<b>${esc(s.totalLabel)} ${listTotal(s, v)} ${esc(listUnit(s))}</b>`, rows.map(r => `${esc(listLabel(r.it, r))} ${r.n}`)); return; }
     if (s.type === 'grid') {
       s.rows.forEach(rw => { const parts = s.cols.map(c => [c[1], num(v[rw[0] + '_' + c[0]])]).filter(x => x[1]); const t = parts.reduce((a, x) => a + x[1], 0); grp(`<b>${esc(rw[1])} ${t}</b>`, [parts.map(x => esc(x[0]) + ' ' + x[1]).join(', ')]); });
       return;

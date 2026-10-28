@@ -13,6 +13,7 @@ const SH_USERS = 'ผู้ใช้';
 const SH_REPORTS = 'รายงาน';
 const SH_INCIDENTS = 'เหตุการณ์ผิดปกติ';
 const SH_CASES = 'รายงานเคส';
+const SH_PROCS = 'รายการหัตถการ';
 const SH_STAFF = 'ทะเบียนเจ้าหน้าที่';
 const SH_STATS = 'สถิติ';
 const SH_ROOMS = 'ห้อง';
@@ -28,6 +29,7 @@ const HEADERS = {
   [SH_REPORTS]: ['วันที่', 'หน่วยงาน', 'ผู้รายงาน', 'แก้ไขล่าสุด', 'ข้อมูล (JSON)', 'เวร'],
   [SH_INCIDENTS]: ['วันที่', 'หน่วยงาน', 'ประเภท', 'ระดับความรุนแรง', 'ชื่อ-สกุลผู้ป่วย', 'อายุ', 'HN', 'เวลามารับบริการ', 'แพทย์เจ้าของไข้',
     'BP (mmHg)', 'PR (/min)', 'RR (/min)', 'T (°C)', 'O2 sat (%)', 'O2', 'O2 ที่ให้', 'รายละเอียด', 'การแก้ไขเบื้องต้น', 'ผู้รายงาน', 'ไฟล์แนบ', 'เวร'],
+  [SH_PROCS]: ['หน่วยงาน', 'หมวด', 'ชื่อรายการ', 'จำนวนครั้งที่ใช้', 'ใช้ล่าสุด'],
   [SH_CASES]: ['วันที่', 'หน่วยงาน', 'ชื่อ-สกุลผู้ป่วย', 'อายุ', 'HN', 'เวลามารับบริการ', 'แพทย์เจ้าของไข้',
     'BP (mmHg)', 'PR (/min)', 'RR (/min)', 'T (°C)', 'O2 sat (%)', 'O2', 'O2 ที่ให้', 'รายละเอียด', 'การแก้ไขเบื้องต้น', 'ผู้รายงาน', 'ไฟล์แนบ', 'เวร'],
   // ยอดมาตรฐานแบบแถวยาว ใช้ทำ Pivot / Looker Studio ภายหลัง
@@ -215,7 +217,7 @@ function auth_(token) {
 }
 
 function getBoot(token) {
-  return { me: auth_(token), config: Object.assign(buildConfig_(), { rooms: getRooms_() }) };
+  return { me: auth_(token), config: Object.assign(buildConfig_(), { rooms: getRooms_(), procs: getProcs_() }) };
 }
 
 // ===== รายงาน =====
@@ -289,6 +291,23 @@ function saveReport(token, rep) {
     if (rows.length) values[s.key] = rows;
     values[s.totalKey] = rows.reduce((a, r) => a + r.n, 0);
   });
+  // ทันตกรรม: รายชื่อแพทย์ + จำนวนเคส + หัตถการของแต่ละท่าน; ยอดรวมผู้รับบริการ = ผลรวมเคสของแพทย์ทุกท่าน
+  form.sections.filter(s => s.type === 'docs').forEach(s => {
+    const docs = [];
+    ((rep.values || {})[s.key] || []).slice(0, 30).forEach(d => {
+      const name = String(d && d.name || '').trim().slice(0, 60), n = Math.max(0, Math.floor(Number(d && d.n)) || 0), rows = [];
+      ((d && d.rows) || []).forEach(x => {
+        const it = s.items.find(i => i.k === (x && x.k)), m = Math.floor(Number(x && x.n));
+        if (!it || !(m > 0)) return;
+        const nm = String(x.name || '').trim().slice(0, 80);
+        if (it.ask && !nm) throw new Error('กรุณาระบุ' + it.ask + ' (' + it.label + ')');
+        rows.push({ k: it.k, name: it.ask ? nm : '', n: m });
+      });
+      if (name || n || rows.length) docs.push({ name, n, rows });
+    });
+    if (docs.length) values[s.key] = docs;
+    values[s.totalKey] = docs.reduce((a, d) => a + d.n, 0);
+  });
 
   const clean = {
     date: rep.date, unit: unitCode, reporter: String(rep.reporter).trim(),
@@ -327,6 +346,8 @@ function saveReport(token, rep) {
         [clean.date, clean.unit].concat(CASE_FIELDS.map(k => i[k]), [clean.reporter, i.files.map(x => x.name).join(', '), clean.shift])));
     }
 
+    recordProcs_(unitCode, form, values);
+
     const st = sheet_(SH_STATS);
     ensureHeaders_(st, HEADERS[SH_STATS]);
     deleteRows_(st, r => fmtDate_(r[0]) === clean.date && r[2] === clean.unit && rowShift_(r[7]) === clean.shift);
@@ -356,6 +377,10 @@ function statRows_(u, rep) {
   u.form.sections.filter(s => s.type === 'list').forEach(s => (rep.values[s.key] || []).forEach(r => {
     const it = s.items.find(i => i.k === r.k);
     rows.push(row('รายการบริการ', (it ? it.label : r.k) + (r.name ? ' \u00b7 ' + r.name : ''), r.n));
+  }));
+  u.form.sections.filter(s => s.type === 'docs').forEach(s => (rep.values[s.key] || []).forEach(d => {
+    if (d.n) rows.push(row('ผู้รับบริการรายแพทย์', d.name || '(ไม่ระบุชื่อ)', d.n));
+    (d.rows || []).forEach(r => { const it = s.items.find(i => i.k === r.k); rows.push(row('หัตถการ', (it && it.custom ? r.name : it ? it.label : r.k) + ' \u00b7 ' + (d.name || ''), r.n)); });
   }));
   Object.entries(categoryValues_(u.form, rep.values)).forEach(([k, n]) => rows.push(row('ประเภทผู้ป่วย', k, n)));
   const bv = ballValues_(u.form, rep.values);
@@ -412,6 +437,56 @@ function getAttachment(token, id) {
   if (!inside) throw new Error('ไม่พบไฟล์แนบ');
   const blob = file.getBlob();
   return { name: file.getName().replace(/^.*?_[0-9a-f]{8}_/, ''), mime: blob.getContentType(), data: Utilities.base64Encode(blob.getBytes()) };
+}
+
+// ยอดสะสมที่ยกมาจากรายงานล่าสุดก่อนวันที่กำหนด (ปีเดียวกัน) เช่น ยอด ปกส. ของทันตกรรม; ไม่มี = null (ให้กรอกเอง)
+function getCarry(token, unit, date, key) {
+  const me = auth_(token);
+  if (me.role === 'unit' && unit !== me.unit) throw new Error('ดูได้เฉพาะหน่วยงานตนเอง');
+  const u = buildConfig_().units.find(x => x.code === unit);
+  if (!u || !/^\d{4}-\d{2}-\d{2}$/.test(String(date))) throw new Error('ข้อมูลไม่ถูกต้อง');
+  let spec = null;
+  u.form.sections.forEach(s => (s.fields || []).forEach(f => { if (f.carryFrom === key) spec = f; }));
+  if (!spec || !spec.carryFrom) return null;
+  let best = null, bestDate = '';
+  sheet_(SH_REPORTS).getDataRange().getValues().slice(1).forEach(r => {
+    const d = fmtDate_(r[0]);
+    if (String(r[1]) !== unit || d >= date || d.slice(0, 4) !== String(date).slice(0, 4) || d <= bestDate) return;
+    try { const rep = JSON.parse(r[4]); best = fieldNum_(u.form, rep.values || {}, spec.carryFrom); bestDate = d; } catch (e) {}
+  });
+  return best === null ? null : { value: best, date: bestDate };
+}
+
+// ===== ชื่อหัตถการที่หน่วยงานพิมพ์เองเคยใช้ (ชีต 'รายการหัตถการ') ใช้แนะนำตอนพิมพ์ครั้งต่อไป =====
+const procNorm_ = x => String(x == null ? '' : x).toLowerCase().replace(/\s+/g, '');
+function getProcs_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss.getSheetByName(SH_PROCS)) return {};
+  const rows = sheet_(SH_PROCS).getDataRange().getValues().slice(1).filter(r => r[0] && r[1] && r[2]);
+  rows.sort((a, b) => (Number(b[3]) || 0) - (Number(a[3]) || 0));
+  const out = {};
+  rows.forEach(r => { const u = out[r[0]] = out[r[0]] || {}, l = u[r[1]] = u[r[1]] || []; if (l.length < 200) l.push(String(r[2])); });
+  return out;
+}
+function recordProcs_(unit, form, values) {
+  const add = [];
+  form.sections.filter(s => s.type === 'list').forEach(s => (values[s.key] || []).forEach(r => {
+    const it = s.items.find(i => i.k === r.k);
+    if (it && it.custom && r.name) add.push([s.key, r.name]);
+  }));
+  form.sections.filter(s => s.type === 'docs').forEach(s => (values[s.key] || []).forEach(d => {
+    if (d.name) add.push([s.key + ':doc', d.name]);
+    (d.rows || []).forEach(r => { const it = s.items.find(i => i.k === r.k); if (it && it.custom && r.name) add.push([s.key, r.name]); });
+  }));
+  if (!add.length) return;
+  const sh = sheet_(SH_PROCS), now = stamp_();
+  ensureHeaders_(sh, HEADERS[SH_PROCS]);
+  const data = sh.getDataRange().getValues();
+  add.forEach(([sec, name]) => {
+    const i = data.findIndex((r, k) => k > 0 && String(r[0]) === unit && String(r[1]) === sec && procNorm_(r[2]) === procNorm_(name));
+    if (i > 0) { const n = (Number(data[i][3]) || 0) + 1; data[i][3] = n; sh.getRange(i + 1, 4, 1, 2).setValues([[n, now]]); }
+    else { sh.appendRow([unit, sec, name, 1, now]); data.push([unit, sec, name, 1, now]); }
+  });
 }
 
 // ===== ห้องพัก (ชีต 'ห้อง': หน่วยงาน, เลขห้อง, ชื่อ/ประเภท) แก้ในเว็บหรือในชีตก็ได้ =====

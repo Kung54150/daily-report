@@ -46,7 +46,13 @@ const CATEGORIES = {
 
 // รายการแบบเลือกจาก Drop down แล้วกดเพิ่มต่อๆ ไป (ask = ต้องระบุชื่อก่อนจึงจะเพิ่มได้ เช่น ชื่อบริษัท)
 const LIST_ = (key, title, totalKey, totalLabel, items) => ({ title, type: 'list', key, totalKey, totalLabel, fields: [],
-  items: items.map(x => ({ k: x[0], label: x[1], ask: x[2] || '' })) });
+  items: ITEMS_(items) });
+const ITEMS_ = items => items.map(x => ({ k: x[0], label: x[1], ask: x[2] || '', custom: !!x[3] }));
+// custom = รายการ "เพิ่มรายการ (พิมพ์เอง)": พิมพ์ชื่อหัตถการเองและระบบจำชื่อที่เคยใช้ไว้แนะนำครั้งต่อไป
+const CUSTOM_ITEM = ['__custom', '+ เพิ่มรายการ (พิมพ์เอง)', 'ชื่อรายการ', true];
+const DENT_ITEMS = [['scale', 'ขูดหินปูน'], ['xray', 'X-ray'], ['fill', 'อุดฟัน'], ['ext_perm', 'ถอนฟันแท้'], ['ext_milk', 'ถอนฟันน้ำนม'], ['exam', 'ตรวจฟัน'], ['exam_prog', 'ตรวจฟันโปรแกรม'], ['splint', 'ติดตามอาการหลังใส่ splint'], CUSTOM_ITEM];
+const ENT_ITEMS = [['suction', 'Suction'], ['removefb', 'RemoveFB'], ['blood', 'เจาะเลือด'], ['sinuscope', 'Sinuscope'], ['earpack', 'Ear packing'], ['rhinoscope', 'Rhinoscope'], ['fna', 'FNA'], ['or_admit', 'OR/Admit'], CUSTOM_ITEM];
+const EYE_ITEMS = [['va_auto', 'VA+Autotometer'], ['glasses', 'วัดแว่น'], ['eye_prog', 'ตรวจตาในโปรแกรม'], ['retina', 'Retina camera'], ['removefb', 'RemoveFB'], ['dilate', 'Dilate'], ['or', 'OR'], ['inject', 'ฉีดยา'], ['laser', 'Laser'], ['patch', 'ปิดตา'], ['admit', 'Admit'], CUSTOM_ITEM];
 const HPC_ITEMS = [
   ['p1', 'ตรวจสุขภาพโปรแกรม 1'], ['p2', 'ตรวจสุขภาพโปรแกรม 2'], ['p3', 'ตรวจสุขภาพโปรแกรม 3'],
   ['stroke', 'ตรวจสุขภาพโปรแกรมคัดกรองหลอดเลือดสมอง'], ['cancer', 'ตรวจสุขภาพโปรแกรมคัดกรองมะเร็ง'], ['mentor', 'ตรวจสุขภาพโปรแกรมพี่เลี้ยงเด็ก'],
@@ -118,6 +124,20 @@ const FORMS = {
     { title: 'Trauma HI', fields: [N_('trauma_hi', 'ยอด Trauma HI'), N_('trauma_admit', 'ในจำนวนนี้ Admit')] },
     { title: 'เคสหลัง 22.00 น. (ใช้กับเวร Night)', fields: [
       N_('late_total', 'ทั้งหมด'), N_('late_opd', 'OPD'), Object.assign(N_('late_admit', 'Admit'), { pctOf: 'late_total' })
+    ] }
+  ] },
+  EENT: { std: { total: 'total' }, sections: [
+    { title: 'ยอดผู้ป่วย', fields: [N_('ent_cases', 'ENT', 'เคส'), N_('eye_cases', 'EYE', 'เคส'), Object.assign(N_('total', 'จำนวนคนไข้ทั้งหมด', 'เคส'), { calc: { plus: ['ent_cases', 'eye_cases'], minus: [] } })] },
+    Object.assign(LIST_('ent', 'ENT \u00b7 หัตถการ', 'ent_proc', 'รวมหัตถการ ENT', ENT_ITEMS), { unit: 'ครั้ง' }),
+    Object.assign(LIST_('eye', 'EYE \u00b7 หัตถการ', 'eye_proc', 'รวมหัตถการ EYE', EYE_ITEMS), { unit: 'ครั้ง' })
+  ] },
+  // ทันตกรรม: แพทย์พิมพ์ชื่อเอง (ระบบจำชื่อเป็นปุ่ม) แต่ละท่านมีจำนวนเคสและหัตถการ; ยอดรวมผู้รับบริการคำนวณจากเคสของแพทย์ทุกท่าน; ยอด ปกส. ยกมาจากวันก่อนอัตโนมัติ
+  Dent: { std: { total: 'total' }, sections: [
+    { title: 'ผู้รับบริการทันตกรรม', type: 'docs', key: 'docs', totalKey: 'total', totalLabel: 'ผู้รับบริการทันตกรรม (รวมทั้งแผนก)', unit: 'เคส', procUnit: 'ครั้ง', fields: [], items: ITEMS_(DENT_ITEMS) },
+    { title: 'ประกันสังคม (ปกส.)', fields: [
+      Object.assign(N_('ins_carry', 'ยอด ปกส. ยกมา', 'เคส'), { carryFrom: 'ins_total' }),
+      N_('ins_today', 'จนท. ปกส. (วันนี้)', 'เคส'),
+      Object.assign(N_('ins_total', 'รวมยอด ปกส. สะสมปีนี้', 'เคส'), { calc: { plus: ['ins_carry', 'ins_today'], minus: [] } })
     ] }
   ] },
   HPC: { std: { total: 'total' }, sections: [LIST_('svc', 'รายการตรวจ / บริการ', 'total', 'รวมจำนวนผู้รับบริการทั้งหมดในวันนี้', HPC_ITEMS)] },
