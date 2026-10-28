@@ -5,7 +5,7 @@
  * section = { title, fields: [...], sum?: 'ป้ายยอดรวม' }
  *         | { title, type: 'grid', rows: [[key, label]], cols: [[key, label]] }
  * field   = { key, label, unit?, type?: 'num'|'text'|'time', calc?, pctOf? }
- *   calc  = { plus: [keys], minus: [keys] } → คำนวณอัตโนมัติ แก้ไม่ได้ (manual: true = ผู้ใช้กรอกเอง สูตรใช้เฉพาะรายงานเก่าที่ไม่ได้เก็บค่า)
+ *   calc  = { plus: [keys], minus: [keys] } → คำนวณอัตโนมัติ แก้ไม่ได้
  *   pctOf = key → แสดงเปอร์เซ็นต์เทียบกับช่องนั้น
  *
  * std = ยอดมาตรฐานสำหรับวิเคราะห์ข้ามหน่วยงาน { ชื่อยอด: key | [keys ที่นำมารวม] }
@@ -75,12 +75,16 @@ const IPD_CENSUS = {
     Object.assign(N_('tr_out', 'ย้ายไป'), { note: 'ย้ายไปที่ไหน' }),
     Object.assign(N_('refer', 'Refer'), { note: 'Refer ไปที่ไหน' }), N_('dead', 'Dead'), N_('dc', 'จำหน่าย'),
     Object.assign(N_('remain', 'คงพยาบาล'), {
-      calc: { plus: ['carried', 'admit', 'tr_in'], minus: ['tr_out', 'refer', 'dead', 'dc'], manual: true }
+      calc: { plus: ['carried', 'admit', 'tr_in'], minus: ['tr_out', 'refer', 'dead', 'dc'] }
     })
   ]
 };
 // rooms: true = เลือกจากปุ่มห้องของหน่วยงาน (ชีต 'ห้อง') หรือพิมพ์เอง ค่าเก็บเป็นข้อความคั่นด้วยจุลภาค
 const RM_ = (key, label) => ({ key, label, type: 'text', rooms: true });
+// ICU: ลำดับและหน่วย "เคส" ตามข้อความรายงานของหน่วย (staffSlot = อัตรากำลังระบุ "คนที่ N")
+const ICU_CENSUS = Object.assign({}, IPD_CENSUS, {
+  fields: ['carried', 'admit', 'tr_in', 'dc', 'tr_out', 'refer', 'dead', 'remain'].map(k => Object.assign({}, IPD_CENSUS.fields.find(f => f.key === k), { unit: 'เคส' }))
+});
 const IPD_ROOMS = { title: 'ห้องพัก', fields: [RM_('rooms_ready', 'ห้องว่างพร้อมรับ'), RM_('rooms_clean', 'ห้องรอทำความสะอาด')] };
 const IPD_STD = { carried: 'carried', admit: 'admit', tr_in: 'tr_in', tr_out: 'tr_out', refer: 'refer', dead: 'dead', dc: 'dc', remain: 'remain' };
 const ipd_ = types => ({ std: IPD_STD, sections: [IPD_CENSUS, { title: 'ประเภทผู้ป่วยคงพยาบาล', categories: true, fields: types, sum: 'รวม' }, IPD_ROOMS] });
@@ -173,7 +177,7 @@ const FORMS = {
   C5: Object.assign(ipd_(ADULT_MIX), { draft: true }),
 
   // ----- Special Unit (รอรูปแบบจริง) -----
-  ICU: { draft: true, std: IPD_STD, sections: [IPD_CENSUS] },
+  ICU: { staffSlot: true, std: IPD_STD, sections: [ICU_CENSUS] },
   LR: { draft: true, std: { total: ['nl', 'cs'] }, sections: [{ title: 'การคลอด', fields: [N_('nl', 'คลอดปกติ'), N_('cs', 'ผ่าคลอด')] }] },
   NB: { draft: true, std: { total: 'nb' }, sections: [{ title: 'ทารกแรกเกิด', fields: [N_('nb', 'ทารกแรกเกิด'), N_('nb_adm', 'Admit ตึกเด็ก')] }] },
   'ไตเทียม': { draft: true, std: { total: 'hd' }, sections: [{ title: 'ไตเทียม', fields: [N_('hd', 'ฟอกเลือด (HD)'), N_('hd_new', 'ผู้ป่วยรายใหม่')] }] },
@@ -184,7 +188,7 @@ const FORMS = {
 const OPD_DRAFT = { draft: true, std: { total: 'total', admit: 'admit', refer: 'refer' }, sections: [{ title: 'ยอดผู้ป่วย', fields: [N_('total', 'ผู้ป่วยทั้งหมด'), N_('new', 'ผู้ป่วยใหม่'), N_('admit', 'Admit'), N_('refer', 'Refer out')] }] };
 
 const GROUPS = [
-  { key: 'OPD', name: 'ผู้ป่วยนอก', units: ['OPD1', 'OPD3', 'ER', 'HPC', 'ผิวหนัง', 'แผนจีน', 'CCC', 'OBG-IVF', 'PC', 'EENT', 'Dent'] },
+  { key: 'OPD', name: 'ผู้ป่วยนอก', units: ['OPD1', 'OPD3', 'ER', 'HPC', 'CCC', 'OBG-IVF', 'PC', 'EENT', 'Dent'] },
   { key: 'IPD', name: 'ผู้ป่วยใน', units: ['A4', 'A5', 'A6', 'B3', 'B4', 'B5', 'C3', 'C4', 'C5'] },
   { key: 'SPU', name: 'Special Unit', units: ['ICU', 'LR', 'NB', 'ไตเทียม', 'OR'] }
 ];
@@ -234,7 +238,7 @@ function unitShifts_(group, code) {
 function buildConfig_() {
   const subOf = {};
   GROUPS.forEach(g => subGroups_(g).forEach(s => s.units.forEach(u => { subOf[u] = s.sub; })));
-  const units = GROUPS.flatMap(g => g.units.map(code => ({ code, group: g.key, sub: subOf[code], shifts: unitShifts_(g.key, code), form: FORMS[code] || OPD_DRAFT })));
+  const units = GROUPS.flatMap(g => g.units.map(code => ({ code, group: g.key, sub: subOf[code], shifts: unitShifts_(g.key, code), form: FORMS[code] || OPD_DRAFT, staffSlot: !!(FORMS[code] && FORMS[code].staffSlot) })));
   return {
     groups: GROUPS.map(g => ({ key: g.key, name: g.name })),
     sections: GROUPS.flatMap(g => subGroups_(g).map(s => ({ group: g.key, label: s.label, sub: s.sub, units: s.units }))),

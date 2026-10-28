@@ -149,6 +149,9 @@
   .frow.text { grid-template-columns: 1fr; }
   .frow .lab small { color: var(--muted); }
   .frow input[type=number] { text-align: center; }
+  #dlg { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  #dlg .dlgbox { background: var(--surface); color: var(--fg); border-radius: 14px; padding: 18px; max-width: 420px; width: 100%; max-height: 85vh; overflow: auto; box-shadow: 0 10px 40px rgba(0,0,0,.35); }
+  #dlg .dlgbox h3 { margin: 0 0 8px; color: var(--bad); }
   .remwarn { color: var(--bad); font-size: 13px; font-weight: 600; margin: 2px 0 6px; } .remwarn.ok { color: var(--ok); } .remwarn:empty { display: none; }
   .frow .calc { text-align: center; font-weight: 700; padding: 9px 0; background: var(--accent-soft); border-radius: 8px; }
   .sumline { display: flex; justify-content: space-between; padding-top: 8px; margin-top: 4px; border-top: 2px solid var(--line); font-weight: 600; }
@@ -643,6 +646,16 @@ function bgFrame() {
   pic.style.width = Math.round(g.w) + 'px'; pic.style.height = Math.round(g.h) + 'px';
   pic.style.backgroundSize = '100% 100%'; pic.style.backgroundPosition = '0 0'; pic.style.transform = b.rot ? 'rotate(' + b.rot + 'deg)' : '';
 }
+// ICU: เรียงอัตรากำลังตาม "คนที่" แล้วตามตำแหน่ง
+const slotSort = staff => staff.map((s, i) => [s, i]).sort((a, b) => (num(a[0].slot) || 999) - (num(b[0].slot) || 999) || S.cfg.roles.indexOf(a[0].role) - S.cfg.roles.indexOf(b[0].role) || a[1] - b[1]).map(x => x[0]);
+function showDialog(title, html) {
+  const old = $('dlg'); if (old) old.remove();
+  const el = document.createElement('div'); el.id = 'dlg'; el.className = 'noprint';
+  el.innerHTML = `<div class="dlgbox" role="alertdialog" aria-label="${esc(title)}"><h3>${esc(title)}</h3><div>${html}</div><div style="text-align:right;margin-top:12px"><button type="button" class="btn" id="dlg_ok">ตกลง</button></div></div>`;
+  document.body.appendChild(el);
+  $('dlg_ok').onclick = () => el.remove();
+  el.onclick = e => { if (e.target === el) el.remove(); };
+}
 function setStickTop() { const t = document.querySelector('.tabs'); if (t) document.documentElement.style.setProperty('--stickTop', Math.round(parseFloat(getComputedStyle(t).top) + t.offsetHeight) + 'px'); }
 window.addEventListener('resize', () => { setStickTop(); if (S.bg) bgFrame(); });
 function applyBg() {
@@ -855,7 +868,7 @@ async function startApp(b) {
     : [['mine', 'หน่วยงานของฉัน'], ['all', 'ติดตามรายแผนก'], ['print', 'พิมพ์รายงาน'], ['staff', 'ทะเบียนเจ้าหน้าที่ / ห้อง']];
   $('tabs').innerHTML = tabs.map(([k, t]) => `<button type="button" data-tab="${k}">${t}</button>`).join('');
   $('tabs').querySelectorAll('button').forEach(btn => btn.onclick = () => go(btn.dataset.tab));
-  S.tab = tabs[0][0];
+  S.tab = tabs[0][0]; S.home = tabs[0][0];
   S.aliases = [];
   S.titleMap = {};
   if (admin) {
@@ -929,6 +942,7 @@ function render() {
   else if (S.tab === 'incidents') v.innerHTML = renderIncidentsTab();
   else if (S.tab === 'print') v.innerHTML = renderPrint();
   else if (S.tab === 'staff') v.innerHTML = renderStaff();
+  if (S.tab !== S.home) v.innerHTML = '<div class="noprint" style="margin-bottom:10px"><button class="btn ghost sm" data-act="home" type="button">\u2039 กลับหน้าแรก</button></div>' + v.innerHTML;
   if (S.tab === 'mine' && S.editing) mountForm();
   bindView();
   if (S.tab === 'print') hydratePrint();
@@ -1102,7 +1116,7 @@ function renderReportView(u, r) {
     const staff = r.staff || [], rd = r.reduce || {};
     body = `<div class="view-grid"><div class="card"><h3>อัตรากำลัง <span class="sub">เวร ${esc(shiftName(r.shift))}</span></h3>
       <div class="counts">${roleCounts(staff).map(([k, n]) => `<span>${esc(k)} ${n}</span>`).join('') || '<span class="muted">ไม่ได้ระบุ</span>'}</div>
-      ${staff.map(s => `<div style="font-size:14px"><b style="display:inline-block;min-width:40px">${esc(s.role)}</b>${esc(s.name)}${s.tag ? ` <span class="pill plain">${esc(s.tag)}${s.tagNote ? ' ' + esc(s.tagNote) : ''}</span>` : ''}</div>`).join('')}</div>
+      ${(u.staffSlot ? slotSort(staff) : staff).map(s => `<div style="font-size:14px"><b style="display:inline-block;min-width:40px">${esc(s.role)}</b>${u.staffSlot && s.slot ? `คนที่ ${esc(s.slot)} ` : ''}${esc(s.name)}${s.tag ? ` <span class="pill plain">${esc(s.tag)}${s.tagNote ? ' ' + esc(s.tagNote) : ''}</span>` : ''}</div>`).join('')}</div>
       <div class="card"><h3>ลดอัตรากำลัง</h3><div class="kv">
         <div>RN</div><div class="v">${num(rd.RN)} ชม.</div><div>PN</div><div class="v">${num(rd.PN)} ชม.</div><div>NA</div><div class="v">${num(rd.NA)} ชม.</div>
         <div class="total">รวม</div><div class="total v">${num(rd.RN) + num(rd.PN) + num(rd.NA)} ชม.</div></div>
@@ -1149,7 +1163,7 @@ function mountForm() {
         if (f.type === 'text' && f.rooms && roomsFor(S.me.unit).length) pat += `<div class="frow text"><span class="lab">${esc(f.label)}</span><div data-rooms="${esc(f.key)}"></div></div>`;
         else if (f.type === 'text') pat += `<div class="frow text"><label class="lab" for="v_${esc(f.key)}">${esc(f.label)}</label><textarea id="v_${esc(f.key)}" data-v="${esc(f.key)}" rows="2">${esc(v[f.key] ?? '')}</textarea></div>`;
         else if (f.type === 'time') pat += `<div class="frow"><span class="lab">${esc(f.label)} <small>24 \u0e0a\u0e21. \u0e1e\u0e34\u0e21\u0e1e\u0e4c 2030</small></span><input class="tin" type="text" inputmode="numeric" maxlength="5" placeholder="20:30" autocomplete="off" data-v="${esc(f.key)}" value="${esc(v[f.key] ?? '')}"></div>`;
-        else if (f.calc && !f.calc.manual) pat += `<div class="frow"><span class="lab"><b>${esc(f.label)}</b> <small>(คำนวณอัตโนมัติ)</small></span><div class="calc num" data-calc="${esc(f.key)}">0</div></div>`;
+        else if (f.calc && !f.calc.manual) pat += `<div class="frow"><span class="lab"><b>${esc(f.label)}</b> <small>(คำนวณอัตโนมัติ)</small></span><div class="calc num" data-calc="${esc(f.key)}">0</div></div>${f.key === 'remain' && s.fields.length && u.form.sections.some(x => x.categories) ? '<div class="remwarn" data-remwarn></div>' : ''}`;
         else {
           if (s.categories) pat += `<div class="frow ext cat"><span class="lab">${esc(f.label)} <small>${esc(f.unit)}</small></span><div class="calc cnt gray" data-catcnt="${esc(f.key)}" title="รวมจากลูกบอลสีอัตโนมัติ ไม่ต้องกรอก">${num(v[f.key])}</div><div class="ballin extra">${ballGroups(f, v)}</div></div>`;
           else {
@@ -1160,7 +1174,7 @@ function mountForm() {
       });
       if (s.fields.some(f => f.rooms)) pat += `<div style="margin-top:8px"><button type="button" class="btn ghost sm" data-roomedit>\u270e แก้ไขรายการห้อง (เลขห้อง / ชื่อ)</button></div><div id="room_editor"></div>`;
       if (s.sum) pat += `<div class="sumline"><span>${esc(s.sum)}</span><span class="num" data-sum="${si}">0</span></div>`;
-      if (s.categories && allFields(u).some(f => f.calc && f.calc.manual)) pat += '<div class="remwarn" data-remwarn></div>';
+      if (s.categories && allFields(u).some(f => f.key === 'remain' && f.calc)) pat += '<div class="remwarn" data-remwarn></div>';
     }
     pat += '</div>';
   });
@@ -1182,7 +1196,7 @@ function mountForm() {
 
   $('view').innerHTML = `<div id="fm_tabs"></div>
     <div data-panel="patient">${pat}</div><div data-panel="staff">${staff}</div><div data-panel="incident">${inc}</div>`;
-  renderStaffPicker(); renderIncidents(); renderCases(); renderRoomPickers(); renderLists(); recalc(); showSub();
+  renderStaffPicker(); renderIncidents(); renderCases(); renderRoomPickers(); renderLists(); S.overWarned = false; recalc(true); showSub();
   $('fm_addinc').onclick = () => {
     d.incidents.push({ type: S.cfg.problemTypes[0], severity: '-', patient: '', age: '', hn: '', time: '', doctor: '', bp: '', pr: '', rr: '', temp: '', spo2: '', o2mode: 'Room air', o2flow: '', detail: '', action: '' });
     S.dirty = true; renderIncidents(); showSub();
@@ -1364,18 +1378,20 @@ function onFormInput(e) {
   else if (t.dataset.duty) { const [i, k] = t.dataset.duty.split(':'); d.staff[i][k] = t.value; if (k === 'tag' || k === 'role') { renderStaffPicker(); showSub(); } }
 }
 
-// ยอดคงพยาบาล (กรอกเอง) ต้องเท่ากับผลรวมลูกบอลสีทุกประเภท
-function remCheck(u, v) {
-  const rf = allFields(u).find(f => f.calc && f.calc.manual);
-  if (!rf) return;
-  const cat = u.form.sections.filter(s => s.categories).reduce((a, s) => a + sectionSum(s, v), 0), has = hasVal(v, rf.key), rem = num(v[rf.key]);
+// ยอดคงพยาบาล (ระบบคำนวณจาก ยกมา + รับใหม่ + รับย้าย - ย้ายไป - Refer - Dead - จำหน่าย) ต้องเท่ากับผลรวมลูกบอลสีทุกประเภท
+function remCheck(u, v, quiet) {
+  const rf = allFields(u).find(f => f.key === 'remain' && f.calc), cats = u.form.sections.filter(s => s.categories);
+  if (!rf || !cats.length) return;
+  const cat = cats.reduce((a, s) => a + sectionSum(s, v), 0), rem = fieldValue(u, v, rf);
   let msg = '', ok = false;
-  if (!has && cat > 0) msg = `ยังไม่ได้กรอก${rf.label} (ลูกบอลสีรวม ${cat} ราย)`;
-  else if (has && cat !== rem) msg = rem === 0 && cat === 0 ? '' : `ลูกบอลสีรวม ${cat} ราย ${cat < rem ? 'ขาด ' + (rem - cat) : 'เกิน ' + (cat - rem)} ราย จาก${rf.label} ${rem} ราย`;
-  else if (has && cat === rem && cat > 0) { msg = `ลูกบอลสีรวมตรงกับ${rf.label} (${rem} ราย)`; ok = true; }
+  if (cat !== rem && (cat > 0 || rem > 0)) msg = `ลูกบอลสีรวม ${cat} ราย ${cat < rem ? 'ขาด ' + (rem - cat) : 'เกิน ' + (cat - rem)} ราย จาก${rf.label} ${rem} ราย`;
+  else if (cat === rem && cat > 0) { msg = `ลูกบอลสีรวมตรงกับ${rf.label} (${rem} ราย)`; ok = true; }
   document.querySelectorAll('[data-remwarn]').forEach(el => { el.textContent = msg; el.classList.toggle('ok', ok); });
+  const over = cat > rem;
+  if (over && !S.overWarned && !quiet) showDialog('ลูกบอลสีเกินยอดคงพยาบาล', `<p>ลูกบอลสีรวม <b>${cat}</b> ราย เกิน${esc(rf.label)} <b>${rem}</b> ราย อยู่ ${cat - rem} ราย</p><p class="muted" style="font-size:14px">${esc(rf.label)} คำนวณจาก ยอดยกมา + รับใหม่ + รับย้าย \u2212 ย้ายไป \u2212 Refer \u2212 Dead \u2212 จำหน่าย กรุณาตรวจสอบตัวเลขทั้งสองฝั่ง</p>`);
+  S.overWarned = over;
 }
-function recalc() {
+function recalc(quiet) {
   const u = unitCfg(S.me.unit), v = S.draft.values;
   u.form.sections.forEach((s, si) => {
     if (s.type === 'grid') s.rows.forEach(rw => { const el = document.querySelector(`[data-rowsum="${si}:${rw[0]}"]`); if (el) el.textContent = s.cols.reduce((a, c) => a + num(v[rw[0] + '_' + c[0]]), 0); });
@@ -1389,13 +1405,13 @@ function recalc() {
       if (s.sum) document.querySelector(`[data-sum="${si}"]`).textContent = sectionSum(s, v);
     }
   });
-  remCheck(u, v);
+  remCheck(u, v, quiet);
   if (u.form.total) $('fm_total').textContent = u.form.sections.filter(s => s.sum).reduce((a, s) => a + sectionSum(s, v), 0);
 }
 
 /* อัตรากำลัง: เลือกชื่อจาก Drop down หรือพิมพ์ชื่อใหม่ */
 function renderStaffPicker() {
-  const d = S.draft, unit = S.me.unit;
+  const d = S.draft, unit = S.me.unit, slotOn = unitCfg(unit).staffSlot;
   const chosen = new Set(d.staff.map(s => s.name));
   const mine = S.staff.filter(s => s.unit === unit && !chosen.has(s.name));
   const opt = s => `<option value="${esc(s.id)}">${esc(s.name)} (${esc(s.role)})</option>`;
@@ -1417,6 +1433,7 @@ function renderStaffPicker() {
       <select data-duty="${i}:role" aria-label="ตำแหน่ง">${S.cfg.roles.map(r => `<option${r === s.role ? ' selected' : ''}>${esc(r)}</option>`).join('')}</select>
       <select data-duty="${i}:tag" aria-label="หน้าที่"><option value="">หน้าที่ \u2013</option>${S.cfg.dutyTags.map(t => `<option${t === s.tag ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>
       <button type="button" class="x" data-unpick="${i}" aria-label="เอาออก">\u00d7</button>
+      ${slotOn ? `<div style="grid-column:1/-1;display:flex;gap:8px;align-items:center"><label class="f" style="margin:0" for="slot_${i}">คนที่</label><input id="slot_${i}" type="number" inputmode="numeric" min="1" max="99" style="width:80px" data-duty="${i}:slot" value="${esc(s.slot || '')}" placeholder="1"></div>` : ''}
       ${s.tag === 'ออกหน่วย' ? `<input style="grid-column:1/-1" data-duty="${i}:tagNote" value="${esc(s.tagNote || '')}" placeholder="ออกไปหน่วยงานใด เช่น C3">` : ''}</div>`).join('')
       || '<p class="muted" style="margin:6px 0 0">ยังไม่ได้เลือกผู้ปฏิบัติงาน</p>'}`;
 
@@ -1701,7 +1718,7 @@ function mapRole(raw) { return (S.titleMap || {})[normTitle(raw)] || builtinRole
 const SUGGEST = [
   [/อุบัติเหตุ/, 'ER'], [/อายุรกรรม/, 'OPD1'], [/ศัลยกรรม/, 'OPD3'], [/สูตินรีเวช|สูติ/, 'OBG-IVF'],
   [/กุมารเวช|เด็กสุขภาพดี|พัฒนาการเด็ก/, 'PC'], [/ตา\s*หู\s*คอ/, 'EENT'], [/ทันตกรรม/, 'Dent'],
-  [/ห้องผ่าตัด/, 'OR'], [/ห้องคลอด/, 'LR'], [/ทารกแรกเกิด/, 'NB'], [/ผู้ป่วยวิกฤต/, 'ICU'], [/ส่งเสริมสุขภาพ/, 'HPC'], [/ผิวหนัง/, 'ผิวหนัง'], [/แผนจีน/, 'แผนจีน'], [/CCC/i, 'CCC']
+  [/ห้องผ่าตัด/, 'OR'], [/ห้องคลอด/, 'LR'], [/ทารกแรกเกิด/, 'NB'], [/ผู้ป่วยวิกฤต/, 'ICU'], [/ส่งเสริมสุขภาพ/, 'HPC'], [/CCC/i, 'CCC']
 ];
 function suggestUnit(raw) {
   const hit = SUGGEST.find(x => x[0].test(raw));
@@ -2008,7 +2025,7 @@ function printSingle(u, shift) {
   if (r.notes) h += `<div class="ln"><b>เรื่องแจ้ง:</b> ${esc(r.notes).replace(/\n/g, ' / ')}</div>`;
   const staff = r.staff || [], rd = r.reduce || {};
   h += `<h2>อัตรากำลัง \u00b7 เวร ${esc(shiftName(r.shift))} \u00b7 ${roleCounts(staff).map(([k, n]) => `${esc(k)} ${n}`).join(', ') || 'ไม่ได้ระบุ'}</h2>
-    <div class="cols">${staff.map(s => `<div class="ln">${esc(s.role)} ${esc(s.name)}${s.tag ? ` (${esc(s.tag)}${s.tagNote ? ' ' + esc(s.tagNote) : ''})` : ''}</div>`).join('')}</div>`;
+    <div class="cols">${(u.staffSlot ? slotSort(staff) : staff).map(s => `<div class="ln">${esc(s.role)}${u.staffSlot && s.slot ? ' \u00b7 คนที่ ' + esc(s.slot) : ''} ${esc(s.name)}${s.tag ? ` (${esc(s.tag)}${s.tagNote ? ' ' + esc(s.tagNote) : ''})` : ''}</div>`).join('')}</div>`;
   const rt = num(rd.RN) + num(rd.PN) + num(rd.NA);
   if (rt || rd.detail) h += `<div class="ln" style="margin-top:3px"><b>ลดอัตรากำลัง ${rt} ชม.</b> (RN ${num(rd.RN)} ชม., PN ${num(rd.PN)} ชม., NA ${num(rd.NA)} ชม.)${rd.detail ? ' \u00b7 ' + esc(rd.detail).replace(/\n/g, ' / ') : ''}</div>`;
   const incs = (r.incidents || []).map(i => Object.assign({ unit: u.code }, i)), css = (r.cases || []).map(i => Object.assign({ unit: u.code }, i));
@@ -2157,6 +2174,7 @@ function bindView() {
     const a = b.dataset.act;
     if (a === 'edit') startEdit();
     else if (a === 'back') go('all');
+    else if (a === 'home') go(S.home);
     else if (a === 'gotoprint') { if (b.dataset.punit) { S.printScope = b.dataset.punit; S.printKind = 'day'; } go('print'); }
     else if (a === 'print') { if (S.pendingAtt > 0) toast('กำลังโหลดไฟล์แนบ รอสักครู่แล้วกดพิมพ์อีกครั้ง'); else window.print(); }
     else if (a === 'tpl') downloadTemplate();
