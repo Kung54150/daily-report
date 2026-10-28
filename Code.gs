@@ -291,6 +291,23 @@ function saveReport(token, rep) {
     if (rows.length) values[s.key] = rows;
     values[s.totalKey] = rows.reduce((a, r) => a + r.n, 0);
   });
+  // ทันตกรรม: รายชื่อแพทย์ + จำนวนเคส + หัตถการของแต่ละท่าน; ยอดรวมผู้รับบริการ = ผลรวมเคสของแพทย์ทุกท่าน
+  form.sections.filter(s => s.type === 'docs').forEach(s => {
+    const docs = [];
+    ((rep.values || {})[s.key] || []).slice(0, 30).forEach(d => {
+      const name = String(d && d.name || '').trim().slice(0, 60), n = Math.max(0, Math.floor(Number(d && d.n)) || 0), rows = [];
+      ((d && d.rows) || []).forEach(x => {
+        const it = s.items.find(i => i.k === (x && x.k)), m = Math.floor(Number(x && x.n));
+        if (!it || !(m > 0)) return;
+        const nm = String(x.name || '').trim().slice(0, 80);
+        if (it.ask && !nm) throw new Error('กรุณาระบุ' + it.ask + ' (' + it.label + ')');
+        rows.push({ k: it.k, name: it.ask ? nm : '', n: m });
+      });
+      if (name || n || rows.length) docs.push({ name, n, rows });
+    });
+    if (docs.length) values[s.key] = docs;
+    values[s.totalKey] = docs.reduce((a, d) => a + d.n, 0);
+  });
 
   const clean = {
     date: rep.date, unit: unitCode, reporter: String(rep.reporter).trim(),
@@ -361,6 +378,10 @@ function statRows_(u, rep) {
     const it = s.items.find(i => i.k === r.k);
     rows.push(row('รายการบริการ', (it ? it.label : r.k) + (r.name ? ' \u00b7 ' + r.name : ''), r.n));
   }));
+  u.form.sections.filter(s => s.type === 'docs').forEach(s => (rep.values[s.key] || []).forEach(d => {
+    if (d.n) rows.push(row('ผู้รับบริการรายแพทย์', d.name || '(ไม่ระบุชื่อ)', d.n));
+    (d.rows || []).forEach(r => { const it = s.items.find(i => i.k === r.k); rows.push(row('หัตถการ', (it && it.custom ? r.name : it ? it.label : r.k) + ' \u00b7 ' + (d.name || ''), r.n)); });
+  }));
   Object.entries(categoryValues_(u.form, rep.values)).forEach(([k, n]) => rows.push(row('ประเภทผู้ป่วย', k, n)));
   const bv = ballValues_(u.form, rep.values);
   BALLS.forEach(b => { if (bv[b[0]]) rows.push(row('ลูกบอลสีผู้ป่วย', b[1], bv[b[0]])); });
@@ -418,6 +439,24 @@ function getAttachment(token, id) {
   return { name: file.getName().replace(/^.*?_[0-9a-f]{8}_/, ''), mime: blob.getContentType(), data: Utilities.base64Encode(blob.getBytes()) };
 }
 
+// ยอดสะสมที่ยกมาจากรายงานล่าสุดก่อนวันที่กำหนด (ปีเดียวกัน) เช่น ยอด ปกส. ของทันตกรรม; ไม่มี = null (ให้กรอกเอง)
+function getCarry(token, unit, date, key) {
+  const me = auth_(token);
+  if (me.role === 'unit' && unit !== me.unit) throw new Error('ดูได้เฉพาะหน่วยงานตนเอง');
+  const u = buildConfig_().units.find(x => x.code === unit);
+  if (!u || !/^\d{4}-\d{2}-\d{2}$/.test(String(date))) throw new Error('ข้อมูลไม่ถูกต้อง');
+  let spec = null;
+  u.form.sections.forEach(s => (s.fields || []).forEach(f => { if (f.carryFrom === key) spec = f; }));
+  if (!spec || !spec.carryFrom) return null;
+  let best = null, bestDate = '';
+  sheet_(SH_REPORTS).getDataRange().getValues().slice(1).forEach(r => {
+    const d = fmtDate_(r[0]);
+    if (String(r[1]) !== unit || d >= date || d.slice(0, 4) !== String(date).slice(0, 4) || d <= bestDate) return;
+    try { const rep = JSON.parse(r[4]); best = fieldNum_(u.form, rep.values || {}, spec.carryFrom); bestDate = d; } catch (e) {}
+  });
+  return best === null ? null : { value: best, date: bestDate };
+}
+
 // ===== ชื่อหัตถการที่หน่วยงานพิมพ์เองเคยใช้ (ชีต 'รายการหัตถการ') ใช้แนะนำตอนพิมพ์ครั้งต่อไป =====
 const procNorm_ = x => String(x == null ? '' : x).toLowerCase().replace(/\s+/g, '');
 function getProcs_() {
@@ -434,6 +473,10 @@ function recordProcs_(unit, form, values) {
   form.sections.filter(s => s.type === 'list').forEach(s => (values[s.key] || []).forEach(r => {
     const it = s.items.find(i => i.k === r.k);
     if (it && it.custom && r.name) add.push([s.key, r.name]);
+  }));
+  form.sections.filter(s => s.type === 'docs').forEach(s => (values[s.key] || []).forEach(d => {
+    if (d.name) add.push([s.key + ':doc', d.name]);
+    (d.rows || []).forEach(r => { const it = s.items.find(i => i.k === r.k); if (it && it.custom && r.name) add.push([s.key, r.name]); });
   }));
   if (!add.length) return;
   const sh = sheet_(SH_PROCS), now = stamp_();
