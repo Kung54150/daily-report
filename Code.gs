@@ -202,13 +202,15 @@ function getBoot(token) {
 
 // ===== รายงาน =====
 function getDay(token, date) {
-  auth_(token);
+  const me = auth_(token);
   const reports = {};
   sheet_(SH_REPORTS).getDataRange().getValues().slice(1)
     .filter(r => fmtDate_(r[0]) === date)
     .forEach(r => {
       const rep = JSON.parse(r[4]), sh = rowShift_(r[5], rep.shift);
       rep.shift = sh;
+      // เหตุการณ์ผิดปกติ / รายงานเคส: หน่วยงานเห็นเฉพาะของตนเอง (ผู้จัดการและ Admin เห็นทั้งหมด)
+      if (me.role === 'unit' && String(r[1]) !== me.unit) { rep.incidents = []; rep.cases = []; }
       (reports[r[1]] = reports[r[1]] || {})[sh] = rep;
     });
   return { reports }; // { หน่วยงาน: { Day: รายงาน, Night: รายงาน } }
@@ -236,10 +238,12 @@ function rowShift_(col, fromJson) {
 
 function saveReport(token, rep) {
   const me = auth_(token);
-  if (me.role !== 'unit' || rep.unit !== me.unit) throw new Error('แก้ไขได้เฉพาะรายงานของหน่วยงานตนเอง');
+  // หน่วยงานแก้ได้เฉพาะของตนเอง | ADMIN แก้ได้ทุกหน่วยงาน | ผู้จัดการดูอย่างเดียว
+  const unitCode = me.role === 'admin' ? String(rep.unit || '') : me.unit;
+  if (me.role === 'manager' || (me.role === 'unit' && rep.unit !== me.unit) || (me.role === 'admin' && allUnitCodes_().indexOf(unitCode) < 0)) throw new Error('แก้ไขได้เฉพาะรายงานของหน่วยงานตนเอง');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(rep.date)) throw new Error('วันที่ไม่ถูกต้อง');
   if (!String(rep.reporter || '').trim()) throw new Error('กรุณากรอกชื่อผู้รายงาน');
-  const myUnit = buildConfig_().units.find(u => u.code === me.unit);
+  const myUnit = buildConfig_().units.find(u => u.code === unitCode);
   if (myUnit.shifts.indexOf(rep.shift) < 0) throw new Error('หน่วยงานนี้รายงานได้เฉพาะเวร ' + myUnit.shifts.join(', '));
 
   const form = myUnit.form;
@@ -268,7 +272,7 @@ function saveReport(token, rep) {
   });
 
   const clean = {
-    date: rep.date, unit: me.unit, reporter: String(rep.reporter).trim(),
+    date: rep.date, unit: unitCode, reporter: String(rep.reporter).trim(),
     updatedAt: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm'),
     values,
     shift: rep.shift,
@@ -278,7 +282,7 @@ function saveReport(token, rep) {
     incidents: cleanCases_(rep.incidents, INC_FIELDS),
     cases: cleanCases_(rep.cases, CASE_FIELDS, true)
   };
-  const unitInfo = buildConfig_().units.find(u => u.code === me.unit);
+  const unitInfo = buildConfig_().units.find(u => u.code === unitCode);
   const stats = statRows_(unitInfo, clean);
 
   withLock_(() => {
@@ -367,14 +371,14 @@ function authorizeDrive() { return attFolder_().getName(); }
 
 function uploadAttachment(token, f) {
   const me = auth_(token);
-  if (me.role !== 'unit') throw new Error('เฉพาะหน่วยงานที่แนบไฟล์ได้');
+  if (me.role === 'manager') throw new Error('เฉพาะหน่วยงานที่แนบไฟล์ได้');
   const ext = ATT_TYPES[f && f.mime];
   if (!ext) throw new Error('แนบได้เฉพาะไฟล์ JPG, PNG หรือ PDF');
   const bytes = Utilities.base64Decode(String(f.data || ''));
   if (!bytes.length) throw new Error('ไฟล์ว่าง');
   if (bytes.length > ATT_MAX_BYTES) throw new Error('ไฟล์ใหญ่เกิน 6 MB');
   const name = String(f.name || 'file').replace(/[\\\/:*?"<>|]+/g, '_').slice(0, 80);
-  const file = attFolder_().createFile(Utilities.newBlob(bytes, f.mime, me.unit + '_' + Utilities.getUuid().slice(0, 8) + '_' + name));
+  const file = attFolder_().createFile(Utilities.newBlob(bytes, f.mime, (me.unit || 'ADMIN') + '_' + Utilities.getUuid().slice(0, 8) + '_' + name));
   return { id: file.getId(), name, mime: f.mime, size: bytes.length };
 }
 
