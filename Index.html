@@ -1799,10 +1799,10 @@ function caseCardHtml(i, n) {
     ${(i.files || []).length ? `<div class="atts">${i.files.map(f => attChip(f, false)).join('')}</div>` : ''}</div>`;
 }
 // กล่องของหน่วยงาน: แผนกที่มี 2 เวรแสดงทั้ง Day และ Night
-function unitShiftBlocks(u) {
+function unitShiftBlocks(u, withInc) {
   const two = shiftsOf(u).length > 1;
   return shiftsOf(u).map(k => { const r = repAt(u, k);
-    const inner = r ? `<div class="slines">${printLines(u, r)}</div>` : `<div class="miss">${two ? 'เวร ' + esc(k) + ' ' : ''}ยังไม่รายงาน</div>`;
+    const inner = r ? `<div class="slines">${printLines(u, r, withInc)}</div>` : `<div class="miss">${two ? 'เวร ' + esc(k) + ' ' : ''}ยังไม่รายงาน</div>`;
     return two ? `<div class="shb"><div class="shl">เวร ${esc(k)}</div>${inner}</div>` : inner; }).join('');
 }
 function renderSummary() {
@@ -1820,7 +1820,7 @@ function renderSummary() {
   S.cfg.sections.filter(sc => sc.group === g).forEach(sc => {
     h += `<h2 class="grp">${esc(sc.label)}</h2>`;
     sc.units.map(unitCfg).forEach(u => {
-      h += `<div class="card sbox"><div class="shead"><b>${esc(u.code)}</b> ${statusPill(u)}</div>${unitShiftBlocks(u)}</div>`;
+      h += `<div class="card sbox"><div class="shead"><b>${esc(u.code)}</b> ${statusPill(u)}</div>${unitShiftBlocks(u, true)}</div>`;
     });
   });
   return h;
@@ -2038,7 +2038,7 @@ const SUMMARY_VIEW = {
   OPD1: { 'ยอดรวม': { title: 'ยอดรวม Med+Psy', lead: 'total' }, 'ผู้ป่วยอายุรกรรม': { lead: 'med' }, 'ผู้ป่วยจิตเวช': { lead: 'psy' } }
 };
 // รายการหลักเป็นตัวหนา รายละเอียดขึ้นบรรทัดใหม่ขึ้นต้นด้วย -
-function printLines(u, r) {
+function printLines(u, r, withInc) {
   const v = r.values || {}, out = [];
   const grp = (head, details) => out.push(`<div class="lg">${head ? `<div class="ln m">${head}</div>` : ''}${details.filter(Boolean).map(d => `<div class="ln dt">- ${d}</div>`).join('')}</div>`);
   u.form.sections.forEach(s => {
@@ -2068,8 +2068,20 @@ function printLines(u, r) {
   const rd = r.reduce || {}, rt = num(rd.RN) + num(rd.PN) + num(rd.NA);
   if (rt) grp(`<b>ลดอัตรากำลัง ${rt} ชม.</b>`, [['RN', 'PN', 'NA'].filter(k => num(rd[k])).map(k => `${k} ${num(rd[k])} ชม.`).join(', ')]);
   if (r.notes) grp('<b>เรื่องแจ้ง</b>', [esc(r.notes).replace(/\n/g, ' / ')]);
-  if ((r.incidents || []).length) grp(`<b class="miss">เหตุการณ์ผิดปกติ ${r.incidents.length} เรื่อง</b>`, []);
-  if ((r.cases || []).length) grp(`<b>รายงานเคส ${r.cases.length} เรื่อง</b>`, []);
+  if ((r.incidents || []).length) {
+    const one = t => esc(String(t || '').replace(/\s*\n\s*/g, ' / '));
+    grp(`<b class="miss">เหตุการณ์ผิดปกติ ${r.incidents.length} เรื่อง</b>`, withInc ? r.incidents.map(i => {
+      const pt = [i.patient, i.age ? 'อายุ ' + i.age + ' ปี' : '', i.hn ? 'HN ' + i.hn : ''].filter(Boolean).join(' ');
+      return `<b>${esc(i.type)}</b>${i.severity && i.severity !== '-' ? ` (ระดับ ${esc(i.severity)})` : ''}${pt ? ' \u00b7 ' + esc(pt) : ''}: ${one(i.detail)}${i.action ? ` <i>(แก้ไข: ${one(i.action)})</i>` : ''}`;
+    }) : []);
+  }
+  if ((r.cases || []).length) {
+    const one = t => esc(String(t || '').replace(/\s*\n\s*/g, ' / '));
+    grp(`<b>รายงานเคส ${r.cases.length} เรื่อง</b>`, withInc ? r.cases.map(i => {
+      const pt = [i.patient, i.age ? 'อายุ ' + i.age + ' ปี' : '', i.hn ? 'HN ' + i.hn : ''].filter(Boolean).join(' ');
+      return `${pt ? '<b>' + esc(pt) + '</b>' : '<b>เคส</b>'}${i.detail ? ': ' + one(i.detail) : ''}${i.action ? ` <i>(แก้ไข: ${one(i.action)})</i>` : ''}`;
+    }) : []);
+  }
   return out.join('');
 }
 
