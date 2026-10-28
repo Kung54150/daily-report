@@ -865,7 +865,7 @@ async function startApp(b) {
   const tabs = admin
     ? [['summary', 'สรุป'], ['all', 'ติดตามรายแผนก'], ['incidents', 'เหตุการณ์ผิดปกติ'], ['print', 'พิมพ์ A4'], ['staff', 'รายชื่อเจ้าหน้าที่ (อัปโหลด)']]
     : manager ? [['summary', 'สรุป'], ['all', 'ติดตามรายแผนก'], ['incidents', 'เหตุการณ์ผิดปกติ'], ['print', 'พิมพ์ A4']]
-    : [['mine', 'หน่วยงานของฉัน'], ['all', 'ติดตามรายแผนก'], ['print', 'พิมพ์รายงาน'], ['staff', 'ทะเบียนเจ้าหน้าที่ / ห้อง']];
+    : [['mine', 'หน่วยงานของฉัน'], ['summary', 'สรุป'], ['all', 'ติดตามรายแผนก'], ['print', 'พิมพ์รายงาน'], ['staff', 'ทะเบียนเจ้าหน้าที่ / ห้อง']];
   $('tabs').innerHTML = tabs.map(([k, t]) => `<button type="button" data-tab="${k}">${t}</button>`).join('');
   $('tabs').querySelectorAll('button').forEach(btn => btn.onclick = () => go(btn.dataset.tab));
   S.tab = tabs[0][0]; S.home = tabs[0][0];
@@ -942,8 +942,9 @@ function render() {
   else if (S.tab === 'incidents') v.innerHTML = renderIncidentsTab();
   else if (S.tab === 'print') v.innerHTML = renderPrint();
   else if (S.tab === 'staff') v.innerHTML = renderStaff();
-  if (S.tab !== S.home) v.innerHTML = '<div class="noprint" style="margin-bottom:10px"><button class="btn ghost sm" data-act="home" type="button">\u2039 กลับหน้าแรก</button></div>' + v.innerHTML;
-  if (S.tab === 'mine' && S.editing) mountForm();
+  else if (S.tab === 'edit') v.innerHTML = '';
+  if (S.tab !== S.home && S.tab !== 'edit') v.innerHTML = '<div class="noprint" style="margin-bottom:10px"><button class="btn ghost sm" data-act="home" type="button">\u2039 กลับหน้าแรก</button></div>' + v.innerHTML;
+  if ((S.tab === 'mine' || S.tab === 'edit') && S.editing) mountForm();
   bindView();
   if (S.tab === 'print') hydratePrint();
 }
@@ -1002,11 +1003,12 @@ function renderUnitDetail(code) {
   if (!unitHas(u, S.vshift) || (S.detailFor !== code && !repAt(u, S.vshift) && shiftsOf(u).some(k => repAt(u, k)))) S.vshift = shiftsOf(u).find(k => repAt(u, k)) || shiftsOf(u)[0];
   S.detailFor = code; S.day = { reports: deriveReports(S.vshift) };
   const r = S.day.reports[code];
+  const adminEdit = S.me.role === 'admin' ? `<button class="btn" data-act="edit" data-eunit="${esc(code)}" type="button">${r ? 'แก้ไข' : 'กรอก'}รายงานเวร ${esc(S.vshift)} (Admin)</button>` : '';
   return vshiftSeg(u) + `<div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
       <button class="btn ghost sm" data-act="back" type="button">\u2039 ติดตามรายแผนก</button>
       <b style="font-size:18px">${esc(code)}</b><span class="muted">${esc(unitLabel(u))}</span></div>
-    ${r ? `<div class="meta">ส่งโดย ${esc(r.reporter)} \u00b7 แก้ไขล่าสุด ${esc(r.updatedAt)}</div><div style="margin-bottom:12px"><button class="btn ghost" data-act="gotoprint" data-punit="${esc(code)}" type="button">พิมพ์รายงานหน่วยงานนี้</button></div>${renderReportView(u, r)}`
-        : `<div class="card muted fit">หน่วยงานนี้ยังไม่ส่งรายงานเวร ${esc(S.vshift)} ของวันนี้</div>`}`;
+    ${r ? `<div class="meta">ส่งโดย ${esc(r.reporter)} \u00b7 แก้ไขล่าสุด ${esc(r.updatedAt)}</div><div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" data-act="gotoprint" data-punit="${esc(code)}" type="button">พิมพ์รายงานหน่วยงานนี้</button>${adminEdit}</div>${renderReportView(u, r)}`
+        : `<div class="card muted fit">หน่วยงานนี้ยังไม่ส่งรายงานเวร ${esc(S.vshift)} ของวันนี้</div>${adminEdit ? `<div style="margin-top:10px">${adminEdit}</div>` : ''}`}`;
 }
 
 /* ===== ค่าที่คำนวณ ===== */
@@ -1077,14 +1079,16 @@ function listCard(s, v) {
 /* ===== แท็บย่อยของหน่วยงาน ===== */
 const SUBS = [['patient', 'รายงานผู้ป่วย'], ['staff', 'อัตรากำลัง'], ['incident', 'เหตุการณ์ผิดปกติ']];
 function subTabs(r) {
+  const others = S.me.role === 'unit' && r && r.unit && r.unit !== S.me.unit; // เหตุการณ์ผิดปกติ/รายงานเคสเห็นเฉพาะแผนกตนเอง
   const staffN = r ? roleCounts(r.staff || []).map(([k, n]) => k + ' ' + n).join(' ') : '';
   const incN = r ? (r.incidents || []).length : 0;
   const badge = { staff: staffN, incident: incN ? String(incN) : '' };
-  return `<div class="seg" role="tablist">${SUBS.map(([k, t]) => `<button type="button" role="tab" data-sub="${k}" class="${S.sub === k ? 'on' : ''}${k === 'incident' && incN ? ' alert' : ''}">${t}${badge[k] ? `<small>${esc(badge[k])}</small>` : ''}</button>`).join('')}</div>`;
+  return `<div class="seg" role="tablist">${SUBS.filter(([k]) => !(others && k === 'incident')).map(([k, t]) => `<button type="button" role="tab" data-sub="${k}" class="${S.sub === k ? 'on' : ''}${k === 'incident' && incN ? ' alert' : ''}">${t}${badge[k] ? `<small>${esc(badge[k])}</small>` : ''}</button>`).join('')}</div>`;
 }
 
 /* ===== มุมมองอ่านอย่างเดียว ===== */
 function renderReportView(u, r) {
+  if (S.me.role === 'unit' && r.unit && r.unit !== S.me.unit && S.sub === 'incident') S.sub = 'patient';
   const v = r.values || {};
   let body = '';
   if (S.sub === 'patient') {
@@ -1137,16 +1141,22 @@ function renderReportView(u, r) {
 }
 
 /* ===== แบบฟอร์ม ===== */
-function startEdit() {
-  const rep = repOf(S.me.unit, S.shift);
-  S.draft = rep ? JSON.parse(JSON.stringify(rep)) : { date: S.date, unit: S.me.unit, values: {}, staff: [], reduce: {}, notes: '', incidents: [], cases: [], reporter: store.get('reporter') || '' };
+// หน่วยงานที่กำลังแก้ไขรายงาน: หน่วยงานของตนเอง หรือ (Admin) หน่วยงานที่เลือกแก้
+const euUnit = () => (S.me.role === 'admin' ? S.editUnit : S.me.unit);
+function startEdit(unit) {
+  if (S.me.role === 'admin') {
+    S.editUnit = unit; const eu = unitCfg(unit);
+    S.shift = unitHas(eu, S.vshift) ? S.vshift : eu.shifts[0]; S.tab = 'edit';
+  }
+  const rep = repOf(euUnit(), S.shift);
+  S.draft = rep ? JSON.parse(JSON.stringify(rep)) : { date: S.date, unit: euUnit(), values: {}, staff: [], reduce: {}, notes: '', incidents: [], cases: [], reporter: store.get('reporter') || '' };
   S.draft.date = S.date; S.draft.shift = S.shift; S.draft.cases = S.draft.cases || [];
   S.editing = true; S.dirty = false;
   render(); window.scrollTo(0, 0);
 }
 
 function mountForm() {
-  const u = unitCfg(S.me.unit), d = S.draft, v = d.values;
+  const u = unitCfg(euUnit()), d = S.draft, v = d.values;
   S.catKeys = new Set(u.form.sections.filter(s => s.categories).flatMap(s => s.fields.map(f => f.key)));
   const numInput = (key, extra) => `<input type="number" inputmode="numeric" min="0" step="1" data-v="${esc(key)}" value="${esc(v[key] ?? '')}" placeholder="\u2013" ${extra || ''}>`;
   let pat = (u.form.draft ? draftNote() : '') + `<div class="card"><div class="row2">
@@ -1160,7 +1170,7 @@ function mountForm() {
         ${s.rows.map(rw => `<tr><td>${esc(rw[1])}</td>${s.cols.map(c => `<td>${numInput(rw[0] + '_' + c[0])}</td>`).join('')}<td class="num"><b data-rowsum="${si}:${esc(rw[0])}">0</b></td></tr>`).join('')}</table></div>`;
     } else {
       s.fields.forEach(f => {
-        if (f.type === 'text' && f.rooms && roomsFor(S.me.unit).length) pat += `<div class="frow text"><span class="lab">${esc(f.label)}</span><div data-rooms="${esc(f.key)}"></div></div>`;
+        if (f.type === 'text' && f.rooms && roomsFor(euUnit()).length) pat += `<div class="frow text"><span class="lab">${esc(f.label)}</span><div data-rooms="${esc(f.key)}"></div></div>`;
         else if (f.type === 'text') pat += `<div class="frow text"><label class="lab" for="v_${esc(f.key)}">${esc(f.label)}</label><textarea id="v_${esc(f.key)}" data-v="${esc(f.key)}" rows="2">${esc(v[f.key] ?? '')}</textarea></div>`;
         else if (f.type === 'time') pat += `<div class="frow"><span class="lab">${esc(f.label)} <small>24 \u0e0a\u0e21. \u0e1e\u0e34\u0e21\u0e1e\u0e4c 2030</small></span><input class="tin" type="text" inputmode="numeric" maxlength="5" placeholder="20:30" autocomplete="off" data-v="${esc(f.key)}" value="${esc(v[f.key] ?? '')}"></div>`;
         else if (f.calc && !f.calc.manual) pat += `<div class="frow"><span class="lab"><b>${esc(f.label)}</b> <small>(คำนวณอัตโนมัติ)</small></span><div class="calc num" data-calc="${esc(f.key)}">0</div></div>${f.key === 'remain' && s.fields.length && u.form.sections.some(x => x.categories) ? '<div class="remwarn" data-remwarn></div>' : ''}`;
@@ -1207,12 +1217,12 @@ function mountForm() {
     S.dirty = true; renderCases();
     const cards = $('fm_cases').querySelectorAll('.inc'); cards[cards.length - 1].scrollIntoView({ block: 'start', behavior: 'smooth' });
   };
-  $('sb_msg').textContent = repOf(S.me.unit, S.shift) ? 'กำลังแก้ไขรายงานเวร ' + S.shift + ' ที่ส่งแล้ว' : 'รายงานเวร ' + S.shift + ' ยังไม่ได้บันทึก';
+  $('sb_msg').textContent = repOf(euUnit(), S.shift) ? 'กำลังแก้ไขรายงานเวร ' + S.shift + ' ที่ส่งแล้ว' : 'รายงานเวร ' + S.shift + ' ยังไม่ได้บันทึก';
 }
 function renderLists() {
   const v = S.draft.values;
   document.querySelectorAll('[data-list]').forEach(box => {
-    const s = unitCfg(S.me.unit).form.sections.find(x => x.key === box.dataset.list);
+    const s = unitCfg(euUnit()).form.sections.find(x => x.key === box.dataset.list);
     const rows = v[s.key] = v[s.key] || [], st = box._st = box._st || { k: '', name: '', n: '1' };
     const it = s.items.find(i => i.k === st.k);
     const sync = () => { v[s.totalKey] = listTotal(s, v); S.dirty = true; const el = box.querySelector('[data-ltotal]'); if (el) el.textContent = v[s.totalKey]; };
@@ -1258,7 +1268,7 @@ $('view').addEventListener('focusout', e => {
   const f = finishTime(t.value);
   if (f !== t.value) { t.value = f; t.dispatchEvent(new Event('input', { bubbles: true })); }
 });
-$('view').addEventListener('input', e => { if (S.editing && S.tab === 'mine') onFormInput(e); });
+$('view').addEventListener('input', e => { if (S.editing && (S.tab === 'mine' || S.tab === 'edit')) onFormInput(e); });
 
 /* แก้ไขรายการห้องของหน่วยงาน: เลขห้อง + ชื่อ/ประเภท เพิ่ม ลบ แก้ไขได้ */
 function roomEditor(box, unit, done) {
@@ -1312,7 +1322,7 @@ const roomsRaw = unit => {
 const roomLabel = r => (r._dup ? r.name + ' (' + r.no + ')' : r.name || r.no);
 const roomsFor = unit => roomsRaw(unit).map(roomLabel);
 function setRooms(key, list) {
-  const reg = roomsFor(S.me.unit), uniq = list.filter((r, i) => list.indexOf(r) === i);
+  const reg = roomsFor(euUnit()), uniq = list.filter((r, i) => list.indexOf(r) === i);
   uniq.sort((a, b) => { const ia = reg.indexOf(a), ib = reg.indexOf(b); return (ia < 0 ? 9999 : ia) - (ib < 0 ? 9999 : ib) || a.localeCompare(b); });
   S.draft.values[key] = uniq.join(', '); S.dirty = true;
 }
@@ -1325,7 +1335,7 @@ function addRooms(key, names) {
   renderRoomPickers();
 }
 function renderRoomPickers() {
-  const raw = roomsRaw(S.me.unit), reg = raw.map(roomLabel);
+  const raw = roomsRaw(euUnit()), reg = raw.map(roomLabel);
   document.querySelectorAll('[data-rooms]').forEach(box => {
     const key = box.dataset.rooms, sel = parseRooms(S.draft.values[key]), used = new Set(parseRooms(S.draft.values[otherRoomKey(key)]));
     const extra = sel.filter(r => reg.indexOf(r) < 0);
@@ -1335,8 +1345,8 @@ function renderRoomPickers() {
   });
 }
 $('view').addEventListener('click', e => {
-  if (!(S.editing && S.tab === 'mine')) return;
-  if (e.target.closest('[data-roomedit]')) { roomEditor($('room_editor'), S.me.unit, () => { mountForm(); }); return; }
+  if (!(S.editing && (S.tab === 'mine' || S.tab === 'edit'))) return;
+  if (e.target.closest('[data-roomedit]')) { roomEditor($('room_editor'), euUnit(), () => { mountForm(); }); return; }
   const rb = e.target.closest('[data-room]');
   if (rb) {
     const key = rb.dataset.rkey, r = rb.dataset.room, sel = parseRooms(S.draft.values[key]);
@@ -1392,7 +1402,7 @@ function remCheck(u, v, quiet) {
   S.overWarned = over;
 }
 function recalc(quiet) {
-  const u = unitCfg(S.me.unit), v = S.draft.values;
+  const u = unitCfg(euUnit()), v = S.draft.values;
   u.form.sections.forEach((s, si) => {
     if (s.type === 'grid') s.rows.forEach(rw => { const el = document.querySelector(`[data-rowsum="${si}:${rw[0]}"]`); if (el) el.textContent = s.cols.reduce((a, c) => a + num(v[rw[0] + '_' + c[0]]), 0); });
     else {
@@ -1411,7 +1421,7 @@ function recalc(quiet) {
 
 /* อัตรากำลัง: เลือกชื่อจาก Drop down หรือพิมพ์ชื่อใหม่ */
 function renderStaffPicker() {
-  const d = S.draft, unit = S.me.unit, slotOn = unitCfg(unit).staffSlot;
+  const d = S.draft, unit = euUnit(), slotOn = unitCfg(unit).staffSlot;
   const chosen = new Set(d.staff.map(s => s.name));
   const mine = S.staff.filter(s => s.unit === unit && !chosen.has(s.name));
   const opt = s => `<option value="${esc(s.id)}">${esc(s.name)} (${esc(s.role)})</option>`;
@@ -1610,11 +1620,12 @@ function renderCases() {
   $('fm_cases').querySelectorAll('[data-delcase]').forEach(b => b.onclick = () => { d.cases.splice(+b.dataset.delcase, 1); S.dirty = true; renderCases(); });
 }
 
-$('sb_cancel').onclick = () => { if (S.dirty && !leaveGuard()) return; S.editing = false; S.dirty = false; render(); };
+$('sb_cancel').onclick = () => { if (S.dirty && !leaveGuard()) return; S.editing = false; S.dirty = false; backFromEdit(); render(); };
+function backFromEdit() { if (S.tab === 'edit') { S.tab = 'all'; S.viewUnit = S.editUnit; } }
 $('sb_save').onclick = async () => {
   const d = S.draft;
   if (!d.reporter.trim()) { S.sub = 'patient'; showSub(); toast('กรุณากรอกชื่อผู้รายงาน'); $('fm_reporter').focus(); return; }
-  const uf = unitCfg(S.me.unit);
+  const uf = unitCfg(euUnit());
   for (const sc of uf.form.sections) for (const f of (sc.fields || [])) {
     if (f.type === 'time' && !validTime(d.values[f.key] || '')) { S.sub = 'patient'; showSub(); toast('เวลาไม่ถูกต้อง ใช้ 24 ชม. เช่น 2030'); const el = document.querySelector(`[data-v="${f.key}"]`); if (el) el.focus(); return; }
     if (f.note && num(d.values[f.key]) > 0 && !String(d.values[f.key + '_note'] || '').trim()) {
@@ -1634,7 +1645,7 @@ $('sb_save').onclick = async () => {
     store.set('reporter', d.reporter);
     S.editing = false; S.dirty = false;
     setDay(await api('getDay', S.token, S.date)); S.monthData = null;
-    render(); window.scrollTo(0, 0); toast('บันทึกรายงานแล้ว');
+    backFromEdit(); render(); window.scrollTo(0, 0); toast('บันทึกรายงานแล้ว');
   } catch (e) { $('sb_msg').textContent = e.message; handleErr(e); }
   $('sb_save').disabled = false;
 };
@@ -2186,7 +2197,7 @@ function bindView() {
   const v = $('view');
   v.querySelectorAll('[data-act]').forEach(b => b.onclick = () => {
     const a = b.dataset.act;
-    if (a === 'edit') startEdit();
+    if (a === 'edit') startEdit(b.dataset.eunit);
     else if (a === 'back') go('all');
     else if (a === 'home') go(S.home);
     else if (a === 'gotoprint') { if (b.dataset.punit) { S.printScope = b.dataset.punit; S.printKind = 'day'; } go('print'); }
