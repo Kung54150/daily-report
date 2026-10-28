@@ -1154,7 +1154,7 @@ function renderReportView(u, r) {
     const staff = r.staff || [], rd = r.reduce || {};
     body = `<div class="view-grid"><div class="card"><h3>อัตรากำลัง <span class="sub">เวร ${esc(shiftName(r.shift))}</span></h3>
       <div class="counts">${roleCounts(staff).map(([k, n]) => `<span>${esc(k)} ${n}</span>`).join('') || '<span class="muted">ไม่ได้ระบุ</span>'}</div>
-      ${(u.staffSlot ? slotSort(staff) : staff).map(s => `<div style="font-size:14px"><b style="display:inline-block;min-width:40px">${esc(s.role)}</b>${u.staffSlot && s.slot ? `คนที่ ${esc(s.slot)} ` : ''}${esc(s.name)}${s.tag ? ` <span class="pill plain">${esc(s.tag)}${s.tagNote ? ' ' + esc(s.tagNote) : ''}</span>` : ''}</div>`).join('')}</div>
+      ${(u.staffSlot ? slotSort(staff) : staff).map(s => `<div style="font-size:14px"><b style="display:inline-block;min-width:40px">${esc(s.pos || s.role)}</b>${u.staffSlot && s.slot ? `คนที่ ${esc(s.slot)} ` : ''}${esc(s.name)}${s.tag ? ` <span class="pill plain">${esc(s.tag)}${s.tagNote ? ' ' + esc(s.tagNote) : ''}</span>` : ''}</div>`).join('')}</div>
       <div class="card"><h3>ลดอัตรากำลัง</h3><div class="kv">
         <div>RN</div><div class="v">${num(rd.RN)} ชม.</div><div>PN</div><div class="v">${num(rd.PN)} ชม.</div><div>NA</div><div class="v">${num(rd.NA)} ชม.</div>
         <div class="total">รวม</div><div class="total v">${num(rd.RN) + num(rd.PN) + num(rd.NA)} ชม.</div></div>
@@ -1454,11 +1454,13 @@ function recalc(quiet) {
 }
 
 /* อัตรากำลัง: เลือกชื่อจาก Drop down หรือพิมพ์ชื่อใหม่ */
+// ตำแหน่งของคนในเวร: ค่าที่บันทึกไว้ในรายงาน หรือค้นจากทะเบียนของหน่วยงาน
+const dutyPos = (s, unit) => s.pos || (() => { const r = S.staff.find(x => x.name === s.name && x.unit === unit); return posLabel(r ? r.title : '', s.role); })();
 function renderStaffPicker() {
   const d = S.draft, unit = euUnit(), slotOn = unitCfg(unit).staffSlot;
   const chosen = new Set(d.staff.map(s => s.name));
   const mine = S.staff.filter(s => s.unit === unit && !chosen.has(s.name));
-  const opt = s => `<option value="${esc(s.id)}">${esc(s.name)} (${esc(s.role)})</option>`;
+  const opt = s => `<option value="${esc(s.id)}">${esc(s.name)} (${esc(posLabel(s.title, s.role))})</option>`;
   $('fm_staffbody').innerHTML = `
     <label class="f" for="ns_pick">เพิ่มผู้ปฏิบัติงานเวรนี้</label>
     <select id="ns_pick">
@@ -1473,7 +1475,7 @@ function renderStaffPicker() {
     </div>
     <div class="muted" style="font-size:12px;margin-top:4px">ชื่อใหม่จะถูกเพิ่มเข้าทะเบียน ${esc(unit)} อัตโนมัติ \u00b7 แก้ไข/ลบรายชื่อได้ที่แท็บ "ทะเบียนเจ้าหน้าที่"</div>
     <div class="counts">${roleCounts(d.staff).map(([k, n]) => `<span>${esc(k)} ${n}</span>`).join('')}</div>
-    ${d.staff.map((s, i) => `<div class="duty"><span class="nm">${esc(s.name)} <b class="rl">(${S.cfg.roles.indexOf(s.role) >= 0 ? esc(s.role) : 'ไม่ระบุ'})</b></span>
+    ${d.staff.map((s, i) => `<div class="duty"><span class="nm">${esc(s.name)} <b class="rl">(${esc(dutyPos(s, unit))})</b></span>
       <select data-duty="${i}:tag" aria-label="หน้าที่"><option value="">หน้าที่ \u2013</option>${S.cfg.dutyTags.map(t => `<option${t === s.tag ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>
       <button type="button" class="x" data-unpick="${i}" aria-label="เอาออก">\u00d7</button>
       ${slotOn ? `<div style="grid-column:1/-1;display:flex;gap:8px;align-items:center"><label class="f" style="margin:0" for="slot_${i}">คนที่</label><input id="slot_${i}" type="number" inputmode="numeric" min="1" max="99" style="width:80px" data-duty="${i}:slot" value="${esc(s.slot || '')}" placeholder="1"></div>` : ''}
@@ -1484,14 +1486,14 @@ function renderStaffPicker() {
     const val = $('ns_pick').value;
     if (val === '__new') { $('ns_newrow').hidden = false; $('ns_name').focus(); return; }
     const s = S.staff.find(x => String(x.id) === val);
-    if (s) { d.staff.push({ name: s.name, role: s.role, tag: '' }); S.dirty = true; renderStaffPicker(); showSub(); }
+    if (s) { d.staff.push({ name: s.name, role: s.role, pos: posLabel(s.title, s.role), tag: '' }); S.dirty = true; renderStaffPicker(); showSub(); }
   };
   $('fm_staffbody').querySelectorAll('[data-unpick]').forEach(b => b.onclick = () => { d.staff.splice(+b.dataset.unpick, 1); S.dirty = true; renderStaffPicker(); showSub(); });
   $('ns_add').onclick = async () => {
     const name = $('ns_name').value.trim(), role = $('ns_role').value;
     if (!name) return toast('พิมพ์ชื่อก่อน');
     if (d.staff.some(s => s.name === name)) return toast('มีชื่อนี้ในเวรแล้ว');
-    d.staff.push({ name, role, tag: '' }); S.dirty = true;
+    d.staff.push({ name, role, pos: posLabel('', role), tag: '' }); S.dirty = true;
     if (!S.staff.some(s => s.unit === unit && s.name === name)) {
       try { await api('saveStaff', S.token, { unit, name, role }); await loadStaff(); toast('เพิ่ม ' + name + ' เข้าทะเบียนแล้ว'); } catch (e) { toast(e.message); }
     }
@@ -1756,6 +1758,25 @@ function builtinRole(raw) {
   if (/ผู้ช่วยหัวหน้า|ผู้ช่วยผู้จัดการ|ผู้จัดการ/.test(t)) return 'RN';
   if (/^พยาบาล|^พว\.?$/.test(t)) return 'RN';
   return S.cfg.roleAliases[t] || S.cfg.roleAliases[t.toLowerCase()] || (S.cfg.roles.indexOf(t) >= 0 ? t : '');
+}
+// ตำแหน่งที่แสดงในวงเล็บหลังชื่อ: อิงตำแหน่งในไฟล์ที่อัปโหลด (ไม่ระบุชื่อแผนกท้ายตำแหน่งหัวหน้า)
+const POS_ABBR = [
+  [/ผู้ช่วยทันตแพทย์/, 'Dental Asst.'], [/ทันตแพทย์/, 'DDS'], [/^แพทย์|นายแพทย์|แพทย์หญิง/, 'MD'], [/เภสัชกร/, 'Pharm.'], [/นักเทคนิคการแพทย์/, 'MT'],
+  [/นักรังสี/, 'RT'], [/กายภาพบำบัด/, 'PT'], [/กิจกรรมบำบัด/, 'OT'], [/นักโภชนาการ|นักกำหนดอาหาร/, 'RD'], [/นักจิตวิทยา/, 'Psychologist'],
+  [/ธุรการ/, 'Clerk'], [/พนักงานเปล/, 'Porter'], [/นักศึกษา/, 'นศ.']
+];
+function posLabel(title, role) {
+  const t = String(title || '').trim();
+  if (t) {
+    if (/ผู้ช่วยหัวหน้า/.test(t)) return 'ผช.หัวหน้าแผนก';
+    if (/หัวหน้า/.test(t)) return 'หัวหน้าแผนก';
+    if (/ผู้ช่วยเหลือ/.test(t)) return 'NA';
+    if (/ผู้ช่วยพยาบาล|ผู้ช่วยการพยาบาล/.test(t)) return 'PN';
+    if (/พยาบาลวิชาชีพ/.test(t)) return 'RN';
+    const ab = POS_ABBR.find(x => x[0].test(t));
+    return ab ? ab[1] : t; // ตำแหน่งอื่น: ตามเอกสารที่อัปโหลด (ใช้ตัวย่อสากลถ้ามี)
+  }
+  return S.cfg.roles.indexOf(role) >= 0 ? (role === 'หัวหน้า' ? 'หัวหน้าแผนก' : role) : 'ไม่ระบุ';
 }
 const normTitle = t => String(t || '').toLowerCase().replace(/\s+/g, '');
 // ตำแหน่งที่แอดมินจับคู่เองมาก่อนกฎอัตโนมัติ
@@ -2078,7 +2099,7 @@ function printSingle(u, shift) {
   if (r.notes) h += `<div class="ln"><b>เรื่องแจ้ง:</b> ${esc(r.notes).replace(/\n/g, ' / ')}</div>`;
   const staff = r.staff || [], rd = r.reduce || {};
   h += `<h2>อัตรากำลัง \u00b7 เวร ${esc(shiftName(r.shift))} \u00b7 ${roleCounts(staff).map(([k, n]) => `${esc(k)} ${n}`).join(', ') || 'ไม่ได้ระบุ'}</h2>
-    <div class="cols">${(u.staffSlot ? slotSort(staff) : staff).map(s => `<div class="ln">${esc(s.role)}${u.staffSlot && s.slot ? ' \u00b7 คนที่ ' + esc(s.slot) : ''} ${esc(s.name)}${s.tag ? ` (${esc(s.tag)}${s.tagNote ? ' ' + esc(s.tagNote) : ''})` : ''}</div>`).join('')}</div>`;
+    <div class="cols">${(u.staffSlot ? slotSort(staff) : staff).map(s => `<div class="ln">${esc(s.pos || s.role)}${u.staffSlot && s.slot ? ' \u00b7 คนที่ ' + esc(s.slot) : ''} ${esc(s.name)}${s.tag ? ` (${esc(s.tag)}${s.tagNote ? ' ' + esc(s.tagNote) : ''})` : ''}</div>`).join('')}</div>`;
   const rt = num(rd.RN) + num(rd.PN) + num(rd.NA);
   if (rt || rd.detail) h += `<div class="ln" style="margin-top:3px"><b>ลดอัตรากำลัง ${rt} ชม.</b> (RN ${num(rd.RN)} ชม., PN ${num(rd.PN)} ชม., NA ${num(rd.NA)} ชม.)${rd.detail ? ' \u00b7 ' + esc(rd.detail).replace(/\n/g, ' / ') : ''}</div>`;
   const incs = (r.incidents || []).map(i => Object.assign({ unit: u.code }, i)), css = (r.cases || []).map(i => Object.assign({ unit: u.code }, i));
