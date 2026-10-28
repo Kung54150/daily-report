@@ -177,7 +177,7 @@ const FORMS = {
   C5: Object.assign(ipd_(ADULT_MIX), { draft: true }),
 
   // ----- Special Unit (รอรูปแบบจริง) -----
-  ICU: { staffSlot: true, std: IPD_STD, sections: [ICU_CENSUS] },
+  ICU: { staffSlot: true, std: IPD_STD, sections: [ICU_CENSUS, { title: 'ประเภทผู้ป่วยคงพยาบาล', categories: true, fields: ADULT_MIX, sum: 'รวม' }, IPD_ROOMS] },
   LR: { draft: true, std: { total: ['nl', 'cs'] }, sections: [{ title: 'การคลอด', fields: [N_('nl', 'คลอดปกติ'), N_('cs', 'ผ่าคลอด')] }] },
   NB: { draft: true, std: { total: 'nb' }, sections: [{ title: 'ทารกแรกเกิด', fields: [N_('nb', 'ทารกแรกเกิด'), N_('nb_adm', 'Admit ตึกเด็ก')] }] },
   'ไตเทียม': { draft: true, std: { total: 'hd' }, sections: [{ title: 'ไตเทียม', fields: [N_('hd', 'ฟอกเลือด (HD)'), N_('hd_new', 'ผู้ป่วยรายใหม่')] }] },
