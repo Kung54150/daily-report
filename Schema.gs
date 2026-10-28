@@ -156,7 +156,7 @@ const FORMS = {
     admit: ['well_nb', 'sick_admit', 'sick_icu', 'sick_nb'] }, sections: [
     { title: 'เด็กดี', sum: 'รวม', fields: [N_('vac', 'วัคซีนตามอายุ'), N_('breast', 'คลินิกนมแม่'), N_('vac_nodoc', 'วัคซีน ไม่พบแพทย์'), N_('well_nb', 'Admit NB'), Object.assign(N_('well_refuse', 'ปฏิเสธการรักษา'), { noSum: true })] },
     { title: 'เด็กป่วย', sum: 'รวม', fields: [N_('sick', 'เด็กป่วย OPD case'), N_('sick_admit', 'Admit ward'), N_('sick_icu', 'Admit ICU'), N_('sick_nb', 'Admit NB'), Object.assign(N_('sick_refuse', 'ปฏิเสธการรักษา'), { noSum: true })] },
-    { title: 'ศูนย์พัฒนาการเด็ก', sum: 'รวม', fields: [N_('dev_act', 'นักกิจกรรม'), N_('dev_speech', 'ฝึกพูด'), N_('dev_doc', 'พบแพทย์'), N_('dev_psy', 'นักจิต'), N_('dev_drug', 'ซื้อยา'), N_('dev_psych', 'จิตเวช')] }
+    { title: 'ศูนย์พัฒนาการเด็ก', sum: 'รวม', fields: [N_('dev_act', 'พบนักกิจกรรม'), N_('dev_speech', 'พบนักฝึกพูด'), N_('dev_doc', 'พบแพทย์'), N_('dev_psy', 'พบนักจิต'), N_('dev_drug', 'ซื้อยา'), N_('dev_psych', 'จิตเวช')] }
   ] },
 
   // ----- ผู้ป่วยใน -----
