@@ -1906,10 +1906,12 @@ function printMonthly(u, month, reps) {
     if (lines.length) boxes.push(`<div class="ub"><b>${esc(s.title)}</b><table class="stat">${lines.map(([k, n]) => `<tr><td>${esc(k)}</td><td class="n">${n}</td></tr>`).join('')}</table></div>`);
   });
   const incs = reps.flatMap(r => (r.incidents || []).map(i => Object.assign({}, i, { unit: fmtDMY(r.date) + (two ? ' \u00b7 ' + r.shift : '') })));
+  const css = reps.flatMap(r => (r.cases || []).map(i => Object.assign({}, i, { unit: fmtDMY(r.date) + (two ? ' \u00b7 ' + r.shift : '') })));
   let p2 = '';
   p2 += boxes.length ? `<h2>รวมจำนวนรายการ</h2><div class="cols">${boxes.join('')}</div>` : '<div class="muted">ไม่มีรายการอื่นนอกเหนือจากตารางยอดรายวัน</div>';
   const byType = {}; incs.forEach(i => byType[i.type] = (byType[i.type] || 0) + 1);
   p2 += `<h2>เหตุการณ์ผิดปกติ (${incs.length})</h2>` + (incs.length ? `<div class="chipsp">${Object.entries(byType).map(([k, n]) => `<span>${esc(k)} <b>${n}</b></span>`).join('')}</div>${incTable(incs, 'วันที่ / เวร')}` : '<div>ไม่มีรายงานเหตุการณ์ผิดปกติ</div>');
+  if (css.length) p2 += `<h2>รายงานเคส (${css.length})</h2>${incTable(css, 'วันที่ / เวร', true)}`;
   return p1 + p2;
 }
 function printHead(sub) {
@@ -1976,7 +1978,12 @@ function printIncidents() {
   const byType = {}; incs.forEach(i => byType[i.type] = (byType[i.type] || 0) + 1);
   return `<h2>เหตุการณ์ผิดปกติ รวมทุกหน่วยงาน (${incs.length})</h2>` + (incs.length
     ? `<div class="chipsp">${Object.entries(byType).map(([k, n]) => `<span>${esc(k)} <b>${n}</b></span>`).join('')}</div>${incTable(incs)}`
-    : '<div>ไม่มีรายงานเหตุการณ์ผิดปกติ</div>');
+    : '<div>ไม่มีรายงานเหตุการณ์ผิดปกติ</div>') + casesPrint();
+}
+function casesPrint() {
+  const cs = [];
+  S.cfg.units.forEach(u => shiftsOf(u).forEach(k => ((repAt(u, k) || {}).cases || []).forEach(i => cs.push(Object.assign({}, i, { unit: shiftLab(u, k).replace(/<[^>]*>/g, '') })))));
+  return cs.length ? `<h2>รายงานเคส รวมทุกหน่วยงาน (${cs.length})</h2>${incTable(cs, null, true)}` : '';
 }
 
 function incTable(incs, first, cs) {
@@ -2068,20 +2075,15 @@ function printLines(u, r, withInc) {
   const rd = r.reduce || {}, rt = num(rd.RN) + num(rd.PN) + num(rd.NA);
   if (rt) grp(`<b>ลดอัตรากำลัง ${rt} ชม.</b>`, [['RN', 'PN', 'NA'].filter(k => num(rd[k])).map(k => `${k} ${num(rd[k])} ชม.`).join(', ')]);
   if (r.notes) grp('<b>เรื่องแจ้ง</b>', [esc(r.notes).replace(/\n/g, ' / ')]);
-  if ((r.incidents || []).length) {
-    const one = t => esc(String(t || '').replace(/\s*\n\s*/g, ' / '));
-    grp(`<b class="miss">เหตุการณ์ผิดปกติ ${r.incidents.length} เรื่อง</b>`, withInc ? r.incidents.map(i => {
-      const pt = [i.patient, i.age ? 'อายุ ' + i.age + ' ปี' : '', i.hn ? 'HN ' + i.hn : ''].filter(Boolean).join(' ');
-      return `<b>${esc(i.type)}</b>${i.severity && i.severity !== '-' ? ` (ระดับ ${esc(i.severity)})` : ''}${pt ? ' \u00b7 ' + esc(pt) : ''}: ${one(i.detail)}${i.action ? ` <i>(แก้ไข: ${one(i.action)})</i>` : ''}`;
-    }) : []);
-  }
-  if ((r.cases || []).length) {
-    const one = t => esc(String(t || '').replace(/\s*\n\s*/g, ' / '));
-    grp(`<b>รายงานเคส ${r.cases.length} เรื่อง</b>`, withInc ? r.cases.map(i => {
-      const pt = [i.patient, i.age ? 'อายุ ' + i.age + ' ปี' : '', i.hn ? 'HN ' + i.hn : ''].filter(Boolean).join(' ');
-      return `${pt ? '<b>' + esc(pt) + '</b>' : '<b>เคส</b>'}${i.detail ? ': ' + one(i.detail) : ''}${i.action ? ` <i>(แก้ไข: ${one(i.action)})</i>` : ''}`;
-    }) : []);
-  }
+  const one = t => esc(String(t || '').replace(/\s*\n\s*/g, ' / '));
+  const caseText = (i, head) => {
+    const pt = [i.patient, i.age ? 'อายุ ' + i.age + ' ปี' : '', i.hn ? 'HN ' + i.hn : ''].filter(Boolean).join(' ');
+    const vs = vitals(i).map(([k, x, unit]) => `${k} ${esc(x)}${unit === '%' ? '%' : unit === '\u00b0C' ? '\u00b0C' : ''}`).join(', ') + (i.o2mode ? (vitals(i).length ? ', ' : '') + 'O2: ' + esc(o2Text(i)) : '');
+    const who = [i.time ? 'มา ' + esc(i.time) + ' น.' : '', i.doctor ? 'แพทย์ ' + esc(i.doctor) : ''].filter(Boolean).join(' \u00b7 ');
+    return head + (pt ? ' \u00b7 <b>' + esc(pt) + '</b>' : '') + (who ? '<br>' + who : '') + (vs ? '<br>' + vs : '') + (i.detail ? '<br>' + one(i.detail) : '') + (i.action ? `<br><i>แก้ไข: ${one(i.action)}</i>` : '');
+  };
+  if ((r.incidents || []).length) grp(`<b class="miss">เหตุการณ์ผิดปกติ ${r.incidents.length} เรื่อง</b>`, withInc ? r.incidents.map(i => caseText(i, `<b>${esc(i.type)}</b>${i.severity && i.severity !== '-' ? ` (ระดับ ${esc(i.severity)})` : ''}`)) : []);
+  if ((r.cases || []).length) grp(`<b>รายงานเคส ${r.cases.length} เรื่อง</b>`, withInc ? r.cases.map(i => caseText(i, '<b>เคส</b>')) : []);
   return out.join('');
 }
 

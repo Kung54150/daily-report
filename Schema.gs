@@ -41,7 +41,7 @@ const STD_IPD = ['carried', 'admit', 'tr_in', 'tr_out', 'refer', 'dead', 'dc', '
 const CATEGORIES = {
   adult: 'ผู้ใหญ่ทั่วไป', child: 'เด็ก', obgyn: 'สูติ-นรีเวช', gyn: 'สูติ-นรีเวช', ob: 'สูติ-นรีเวช',
   med: 'อายุรกรรม', surg: 'ศัลยกรรม', ortho: 'ออร์โธ', pla: 'พลาสติก', uro: 'Uro', ent: 'ENT', skin: 'Skin',
-  covid_child: 'Covid-19', covid_adult: 'Covid-19', bedridden: 'Bedridden', pre_or: 'เตรียม OR', post_op: 'Post Op', obs: 'Obs'
+  icu_pt: 'ผู้ป่วย ICU', covid_child: 'Covid-19', covid_adult: 'Covid-19', bedridden: 'Bedridden', pre_or: 'เตรียม OR', post_op: 'Post Op', obs: 'Obs'
 };
 
 // รายการแบบเลือกจาก Drop down แล้วกดเพิ่มต่อๆ ไป (ask = ต้องระบุชื่อก่อนจึงจะเพิ่มได้ เช่น ชื่อบริษัท)
@@ -177,7 +177,7 @@ const FORMS = {
   C5: Object.assign(ipd_(ADULT_MIX), { draft: true }),
 
   // ----- Special Unit (รอรูปแบบจริง) -----
-  ICU: { staffSlot: true, std: IPD_STD, sections: [ICU_CENSUS] },
+  ICU: { staffSlot: true, std: IPD_STD, sections: [ICU_CENSUS, { title: 'ประเภทผู้ป่วยคงพยาบาล', categories: true, fields: [N_('icu_pt', 'ผู้ป่วย ICU')], sum: 'รวม' }] },
   LR: { draft: true, std: { total: ['nl', 'cs'] }, sections: [{ title: 'การคลอด', fields: [N_('nl', 'คลอดปกติ'), N_('cs', 'ผ่าคลอด')] }] },
   NB: { draft: true, std: { total: 'nb' }, sections: [{ title: 'ทารกแรกเกิด', fields: [N_('nb', 'ทารกแรกเกิด'), N_('nb_adm', 'Admit ตึกเด็ก')] }] },
   'ไตเทียม': { draft: true, std: { total: 'hd' }, sections: [{ title: 'ไตเทียม', fields: [N_('hd', 'ฟอกเลือด (HD)'), N_('hd_new', 'ผู้ป่วยรายใหม่')] }] },
