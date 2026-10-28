@@ -330,6 +330,7 @@
 
   /* incidents */
   .inc, .inc-view { border-left: 4px solid var(--bad); }
+  .inc.case, .inc-view.case { border-left-color: var(--accent-strong); }
   .inc-head { display: flex; justify-content: space-between; align-items: center; font-weight: 600; }
   .addinc { width: 100%; border: 2px dashed var(--line); background: transparent; color: var(--accent-strong); padding: 12px; border-radius: 8px; cursor: pointer; font-weight: 600; }
 
@@ -1096,6 +1097,7 @@ function renderReportView(u, r) {
     if (u.form.total) cards.push(`<div class="card"><div class="kv"><div><b>${esc(u.form.total)}</b></div><div class="v">${u.form.sections.filter(s => s.sum).reduce((a, s) => a + sectionSum(s, v), 0)}</div></div></div>`);
     if (r.notes) cards.push(`<div class="card"><h3>เรื่องแจ้ง</h3><div class="pre">${esc(r.notes)}</div></div>`);
     body = `<div class="view-grid">${cards.join('')}</div>`;
+    if ((r.cases || []).length) body += `<h3 style="margin:14px 0 8px">รายงานเคส (${r.cases.length})</h3>` + r.cases.map((i, n) => caseCardHtml(i, n + 1)).join('');
   } else if (S.sub === 'staff') {
     const staff = r.staff || [], rd = r.reduce || {};
     body = `<div class="view-grid"><div class="card"><h3>อัตรากำลัง <span class="sub">เวร ${esc(shiftName(r.shift))}</span></h3>
@@ -1123,8 +1125,8 @@ function renderReportView(u, r) {
 /* ===== แบบฟอร์ม ===== */
 function startEdit() {
   const rep = repOf(S.me.unit, S.shift);
-  S.draft = rep ? JSON.parse(JSON.stringify(rep)) : { date: S.date, unit: S.me.unit, values: {}, staff: [], reduce: {}, notes: '', incidents: [], reporter: store.get('reporter') || '' };
-  S.draft.date = S.date; S.draft.shift = S.shift;
+  S.draft = rep ? JSON.parse(JSON.stringify(rep)) : { date: S.date, unit: S.me.unit, values: {}, staff: [], reduce: {}, notes: '', incidents: [], cases: [], reporter: store.get('reporter') || '' };
+  S.draft.date = S.date; S.draft.shift = S.shift; S.draft.cases = S.draft.cases || [];
   S.editing = true; S.dirty = false;
   render(); window.scrollTo(0, 0);
 }
@@ -1163,7 +1165,8 @@ function mountForm() {
     pat += '</div>';
   });
   if (u.form.total) pat += `<div class="card"><div class="sumline" style="border:0;margin:0;padding:0"><span>${esc(u.form.total)}</span><span class="num" id="fm_total">0</span></div></div>`;
-  pat += `<div class="card"><h3>เรื่องแจ้ง</h3><textarea id="fm_notes" rows="3" placeholder="เช่น พรุ่งนี้แพทย์งดออกตรวจ / ไม่มีเอกสารค้างส่ง">${esc(d.notes || '')}</textarea></div>`;
+  pat += `<div class="card"><h3>เรื่องแจ้ง</h3><textarea id="fm_notes" rows="3" placeholder="เช่น พรุ่งนี้แพทย์งดออกตรวจ / ไม่มีเอกสารค้างส่ง">${esc(d.notes || '')}</textarea></div>
+    <div class="card"><h3>รายงานเคส</h3><div id="fm_cases"></div><button type="button" class="addinc" id="fm_addcase">+ เพิ่มเคส</button></div>`;
 
   const rd = d.reduce || {};
   const staff = `<div class="card"><h3>อัตรากำลัง</h3>
@@ -1179,11 +1182,16 @@ function mountForm() {
 
   $('view').innerHTML = `<div id="fm_tabs"></div>
     <div data-panel="patient">${pat}</div><div data-panel="staff">${staff}</div><div data-panel="incident">${inc}</div>`;
-  renderStaffPicker(); renderIncidents(); renderRoomPickers(); renderLists(); recalc(); showSub();
+  renderStaffPicker(); renderIncidents(); renderCases(); renderRoomPickers(); renderLists(); recalc(); showSub();
   $('fm_addinc').onclick = () => {
     d.incidents.push({ type: S.cfg.problemTypes[0], severity: '-', patient: '', age: '', hn: '', time: '', doctor: '', bp: '', pr: '', rr: '', temp: '', spo2: '', o2mode: 'Room air', o2flow: '', detail: '', action: '' });
     S.dirty = true; renderIncidents(); showSub();
     const cards = $('fm_incs').querySelectorAll('.inc'); cards[cards.length - 1].scrollIntoView({ block: 'start', behavior: 'smooth' });
+  };
+  $('fm_addcase').onclick = () => {
+    d.cases.push({ patient: '', age: '', hn: '', time: '', doctor: '', bp: '', pr: '', rr: '', temp: '', spo2: '', o2mode: 'Room air', o2flow: '', detail: '', action: '' });
+    S.dirty = true; renderCases();
+    const cards = $('fm_cases').querySelectorAll('.inc'); cards[cards.length - 1].scrollIntoView({ block: 'start', behavior: 'smooth' });
   };
   $('sb_msg').textContent = repOf(S.me.unit, S.shift) ? 'กำลังแก้ไขรายงานเวร ' + S.shift + ' ที่ส่งแล้ว' : 'รายงานเวร ' + S.shift + ' ยังไม่ได้บันทึก';
 }
@@ -1280,8 +1288,14 @@ function roomEditor(box, unit, done) {
 
 /* ห้องพัก: กดเลือกจากรายการห้องของหน่วยงาน หรือพิมพ์ชื่อเอง (ห้องหนึ่งอยู่ได้ที่เดียว ว่างหรือรอทำความสะอาด) */
 const parseRooms = v => String(v || '').split(/[,\n]/).map(x => x.trim()).filter(Boolean);
-const roomsRaw = unit => (S.cfg.rooms && S.cfg.rooms[unit]) || [];
-const roomLabel = r => r.name || r.no;
+const roomsRaw = unit => {
+  const a = (S.cfg.rooms && S.cfg.rooms[unit]) || [], cnt = {};
+  a.forEach(r => { if (r.name) cnt[r.name] = (cnt[r.name] || 0) + 1; });
+  a.forEach(r => { r._dup = !!(r.name && cnt[r.name] > 1); });
+  return a;
+};
+// ชื่อห้องซ้ำกันได้ ถ้าซ้ำจะต่อท้ายด้วยเลขห้องในวงเล็บ เช่น Superior คอก (B505)
+const roomLabel = r => (r._dup ? r.name + ' (' + r.no + ')' : r.name || r.no);
 const roomsFor = unit => roomsRaw(unit).map(roomLabel);
 function setRooms(key, list) {
   const reg = roomsFor(S.me.unit), uniq = list.filter((r, i) => list.indexOf(r) === i);
@@ -1301,7 +1315,7 @@ function renderRoomPickers() {
   document.querySelectorAll('[data-rooms]').forEach(box => {
     const key = box.dataset.rooms, sel = parseRooms(S.draft.values[key]), used = new Set(parseRooms(S.draft.values[otherRoomKey(key)]));
     const extra = sel.filter(r => reg.indexOf(r) < 0);
-    box.innerHTML = `<div class="rooms">${raw.map(o => { const r = roomLabel(o); return `<button type="button" class="rm${sel.indexOf(r) >= 0 ? ' on' : ''}${used.has(r) ? ' used' : ''}" data-room="${esc(r)}" data-rkey="${esc(key)}">${esc(r)}${o.name && o.name !== o.no ? `<small>${esc(o.no)}</small>` : ''}</button>`; }).join('')}${extra.map(r => `<button type="button" class="rm on" data-room="${esc(r)}" data-rkey="${esc(key)}">${esc(r)} \u00d7</button>`).join('')}</div>
+    box.innerHTML = `<div class="rooms">${raw.map(o => { const r = roomLabel(o); return `<button type="button" class="rm${sel.indexOf(r) >= 0 ? ' on' : ''}${used.has(r) ? ' used' : ''}" data-room="${esc(r)}" data-rkey="${esc(key)}">${esc(r)}${o.name && o.name !== o.no && !o._dup ? `<small>${esc(o.no)}</small>` : ''}</button>`; }).join('')}${extra.map(r => `<button type="button" class="rm on" data-room="${esc(r)}" data-rkey="${esc(key)}">${esc(r)} \u00d7</button>`).join('')}</div>
       <div class="muted" style="font-size:12px">เลือกแล้ว ${sel.length} ห้อง</div>
       <div class="addrow rm-add"><input data-roomtext="${esc(key)}" placeholder="พิมพ์ชื่อห้องเอง เช่น VIP1 (คั่นหลายห้องด้วย ,)"><button type="button" class="btn sm" data-roomadd="${esc(key)}">+ เพิ่ม</button></div>`;
   });
@@ -1317,6 +1331,8 @@ $('view').addEventListener('click', e => {
   }
   const ad = e.target.closest('[data-attdel]');
   if (ad) { const [ii, kk] = ad.dataset.attdel.split(':').map(Number); S.draft.incidents[ii].files.splice(kk, 1); S.dirty = true; renderIncidents(); return; }
+  const adc = e.target.closest('[data-attdelc]');
+  if (adc) { const [ii, kk] = adc.dataset.attdelc.split(':').map(Number); S.draft.cases[ii].files.splice(kk, 1); S.dirty = true; renderCases(); return; }
   const ab = e.target.closest('[data-roomadd]');
   if (ab) { const inp = document.querySelector(`[data-roomtext="${ab.dataset.roomadd}"]`); addRooms(ab.dataset.roomadd, inp.value); }
 });
@@ -1340,6 +1356,10 @@ function onFormInput(e) {
   else if (t.dataset.inc) {
     const [i, k] = t.dataset.inc.split(':'); d.incidents[i][k] = t.value;
     if (k === 'o2mode') { const box = document.querySelector(`[data-o2flow="${i}"]`); box.hidden = t.value === 'Room air'; }
+  }
+  else if (t.dataset.cs) {
+    const [i, k] = t.dataset.cs.split(':'); d.cases[i][k] = t.value;
+    if (k === 'o2mode') { const box = document.querySelector(`[data-o2flowc="${i}"]`); box.hidden = t.value === 'Room air'; }
   }
   else if (t.dataset.duty) { const [i, k] = t.dataset.duty.split(':'); d.staff[i][k] = t.value; if (k === 'tag' || k === 'role') { renderStaffPicker(); showSub(); } }
 }
@@ -1444,12 +1464,12 @@ async function prepAttachment(file) {
   throw new Error(file.name + ': แนบได้เฉพาะ JPG, PNG หรือ PDF');
 }
 async function getAtt(id) { if (!S.att[id]) S.att[id] = await api('getAttachment', S.token, id); return S.att[id]; }
-const attChip = (f, editable, i, k) => `<span class="att"><button type="button" class="open" data-attview="${esc(f.id)}" data-attname="${esc(f.name)}" data-attmime="${esc(f.mime)}">${f.mime === 'application/pdf' ? 'PDF' : 'รูป'} ${esc(f.name)}</button><small>${fmtSize(f.size || 0)}</small>${editable ? `<button type="button" class="x" data-attdel="${i}:${k}" aria-label="เอาไฟล์ออก">\u00d7</button>` : ''}</span>`;
+const attChip = (f, editable, i, k, cs) => `<span class="att"><button type="button" class="open" data-attview="${esc(f.id)}" data-attname="${esc(f.name)}" data-attmime="${esc(f.mime)}">${f.mime === 'application/pdf' ? 'PDF' : 'รูป'} ${esc(f.name)}</button><small>${fmtSize(f.size || 0)}</small>${editable ? `<button type="button" class="x" data-attdel${cs ? 'c' : ''}="${i}:${k}" aria-label="เอาไฟล์ออก">\u00d7</button>` : ''}</span>`;
 
 $('view').addEventListener('change', async e => {
   const t = e.target;
-  if (!(S.editing && t.dataset && t.dataset.fileadd !== undefined)) return;
-  const i = +t.dataset.fileadd, x = S.draft.incidents[i], files = Array.from(t.files);
+  if (!(S.editing && t.dataset && (t.dataset.fileadd !== undefined || t.dataset.fileaddc !== undefined))) return;
+  const cs = t.dataset.fileaddc !== undefined, i = +(cs ? t.dataset.fileaddc : t.dataset.fileadd), x = (cs ? S.draft.cases : S.draft.incidents)[i], files = Array.from(t.files);
   t.value = ''; x.files = x.files || [];
   for (const f of files) {
     if (x.files.length >= ATT_MAX_FILES) { toast('แนบได้สูงสุด ' + ATT_MAX_FILES + ' ไฟล์ต่อเหตุการณ์'); break; }
@@ -1459,7 +1479,7 @@ $('view').addEventListener('change', async e => {
       const r = await api('uploadAttachment', S.token, p);
       S.att[r.id] = { name: r.name, mime: r.mime, data: p.data };
       x.files.push({ id: r.id, name: r.name, mime: r.mime, size: r.size }); S.dirty = true;
-      renderIncidents(); toast('แนบไฟล์แล้ว: ' + r.name);
+      if (cs) renderCases(); else renderIncidents(); toast('แนบไฟล์แล้ว: ' + r.name);
     } catch (err) { toast(err.message); }
   }
 });
@@ -1522,23 +1542,23 @@ async function hydratePrint() {
   }));
 }
 
-function renderIncidents() {
-  const d = S.draft;
-  const vin = (i, k, label, unit, mode, ph) => `<label class="vs"><span>${label}</span><input data-inc="${i}:${k}" value="${esc(d.incidents[i][k] || '')}" inputmode="${mode}" placeholder="${ph || ''}"><small>${unit}</small></label>`;
-  $('fm_incs').innerHTML = d.incidents.map((x, i) => `<div class="card inc">
-    <div class="inc-head"><span>เหตุการณ์ที่ ${i + 1}</span><button type="button" class="x" data-delinc="${i}" aria-label="ลบเหตุการณ์">\u00d7</button></div>
-    <div class="row2">
+function incFormHtml(list, cs) {
+  const at = cs ? 'data-cs' : 'data-inc', flow = cs ? 'data-o2flowc' : 'data-o2flow', fadd = cs ? 'data-fileaddc' : 'data-fileadd';
+  const vin = (i, k, label, unit, mode, ph) => `<label class="vs"><span>${label}</span><input ${at}="${i}:${k}" value="${esc(list[i][k] || '')}" inputmode="${mode}" placeholder="${ph || ''}"><small>${unit}</small></label>`;
+  return list.map((x, i) => `<div class="card inc${cs ? ' case' : ''}">
+    <div class="inc-head"><span>${cs ? 'เคสที่' : 'เหตุการณ์ที่'} ${i + 1}</span><button type="button" class="x" data-del${cs ? 'case' : 'inc'}="${i}" aria-label="ลบ">\u00d7</button></div>
+    ${cs ? '' : `<div class="row2">
       <div><label class="f">ประเภทเหตุการณ์</label><select data-inc="${i}:type">${S.cfg.problemTypes.map(t => `<option${t === x.type ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></div>
       <div><label class="f">ระดับความรุนแรง</label><select data-inc="${i}:severity">${S.cfg.severity.map(t => `<option${t === x.severity ? ' selected' : ''}>${t}</option>`).join('')}</select></div>
-    </div>
+    </div>`}
     <fieldset><legend>ข้อมูลผู้ป่วย</legend>
-      <label class="f">ชื่อ-สกุลผู้ป่วย</label><input data-inc="${i}:patient" value="${esc(x.patient)}">
+      <label class="f">ชื่อ-สกุลผู้ป่วย</label><input ${at}="${i}:patient" value="${esc(x.patient)}">
       <div class="row3">
-        <div><label class="f">อายุ (ปี)</label><input data-inc="${i}:age" inputmode="numeric" value="${esc(x.age)}"></div>
-        <div><label class="f">HN</label><input data-inc="${i}:hn" value="${esc(x.hn)}"></div>
-        <div><label class="f">เวลามารับบริการ <small>(พิมพ์ 2030)</small></label><input class="tin" type="text" inputmode="numeric" maxlength="5" placeholder="20:30" autocomplete="off" data-inc="${i}:time" value="${esc(x.time)}"></div>
+        <div><label class="f">อายุ (ปี)</label><input ${at}="${i}:age" inputmode="numeric" value="${esc(x.age)}"></div>
+        <div><label class="f">HN</label><input ${at}="${i}:hn" value="${esc(x.hn)}"></div>
+        <div><label class="f">เวลามารับบริการ <small>(พิมพ์ 2030)</small></label><input class="tin" type="text" inputmode="numeric" maxlength="5" placeholder="20:30" autocomplete="off" ${at}="${i}:time" value="${esc(x.time)}"></div>
       </div>
-      <label class="f">แพทย์เจ้าของไข้</label><input data-inc="${i}:doctor" value="${esc(x.doctor)}">
+      <label class="f">แพทย์เจ้าของไข้</label><input ${at}="${i}:doctor" value="${esc(x.doctor)}">
     </fieldset>
     <fieldset><legend>V/S</legend>
       <div class="vsgrid">
@@ -1550,19 +1570,27 @@ function renderIncidents() {
       </div>
       <div class="o2row">
         <label class="f" style="margin:0">O2</label>
-        <select data-inc="${i}:o2mode">${S.cfg.o2Modes.map(m => `<option${m === (x.o2mode || 'Room air') ? ' selected' : ''}>${m}</option>`).join('')}</select>
-        <input data-o2flow="${i}" data-inc="${i}:o2flow" value="${esc(x.o2flow)}" placeholder="ให้ O2 เท่าไหร่ เช่น 3 LPM / FiO2 40%"${(x.o2mode || 'Room air') === 'Room air' ? ' hidden' : ''}>
+        <select ${at}="${i}:o2mode">${S.cfg.o2Modes.map(m => `<option${m === (x.o2mode || 'Room air') ? ' selected' : ''}>${m}</option>`).join('')}</select>
+        <input ${flow}="${i}" ${at}="${i}:o2flow" value="${esc(x.o2flow)}" placeholder="ให้ O2 เท่าไหร่ เช่น 3 LPM / FiO2 40%"${(x.o2mode || 'Room air') === 'Room air' ? ' hidden' : ''}>
       </div>
     </fieldset>
-    <label class="f">รายละเอียดเหตุการณ์</label><textarea data-inc="${i}:detail" rows="3">${esc(x.detail)}</textarea>
-    <label class="f">การแก้ไขเบื้องต้น</label><textarea data-inc="${i}:action" rows="2">${esc(x.action)}</textarea>
+    <label class="f">${cs ? 'รายละเอียดเคส' : 'รายละเอียดเหตุการณ์'}</label><textarea ${at}="${i}:detail" rows="3">${esc(x.detail)}</textarea>
+    <label class="f">การแก้ไขเบื้องต้น</label><textarea ${at}="${i}:action" rows="2">${esc(x.action)}</textarea>
     <fieldset><legend>ไฟล์แนบ (JPG / PNG / PDF)</legend>
-      <div class="atts">${(x.files || []).map((f, k) => attChip(f, true, i, k)).join('') || '<span class="muted" style="font-size:13px">ยังไม่มีไฟล์แนบ</span>'}</div>
-      <input type="file" data-fileadd="${i}" multiple accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf">
+      <div class="atts">${(x.files || []).map((f, k) => attChip(f, true, i, k, cs)).join('') || '<span class="muted" style="font-size:13px">ยังไม่มีไฟล์แนบ</span>'}</div>
+      <input type="file" ${fadd}="${i}" multiple accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf">
       <div class="muted" style="font-size:12px;margin-top:4px">แนบได้สูงสุด 5 ไฟล์ \u00b7 รูปถูกย่ออัตโนมัติ \u00b7 PDF ไม่เกิน 5 MB \u00b7 กดชื่อไฟล์เพื่อดู \u00b7 ผู้จัดการพิมพ์รวมกับรายงานได้</div>
-    </fieldset></div>`).join('')
-    || '<div class="card muted fit">ไม่มีเหตุการณ์ผิดปกติ \u2014 ถ้ามี กดปุ่มด้านล่างเพื่อเพิ่ม</div>';
+    </fieldset></div>`).join('');
+}
+function renderIncidents() {
+  const d = S.draft;
+  $('fm_incs').innerHTML = incFormHtml(d.incidents, false) || '<div class="card muted fit">ไม่มีเหตุการณ์ผิดปกติ \u2014 ถ้ามี กดปุ่มด้านล่างเพื่อเพิ่ม</div>';
   $('fm_incs').querySelectorAll('[data-delinc]').forEach(b => b.onclick = () => { d.incidents.splice(+b.dataset.delinc, 1); S.dirty = true; renderIncidents(); showSub(); });
+}
+function renderCases() {
+  const d = S.draft;
+  $('fm_cases').innerHTML = incFormHtml(d.cases, true) || '<div class="muted" style="margin-bottom:8px">ไม่มีรายงานเคส \u2014 ถ้ามี กดปุ่มด้านล่างเพื่อเพิ่ม</div>';
+  $('fm_cases').querySelectorAll('[data-delcase]').forEach(b => b.onclick = () => { d.cases.splice(+b.dataset.delcase, 1); S.dirty = true; renderCases(); });
 }
 
 $('sb_cancel').onclick = () => { if (S.dirty && !leaveGuard()) return; S.editing = false; S.dirty = false; render(); };
@@ -1581,6 +1609,10 @@ $('sb_save').onclick = async () => {
   if (badT >= 0) { S.sub = 'incident'; showSub(); toast(`เหตุการณ์ที่ ${badT + 1}: เวลาไม่ถูกต้อง ใช้ 24 ชม. เช่น 2030`); return; }
   const bad = d.incidents.findIndex(i => !i.detail.trim());
   if (bad >= 0) { S.sub = 'incident'; showSub(); toast(`เหตุการณ์ที่ ${bad + 1} ยังไม่มีรายละเอียด`); return; }
+  const badCT = d.cases.findIndex(i => !validTime(i.time || ''));
+  if (badCT >= 0) { S.sub = 'patient'; showSub(); toast(`เคสที่ ${badCT + 1}: เวลาไม่ถูกต้อง ใช้ 24 ชม. เช่น 2030`); return; }
+  const badC = d.cases.findIndex(i => !i.detail.trim());
+  if (badC >= 0) { S.sub = 'patient'; showSub(); toast(`เคสที่ ${badC + 1} ยังไม่มีรายละเอียด`); return; }
   $('sb_save').disabled = true; $('sb_msg').textContent = 'กำลังบันทึก...';
   try {
     await api('saveReport', S.token, d);
@@ -1623,7 +1655,7 @@ function renderStaff() {
   const uc = none ? null : unitCfg(unit), rr = none ? [] : roomsRaw(unit);
   if (!none && (rr.length || uc.form.sections.some(sc => (sc.fields || []).some(f => f.rooms)))) {
     html += `<div class="card"><h3>รายการห้องพัก ${esc(unit)} <span class="sub">${rr.length} ห้อง</span></h3>
-      <div class="chips" style="margin-bottom:10px">${rr.map(o => `<span class="pill plain">${esc(roomLabel(o))}${o.name && o.name !== o.no ? ' (' + esc(o.no) + ')' : ''}</span>`).join('') || '<span class="muted">ยังไม่มีห้อง</span>'}</div>
+      <div class="chips" style="margin-bottom:10px">${rr.map(o => `<span class="pill plain">${esc(roomLabel(o))}${o.name && o.name !== o.no && !o._dup ? ' (' + esc(o.no) + ')' : ''}</span>`).join('') || '<span class="muted">ยังไม่มีห้อง</span>'}</div>
       <button type="button" class="btn ghost sm" data-act="rooms" data-runit="${esc(unit)}">\u270e แก้ไขรายการห้อง (เลขห้อง / ชื่อ)</button><div id="adm_room_editor"></div></div>`;
   }
   return html;
@@ -1734,6 +1766,16 @@ function downloadTemplate() {
 function incCardHtml(i, unitLabelText, n) {
   const vs = vitals(i);
   return `<div class="card inc-view"><div class="inc-head"><span>${n}. ${esc(unitLabelText)} \u00b7 ${esc(i.type)}</span><span class="pill ${i.severity && i.severity !== '-' ? 'warn' : 'plain'}">ระดับ ${esc(i.severity || '-')}</span></div>
+    <div class="pt">${i.patient ? `<b>${esc(i.patient)}</b>` : '<span class="muted">ไม่ระบุชื่อผู้ป่วย</span>'}${i.age ? ` \u00b7 อายุ ${esc(i.age)} ปี` : ''}${i.hn ? ` \u00b7 HN ${esc(i.hn)}` : ''}</div>
+    <div class="muted" style="font-size:14px">${i.time ? `มารับบริการ ${esc(i.time)} น.` : ''}${i.time && i.doctor ? ' \u00b7 ' : ''}${i.doctor ? `แพทย์เจ้าของไข้ ${esc(i.doctor)}` : ''}</div>
+    ${vs.length || i.o2mode ? `<div class="vsline">${vs.map(([k, x, unit]) => `<span><small>${k}</small> ${esc(x)} <small>${unit}</small></span>`).join('')}${i.o2mode ? `<span><small>O2</small> ${esc(o2Text(i))}</span>` : ''}</div>` : ''}
+    <div class="pre" style="margin-top:6px">${esc(i.detail)}</div>
+    ${i.action ? `<div class="muted pre" style="font-size:14px;margin-top:4px">การแก้ไขเบื้องต้น: ${esc(i.action)}</div>` : ''}
+    ${(i.files || []).length ? `<div class="atts">${i.files.map(f => attChip(f, false)).join('')}</div>` : ''}</div>`;
+}
+function caseCardHtml(i, n) {
+  const vs = vitals(i);
+  return `<div class="card inc-view case"><div class="inc-head"><span>เคสที่ ${n}</span></div>
     <div class="pt">${i.patient ? `<b>${esc(i.patient)}</b>` : '<span class="muted">ไม่ระบุชื่อผู้ป่วย</span>'}${i.age ? ` \u00b7 อายุ ${esc(i.age)} ปี` : ''}${i.hn ? ` \u00b7 HN ${esc(i.hn)}` : ''}</div>
     <div class="muted" style="font-size:14px">${i.time ? `มารับบริการ ${esc(i.time)} น.` : ''}${i.time && i.doctor ? ' \u00b7 ' : ''}${i.doctor ? `แพทย์เจ้าของไข้ ${esc(i.doctor)}` : ''}</div>
     ${vs.length || i.o2mode ? `<div class="vsline">${vs.map(([k, x, unit]) => `<span><small>${k}</small> ${esc(x)} <small>${unit}</small></span>`).join('')}${i.o2mode ? `<span><small>O2</small> ${esc(o2Text(i))}</span>` : ''}</div>` : ''}
@@ -1922,13 +1964,13 @@ function printIncidents() {
     : '<div>ไม่มีรายงานเหตุการณ์ผิดปกติ</div>');
 }
 
-function incTable(incs, first) {
-  return `<table><thead><tr><th>${first || 'หน่วยงาน'}</th><th>ผู้ป่วย</th><th>V/S</th><th>ประเภท / ระดับ</th><th>รายละเอียด / การแก้ไข</th></tr></thead>
+function incTable(incs, first, cs) {
+  return `<table><thead><tr><th>${first || 'หน่วยงาน'}</th><th>ผู้ป่วย</th><th>V/S</th>${cs ? '' : '<th>ประเภท / ระดับ</th>'}<th>รายละเอียด / การแก้ไข</th></tr></thead>
     ${incs.map(i => `<tr><td>${esc(i.unit)}</td>
       <td>${esc(i.patient || '-')}${i.age ? `<br>อายุ ${esc(i.age)} ปี` : ''}${i.hn ? `<br>HN ${esc(i.hn)}` : ''}${i.time ? `<br>มา ${esc(i.time)} น.` : ''}${i.doctor ? `<br>แพทย์ ${esc(i.doctor)}` : ''}</td>
       <td>${vitals(i).map(([k, x, unit]) => `${k} ${esc(x)}${unit === '%' ? '%' : unit === '\u00b0C' ? '\u00b0C' : ''}`).join('<br>')}${i.o2mode ? `<br>O2: ${esc(o2Text(i))}` : ''}</td>
-      <td>${esc(i.type)}<br>ระดับ ${esc(i.severity || '-')}</td>
-      <td>${esc(i.detail)}${i.action ? `<br><i>แก้ไข: ${esc(i.action)}</i>` : ''}</td></tr>${(i.files || []).length ? `<tr class="attrow"><td></td><td colspan="4"><div class="attbox">${i.files.map(f => `<figure data-attfile="${esc(f.id)}"><figcaption>ไฟล์แนบ: ${esc(f.name)}</figcaption></figure>`).join('')}</div></td></tr>` : ''}`).join('')}</table>`;
+      ${cs ? '' : `<td>${esc(i.type)}<br>ระดับ ${esc(i.severity || '-')}</td>`}
+      <td>${esc(i.detail)}${i.action ? `<br><i>แก้ไข: ${esc(i.action)}</i>` : ''}</td></tr>${(i.files || []).length ? `<tr class="attrow"><td></td><td colspan="${cs ? 3 : 4}"><div class="attbox">${i.files.map(f => `<figure data-attfile="${esc(f.id)}"><figcaption>ไฟล์แนบ: ${esc(f.name)}</figcaption></figure>`).join('')}</div></td></tr>` : ''}`).join('')}</table>`;
 }
 
 function printUnits() {
@@ -1971,8 +2013,9 @@ function printSingle(u, shift) {
     <div class="cols">${staff.map(s => `<div class="ln">${esc(s.role)} ${esc(s.name)}${s.tag ? ` (${esc(s.tag)}${s.tagNote ? ' ' + esc(s.tagNote) : ''})` : ''}</div>`).join('')}</div>`;
   const rt = num(rd.RN) + num(rd.PN) + num(rd.NA);
   if (rt || rd.detail) h += `<div class="ln" style="margin-top:3px"><b>ลดอัตรากำลัง ${rt} ชม.</b> (RN ${num(rd.RN)} ชม., PN ${num(rd.PN)} ชม., NA ${num(rd.NA)} ชม.)${rd.detail ? ' \u00b7 ' + esc(rd.detail).replace(/\n/g, ' / ') : ''}</div>`;
-  const incs = (r.incidents || []).map(i => Object.assign({ unit: u.code }, i));
-  return h + `<h2>เหตุการณ์ผิดปกติ (${incs.length})</h2>` + (incs.length ? incTable(incs) : '<div>ไม่มีเหตุการณ์ผิดปกติ</div>');
+  const incs = (r.incidents || []).map(i => Object.assign({ unit: u.code }, i)), css = (r.cases || []).map(i => Object.assign({ unit: u.code }, i));
+  return h + `<h2>เหตุการณ์ผิดปกติ (${incs.length})</h2>` + (incs.length ? incTable(incs) : '<div>ไม่มีเหตุการณ์ผิดปกติ</div>')
+    + (css.length ? `<h2>รายงานเคส (${css.length})</h2>` + incTable(css, null, true) : '');
 }
 // ปรับการแสดงผลในเอกสารสรุปของบางหัวข้อ: title = ชื่อหัวข้อที่แสดง, lead = ช่องที่นำค่ามาต่อท้ายหัวข้อ (ไม่ซ้ำในรายละเอียด), nosum = ไม่แสดงบรรทัดรวม
 const SUMMARY_VIEW = {
@@ -2011,6 +2054,7 @@ function printLines(u, r) {
   if (rt) grp(`<b>ลดอัตรากำลัง ${rt} ชม.</b>`, [['RN', 'PN', 'NA'].filter(k => num(rd[k])).map(k => `${k} ${num(rd[k])} ชม.`).join(', ')]);
   if (r.notes) grp('<b>เรื่องแจ้ง</b>', [esc(r.notes).replace(/\n/g, ' / ')]);
   if ((r.incidents || []).length) grp(`<b class="miss">เหตุการณ์ผิดปกติ ${r.incidents.length} เรื่อง</b>`, []);
+  if ((r.cases || []).length) grp(`<b>รายงานเคส ${r.cases.length} เรื่อง</b>`, []);
   return out.join('');
 }
 
