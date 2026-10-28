@@ -275,7 +275,7 @@ function saveReport(token, rep) {
     reduce: rep.reduce || {},
     notes: String(rep.notes || ''),
     incidents: cleanCases_(rep.incidents, INC_FIELDS),
-    cases: cleanCases_(rep.cases, CASE_FIELDS)
+    cases: cleanCases_(rep.cases, CASE_FIELDS, true)
   };
   const unitInfo = buildConfig_().units.find(u => u.code === me.unit);
   const stats = statRows_(unitInfo, clean);
@@ -311,9 +311,9 @@ function saveReport(token, rep) {
   return { ok: true };
 }
 
-// เหตุการณ์ผิดปกติ / รายงานเคส: เก็บเฉพาะรายการที่มีรายละเอียด และจำกัดฟิลด์ตามที่กำหนด
-function cleanCases_(list, fields) {
-  return (list || []).filter(i => i && String(i.detail || '').trim())
+// เหตุการณ์ผิดปกติ: เก็บเฉพาะรายการที่มีรายละเอียด | รายงานเคส (anyField): กรอกช่องใดช่องหนึ่งก็เก็บ ไม่บังคับกรอกครบ
+function cleanCases_(list, fields, anyField) {
+  return (list || []).filter(i => i && (anyField ? fields.some(k => k !== 'o2mode' && String(i[k] == null ? '' : i[k]).trim()) : String(i.detail || '').trim()))
     .map(i => {
       const o = {}; fields.forEach(k => { o[k] = String(i[k] == null ? '' : i[k]); });
       o.files = (i.files || []).filter(x => x && x.id).slice(0, 5)

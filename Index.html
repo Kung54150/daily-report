@@ -1315,7 +1315,7 @@ function renderRoomPickers() {
   document.querySelectorAll('[data-rooms]').forEach(box => {
     const key = box.dataset.rooms, sel = parseRooms(S.draft.values[key]), used = new Set(parseRooms(S.draft.values[otherRoomKey(key)]));
     const extra = sel.filter(r => reg.indexOf(r) < 0);
-    box.innerHTML = `<div class="rooms">${raw.map(o => { const r = roomLabel(o); return `<button type="button" class="rm${sel.indexOf(r) >= 0 ? ' on' : ''}${used.has(r) ? ' used' : ''}" data-room="${esc(r)}" data-rkey="${esc(key)}">${esc(r)}${o.name && o.name !== o.no && !o._dup ? `<small>${esc(o.no)}</small>` : ''}</button>`; }).join('')}${extra.map(r => `<button type="button" class="rm on" data-room="${esc(r)}" data-rkey="${esc(key)}">${esc(r)} \u00d7</button>`).join('')}</div>
+    box.innerHTML = `<div class="rooms">${raw.map(o => { const r = roomLabel(o); return `<button type="button" class="rm${sel.indexOf(r) >= 0 ? ' on' : ''}${used.has(r) ? ' used' : ''}" data-room="${esc(r)}" data-rkey="${esc(key)}">${esc(o.no)}${o.name && o.name !== o.no ? `<small>${esc(o.name)}</small>` : ''}</button>`; }).join('')}${extra.map(r => `<button type="button" class="rm on" data-room="${esc(r)}" data-rkey="${esc(key)}">${esc(r)} \u00d7</button>`).join('')}</div>
       <div class="muted" style="font-size:12px">เลือกแล้ว ${sel.length} ห้อง</div>
       <div class="addrow rm-add"><input data-roomtext="${esc(key)}" placeholder="พิมพ์ชื่อห้องเอง เช่น VIP1 (คั่นหลายห้องด้วย ,)"><button type="button" class="btn sm" data-roomadd="${esc(key)}">+ เพิ่ม</button></div>`;
   });
@@ -1611,8 +1611,6 @@ $('sb_save').onclick = async () => {
   if (bad >= 0) { S.sub = 'incident'; showSub(); toast(`เหตุการณ์ที่ ${bad + 1} ยังไม่มีรายละเอียด`); return; }
   const badCT = d.cases.findIndex(i => !validTime(i.time || ''));
   if (badCT >= 0) { S.sub = 'patient'; showSub(); toast(`เคสที่ ${badCT + 1}: เวลาไม่ถูกต้อง ใช้ 24 ชม. เช่น 2030`); return; }
-  const badC = d.cases.findIndex(i => !i.detail.trim());
-  if (badC >= 0) { S.sub = 'patient'; showSub(); toast(`เคสที่ ${badC + 1} ยังไม่มีรายละเอียด`); return; }
   $('sb_save').disabled = true; $('sb_msg').textContent = 'กำลังบันทึก...';
   try {
     await api('saveReport', S.token, d);
@@ -1655,7 +1653,7 @@ function renderStaff() {
   const uc = none ? null : unitCfg(unit), rr = none ? [] : roomsRaw(unit);
   if (!none && (rr.length || uc.form.sections.some(sc => (sc.fields || []).some(f => f.rooms)))) {
     html += `<div class="card"><h3>รายการห้องพัก ${esc(unit)} <span class="sub">${rr.length} ห้อง</span></h3>
-      <div class="chips" style="margin-bottom:10px">${rr.map(o => `<span class="pill plain">${esc(roomLabel(o))}${o.name && o.name !== o.no && !o._dup ? ' (' + esc(o.no) + ')' : ''}</span>`).join('') || '<span class="muted">ยังไม่มีห้อง</span>'}</div>
+      <div class="chips" style="margin-bottom:10px">${rr.map(o => `<span class="pill plain">${esc(o.no)}${o.name && o.name !== o.no ? `<small style="display:block;font-size:10px;opacity:.75;line-height:1.1">${esc(o.name)}</small>` : ''}</span>`).join('') || '<span class="muted">ยังไม่มีห้อง</span>'}</div>
       <button type="button" class="btn ghost sm" data-act="rooms" data-runit="${esc(unit)}">\u270e แก้ไขรายการห้อง (เลขห้อง / ชื่อ)</button><div id="adm_room_editor"></div></div>`;
   }
   return html;
