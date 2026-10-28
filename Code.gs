@@ -67,7 +67,7 @@ function ensureSetup_() {
 // หน่วยงานที่ถูกยกเลิก/แยกชื่อ (เช่น LR-NB → LR และ NB): รายชื่อที่ผูกไว้กลับเป็น "ยังไม่ผูกแผนก" และลบการผูกชื่อแผนกที่ชี้ไปหน่วยงานที่ไม่มีแล้ว
 function releaseOrphans_() {
   const props = PropertiesService.getScriptProperties();
-  if (props.getProperty('mig_orphans_v1')) return;
+  if (props.getProperty('mig_orphans_v2')) return;
   const codes = allUnitCodes_();
   withLock_(() => {
     const st = staffSheet_(), data = st.getDataRange().getValues();
@@ -76,7 +76,7 @@ function releaseOrphans_() {
     const as = sheet_(SH_ALIASES), keep = as.getDataRange().getValues().slice(1).filter(r => codes.indexOf(String(r[1]).trim()) >= 0).map(r => [r[0], r[1]]);
     as.getRange(2, 1, Math.max(as.getLastRow() - 1, 1), 2).clearContent();
     if (keep.length) as.getRange(2, 1, keep.length, 2).setValues(keep);
-    props.setProperty('mig_orphans_v1', '1');
+    props.setProperty('mig_orphans_v2', '1');
   });
 }
 
@@ -108,6 +108,7 @@ function getLoginInfo() {
 }
 
 function login(unit, password) {
+  if (unit !== ADMIN && unit !== MANAGER && allUnitCodes_().indexOf(String(unit)) < 0) throw new Error('หน่วยงานหรือรหัสผ่านไม่ถูกต้อง');
   const row = sheet_(SH_USERS).getDataRange().getValues().slice(1)
     .find(r => String(r[0]) === String(unit));
   if (!row || !password || String(row[1]) !== String(password)) throw new Error('หน่วยงานหรือรหัสผ่านไม่ถูกต้อง');
@@ -271,7 +272,7 @@ function saveReport(token, rep) {
     updatedAt: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm'),
     values,
     shift: rep.shift,
-    staff: (rep.staff || []).filter(s => s && s.name).map(s => ({ name: String(s.name), role: s.role || '', tag: s.tag || '', tagNote: s.tagNote || '' })),
+    staff: (rep.staff || []).filter(s => s && s.name).map(s => ({ name: String(s.name), role: s.role || '', tag: s.tag || '', tagNote: s.tagNote || '', slot: String(s.slot == null ? '' : s.slot).slice(0, 3) })),
     reduce: rep.reduce || {},
     notes: String(rep.notes || ''),
     incidents: cleanCases_(rep.incidents, INC_FIELDS),
