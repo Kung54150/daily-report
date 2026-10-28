@@ -1147,6 +1147,7 @@ function renderReportView(u, r) {
       return `<div class="card"><h3>${esc(s.title)}</h3><div class="kv">${rows}${sum}</div></div>`;
     });
     if (u.form.total) cards.push(`<div class="card"><div class="kv"><div><b>${esc(u.form.total)}</b></div><div class="v">${u.form.sections.filter(s => s.sum).reduce((a, s) => a + sectionSum(s, v), 0)}</div></div></div>`);
+    { const rd0 = r.reduce || {}; if (u.group === 'OPD' && (num(rd0.RN) + num(rd0.PN) + num(rd0.NA) || rd0.detail)) cards.push(reduceViewHtml(rd0)); }
     if (r.notes) cards.push(`<div class="card"><h3>เรื่องแจ้ง</h3><div class="pre">${esc(r.notes)}</div></div>`);
     body = `<div class="view-grid">${cards.join('')}</div>`;
     if ((r.cases || []).length) body += `<h3 style="margin:14px 0 8px">รายงานเคส (${r.cases.length})</h3>` + r.cases.map((i, n) => caseCardHtml(i, n + 1)).join('');
@@ -1154,11 +1155,8 @@ function renderReportView(u, r) {
     const staff = r.staff || [], rd = r.reduce || {};
     body = `<div class="view-grid"><div class="card"><h3>อัตรากำลัง <span class="sub">เวร ${esc(shiftName(r.shift))}</span></h3>
       <div class="counts">${roleCounts(staff).map(([k, n]) => `<span>${esc(k)} ${n}</span>`).join('') || '<span class="muted">ไม่ได้ระบุ</span>'}</div>
-      ${(u.staffSlot ? slotSort(staff) : staff).map(s => `<div style="font-size:14px"><b style="display:inline-block;min-width:40px">${esc(s.pos || s.role)}</b>${u.staffSlot && s.slot ? `คนที่ ${esc(s.slot)} ` : ''}${esc(s.name)}${s.tag ? ` <span class="pill plain">${esc(s.tag)}${s.tagNote ? ' ' + esc(s.tagNote) : ''}</span>` : ''}</div>`).join('')}</div>
-      <div class="card"><h3>ลดอัตรากำลัง</h3><div class="kv">
-        <div>RN</div><div class="v">${num(rd.RN)} ชม.</div><div>PN</div><div class="v">${num(rd.PN)} ชม.</div><div>NA</div><div class="v">${num(rd.NA)} ชม.</div>
-        <div class="total">รวม</div><div class="total v">${num(rd.RN) + num(rd.PN) + num(rd.NA)} ชม.</div></div>
-        ${rd.detail ? `<div class="pre muted" style="margin-top:6px;font-size:14px">${esc(rd.detail)}</div>` : ''}</div></div>`;
+      ${(u.staffSlot ? slotSort(staff) : staff).map(s => `<div style="font-size:14px"><b style="display:inline-block;min-width:40px">${esc(dutyPos(s, u.code))}</b>${u.staffSlot && s.slot ? `คนที่ ${esc(s.slot)} ` : ''}${esc(s.name)}${s.tag ? ` <span class="pill plain">${esc(s.tag)}${s.tagNote ? ' ' + esc(s.tagNote) : ''}</span>` : ''}</div>`).join('')}</div>
+      ${u.group === 'OPD' ? '' : reduceViewHtml(rd)}</div>`;
   } else {
     const incs = r.incidents || [];
     body = incs.length ? incs.map((i, n) => `<div class="card inc-view">
@@ -1223,18 +1221,15 @@ function mountForm() {
     pat += '</div>';
   });
   if (u.form.total) pat += `<div class="card"><div class="sumline" style="border:0;margin:0;padding:0"><span>${esc(u.form.total)}</span><span class="num" id="fm_total">0</span></div></div>`;
+  if (unitCfg(euUnit()).group === 'OPD') pat += reduceFormHtml(d.reduce || {});
   pat += `<div class="card"><h3>เรื่องแจ้ง</h3><textarea id="fm_notes" rows="3" placeholder="เช่น พรุ่งนี้แพทย์งดออกตรวจ / ไม่มีเอกสารค้างส่ง">${esc(d.notes || '')}</textarea></div>
     <div class="card"><h3>รายงานเคส</h3><div id="fm_cases"></div><button type="button" class="addinc" id="fm_addcase">+ เพิ่มเคส</button></div>`;
 
   const rd = d.reduce || {};
+  const isOpd = unitCfg(euUnit()).group === 'OPD';
   const staff = `<div class="card"><h3>อัตรากำลัง</h3>
       <div class="muted" style="margin:0 0 6px">เวร <b>${esc(d.shift)}</b> \u00b7 ${esc(thaiDate(S.date))}</div>
-      <div id="fm_staffbody"></div></div>
-    <div class="card"><h3>ลดอัตรากำลัง <span class="sub">(ชั่วโมง)</span></h3>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-        ${['RN', 'PN', 'NA'].map(k => `<div><label class="f" for="rd_${k}">${k}</label><input id="rd_${k}" type="number" inputmode="decimal" min="0" step="0.5" value="${esc(rd[k] ?? '')}" placeholder="0"></div>`).join('')}
-      </div>
-      <label class="f" for="rd_detail">รายละเอียด</label><textarea id="rd_detail" rows="2" placeholder="เช่น RN 15-19 น. / NA ขาด 1 คน 9-17 น.">${esc(rd.detail || '')}</textarea></div>`;
+      <div id="fm_staffbody"></div></div>${isOpd ? '' : reduceFormHtml(rd)}`;
 
   const inc = `<div id="fm_incs"></div><button type="button" class="addinc" id="fm_addinc">+ เพิ่มเหตุการณ์ผิดปกติ</button>`;
 
@@ -1454,6 +1449,17 @@ function recalc(quiet) {
 }
 
 /* อัตรากำลัง: เลือกชื่อจาก Drop down หรือพิมพ์ชื่อใหม่ */
+const reduceViewHtml = rd => `<div class="card"><h3>ลดอัตรากำลัง</h3><div class="kv">
+        <div>RN</div><div class="v">${num(rd.RN)} ชม.</div><div>PN</div><div class="v">${num(rd.PN)} ชม.</div><div>NA</div><div class="v">${num(rd.NA)} ชม.</div>
+        <div class="total">รวม</div><div class="total v">${num(rd.RN) + num(rd.PN) + num(rd.NA)} ชม.</div></div>
+        ${rd.detail ? `<div class="pre muted" style="margin-top:6px;font-size:14px">${esc(rd.detail)}</div>` : ''}</div>`;
+const reduceFormHtml = rd => `<div class="card"><h3>ลดอัตรากำลัง <span class="sub">(ชั่วโมง)</span></h3>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+        ${['RN', 'PN', 'NA'].map(k => `<div><label class="f" for="rd_${k}">${k}</label><input id="rd_${k}" type="number" inputmode="decimal" min="0" step="0.5" value="${esc(rd[k] ?? '')}" placeholder="0"></div>`).join('')}
+      </div>
+      <label class="f" for="rd_detail">รายละเอียด</label><textarea id="rd_detail" rows="2" placeholder="เช่น RN 15-19 น. / NA ขาด 1 คน 9-17 น.">${esc(rd.detail || '')}</textarea></div>`;
+// ชื่อต้นอย่างเดียว (ตัดคำนำหน้าและนามสกุล) สำหรับหน้าสรุป
+const firstName = n => String(n || '').trim().replace(/^(นางสาว|น\.ส\.|นส\.|นาง|นาย|คุณ|ด\.ช\.|ด\.ญ\.)\s*/, '').split(/\s+/)[0] || String(n || '').trim();
 // ตำแหน่งของคนในเวร: ค่าที่บันทึกไว้ในรายงาน หรือค้นจากทะเบียนของหน่วยงาน
 const dutyPos = (s, unit) => s.pos || (() => { const r = S.staff.find(x => x.name === s.name && x.unit === unit); return posLabel(r ? r.title : '', s.role); })();
 function renderStaffPicker() {
@@ -2099,7 +2105,7 @@ function printSingle(u, shift) {
   if (r.notes) h += `<div class="ln"><b>เรื่องแจ้ง:</b> ${esc(r.notes).replace(/\n/g, ' / ')}</div>`;
   const staff = r.staff || [], rd = r.reduce || {};
   h += `<h2>อัตรากำลัง \u00b7 เวร ${esc(shiftName(r.shift))} \u00b7 ${roleCounts(staff).map(([k, n]) => `${esc(k)} ${n}`).join(', ') || 'ไม่ได้ระบุ'}</h2>
-    <div class="cols">${(u.staffSlot ? slotSort(staff) : staff).map(s => `<div class="ln">${esc(s.pos || s.role)}${u.staffSlot && s.slot ? ' \u00b7 คนที่ ' + esc(s.slot) : ''} ${esc(s.name)}${s.tag ? ` (${esc(s.tag)}${s.tagNote ? ' ' + esc(s.tagNote) : ''})` : ''}</div>`).join('')}</div>`;
+    <div class="cols">${(u.staffSlot ? slotSort(staff) : staff).map(s => `<div class="ln">${esc(dutyPos(s, u.code))}${u.staffSlot && s.slot ? ' \u00b7 คนที่ ' + esc(s.slot) : ''} ${esc(s.name)}${s.tag ? ` (${esc(s.tag)}${s.tagNote ? ' ' + esc(s.tagNote) : ''})` : ''}</div>`).join('')}</div>`;
   const rt = num(rd.RN) + num(rd.PN) + num(rd.NA);
   if (rt || rd.detail) h += `<div class="ln" style="margin-top:3px"><b>ลดอัตรากำลัง ${rt} ชม.</b> (RN ${num(rd.RN)} ชม., PN ${num(rd.PN)} ชม., NA ${num(rd.NA)} ชม.)${rd.detail ? ' \u00b7 ' + esc(rd.detail).replace(/\n/g, ' / ') : ''}</div>`;
   const incs = (r.incidents || []).map(i => Object.assign({ unit: u.code }, i)), css = (r.cases || []).map(i => Object.assign({ unit: u.code }, i));
@@ -2136,11 +2142,24 @@ function printLines(u, r, withInc) {
     calcs.forEach(l => grp(l, []));
     s.fields.filter(f => f.type === 'text' && v[f.key]).forEach(f => grp('', [`${esc(f.label)}: ${esc(v[f.key])}`]));
   });
-  if (u.form.total) grp(`<b>${esc(u.form.total)} ${u.form.sections.filter(s => s.sum).reduce((a, s) => a + sectionSum(s, v), 0)}</b>`, []);
+  if (u.form.total) {
+    const tl = [`<b>${esc(u.form.total)} ${u.form.sections.filter(s => s.sum).reduce((a, s) => a + sectionSum(s, v), 0)}</b>`];
+    if (u.group === 'OPD') out.unshift(`<div class="lg"><div class="ln m">${tl[0]}</div></div>`); // ผู้ป่วยนอก: ยอดรวมทั้งหมดอยู่บรรทัดแรกเสมอ
+    else grp(tl[0], []);
+  }
   const rc = roleCounts(r.staff || []);
-  if (rc.length) grp('<b>อัตรากำลัง</b>', [rc.map(([k, n]) => `${esc(k)} ${n}`).join(', ')]);
   const rd = r.reduce || {}, rt = num(rd.RN) + num(rd.PN) + num(rd.NA);
-  if (rt) grp(`<b>ลดอัตรากำลัง ${rt} ชม.</b>`, [['RN', 'PN', 'NA'].filter(k => num(rd[k])).map(k => `${k} ${num(rd[k])} ชม.`).join(', ')]);
+  const rdLine = rt ? `<b>ลดอัตรากำลัง ${rt} ชม.</b> (${['RN', 'PN', 'NA'].filter(k => num(rd[k])).map(k => `${k} ${num(rd[k])} ชม.`).join(', ')})` : '';
+  if (u.group !== 'OPD' && withInc) {
+    // ผู้ป่วยใน / Special Unit: แสดงชื่อ (เฉพาะชื่อต้น) ตามตำแหน่ง และการลดอัตรากำลังอยู่กลุ่มเดียวกับอัตรากำลัง
+    const names = rl => (r.staff || []).filter(x => x.role === rl && x.tag !== 'ออกหน่วย').map(x => esc(firstName(x.name)));
+    const lines = rc.map(([k, n]) => `${esc(k)} ${n}${k === 'ไม่ระบุ' ? '' : ' (' + names(k).join(', ') + ')'}`);
+    if (rdLine) lines.push(rdLine);
+    if (lines.length) grp('<b>อัตรากำลัง</b>', lines);
+  } else {
+    if (rc.length) grp('<b>อัตรากำลัง</b>', [rc.map(([k, n]) => `${esc(k)} ${n}`).join(', ')]);
+    if (rdLine) grp(rdLine, []);
+  }
   if (r.notes) grp('<b>เรื่องแจ้ง</b>', [esc(r.notes).replace(/\n/g, ' / ')]);
   const one = t => esc(String(t || '').replace(/\s*\n\s*/g, ' / '));
   const caseText = (i, head) => {
