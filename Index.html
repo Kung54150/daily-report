@@ -171,7 +171,8 @@
   .chip b { font-size: 11px; color: var(--muted); margin-left: 4px; }
   .chip.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
   .chip.on b { color: inherit; opacity: .8; }
-  .duty { display: grid; grid-template-columns: 1fr 64px 108px 32px; gap: 6px; align-items: center; padding: 5px 0; border-bottom: 1px dashed var(--line); }
+  .duty .rl { color: var(--accent-strong); font-weight: 600; white-space: nowrap; }
+  .duty { display: grid; grid-template-columns: 1fr 108px 32px; gap: 6px; align-items: center; padding: 5px 0; border-bottom: 1px dashed var(--line); }
   .duty .nm { min-width: 0; overflow-wrap: anywhere; }
   .duty select { padding: 6px; font-size: 14px; }
   .x { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--bad); cursor: pointer; }
@@ -436,7 +437,7 @@
   @media (max-width: 480px) {
     .datebar .dlabel { display: none; }
     .row2 { grid-template-columns: 1fr; }
-    .duty { grid-template-columns: 1fr 58px 96px 32px; }
+    .duty { grid-template-columns: 1fr 96px 32px; }
     .row3 { grid-template-columns: 1fr 1fr; }
     .o2row { grid-template-columns: auto 1fr; }
     .o2row input { grid-column: 1 / -1; }
@@ -1444,8 +1445,7 @@ function renderStaffPicker() {
     </div>
     <div class="muted" style="font-size:12px;margin-top:4px">ชื่อใหม่จะถูกเพิ่มเข้าทะเบียน ${esc(unit)} อัตโนมัติ \u00b7 แก้ไข/ลบรายชื่อได้ที่แท็บ "ทะเบียนเจ้าหน้าที่"</div>
     <div class="counts">${roleCounts(d.staff).map(([k, n]) => `<span>${esc(k)} ${n}</span>`).join('')}</div>
-    ${d.staff.map((s, i) => `<div class="duty"><span class="nm">${esc(s.name)}</span>
-      <select data-duty="${i}:role" aria-label="ตำแหน่ง">${roleOpts(s.role)}</select>
+    ${d.staff.map((s, i) => `<div class="duty"><span class="nm">${esc(s.name)} <b class="rl">(${S.cfg.roles.indexOf(s.role) >= 0 ? esc(s.role) : 'ไม่ระบุ'})</b></span>
       <select data-duty="${i}:tag" aria-label="หน้าที่"><option value="">หน้าที่ \u2013</option>${S.cfg.dutyTags.map(t => `<option${t === s.tag ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>
       <button type="button" class="x" data-unpick="${i}" aria-label="เอาออก">\u00d7</button>
       ${slotOn ? `<div style="grid-column:1/-1;display:flex;gap:8px;align-items:center"><label class="f" style="margin:0" for="slot_${i}">คนที่</label><input id="slot_${i}" type="number" inputmode="numeric" min="1" max="99" style="width:80px" data-duty="${i}:slot" value="${esc(s.slot || '')}" placeholder="1"></div>` : ''}
