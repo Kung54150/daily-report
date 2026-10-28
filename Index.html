@@ -152,7 +152,6 @@
   #dlg { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; padding: 16px; }
   #dlg .dlgbox { background: var(--surface); color: var(--fg); border-radius: 14px; padding: 18px; max-width: 420px; width: 100%; max-height: 85vh; overflow: auto; box-shadow: 0 10px 40px rgba(0,0,0,.35); }
   #dlg .dlgbox h3 { margin: 0 0 8px; color: var(--bad); }
-  #dlg textarea { width: 100%; min-height: 260px; font-size: 14px; }
   .remwarn { color: var(--bad); font-size: 13px; font-weight: 600; margin: 2px 0 6px; } .remwarn.ok { color: var(--ok); } .remwarn:empty { display: none; }
   .frow .calc { text-align: center; font-weight: 700; padding: 9px 0; background: var(--accent-soft); border-radius: 8px; }
   .sumline { display: flex; justify-content: space-between; padding-top: 8px; margin-top: 4px; border-top: 2px solid var(--line); font-weight: 600; }
@@ -647,24 +646,8 @@ function bgFrame() {
   pic.style.width = Math.round(g.w) + 'px'; pic.style.height = Math.round(g.h) + 'px';
   pic.style.backgroundSize = '100% 100%'; pic.style.backgroundPosition = '0 0'; pic.style.transform = b.rot ? 'rotate(' + b.rot + 'deg)' : '';
 }
-// ICU: เรียงอัตรากำลังตาม "คนที่" แล้วตามตำแหน่ง และสร้างข้อความรายงานสำหรับส่งไลน์
+// ICU: เรียงอัตรากำลังตาม "คนที่" แล้วตามตำแหน่ง
 const slotSort = staff => staff.map((s, i) => [s, i]).sort((a, b) => (num(a[0].slot) || 999) - (num(b[0].slot) || 999) || S.cfg.roles.indexOf(a[0].role) - S.cfg.roles.indexOf(b[0].role) || a[1] - b[1]).map(x => x[0]);
-function icuText(u, r) {
-  const v = r.values || {}, d = String(r.date || S.date).split('-'), dt = d.length === 3 ? `${+d[2]}/ ${+d[1]}/ ${+d[0] + 543}` : '';
-  const f = k => u.form.sections[0].fields.find(x => x.key === k), val = k => fieldValue(u, v, f(k));
-  const em = ['\ud83c\udf4e', '\ud83c\udf51', '\ud83c\udf4a', '\ud83c\udf4b', '\ud83c\udf47', '\ud83c\udf53', '\ud83c\udf52', '\ud83e\udd5d'];
-  const cen = [['carried', 'ยอดยกมา'], ['admit', 'รับใหม่'], ['tr_in', 'รับย้าย'], ['dc', 'จำหน่าย'], ['tr_out', 'ย้ายไป'], ['refer', 'Refer'], ['dead', 'Dead'], ['remain', 'คงพยาบาล']];
-  const st = slotSort(r.staff || []).filter(s => s.tag !== 'ออกหน่วย').map((s, i) => `${em[i % em.length]}${s.role}${s.slot ? ': คนที่ ' + s.slot : ':'} คุณ${String(s.name).replace(/^คุณ\s*/, '')}`);
-  return `\u2614\ufe0f  รายงานยอดผู้ป่วยประจำวัน  \u2614\ufe0f\n\n\ud83c\udf26  เวร ${r.shift} ${dt} \ud83c\udf26\n\n` + cen.map(([k, l]) => `${l}      ${num(val(k))}   เคส`).join('\n\n')
-    + `\n\n  \ud83c\udf20 อัตรากำลังเวร ${r.shift} \ud83c\udf20\n\n` + st.join('\n\n');
-}
-function icuTextDialog() {
-  const u = unitCfg(S.me.unit), r = repOf(u.code, S.shift);
-  if (!r) return toast('ยังไม่มีรายงานเวรนี้');
-  showDialog('ข้อความรายงาน (คัดลอกไปส่งไลน์)', `<textarea id="dlg_txt" readonly></textarea><div style="margin-top:8px"><button type="button" class="btn ghost sm" id="dlg_copy">คัดลอกข้อความ</button></div>`);
-  $('dlg_txt').value = icuText(u, r);
-  $('dlg_copy').onclick = () => { const t = $('dlg_txt'); t.select(); let ok = false; try { ok = document.execCommand('copy'); } catch (e) { ok = false; } toast(ok ? 'คัดลอกแล้ว' : 'กดค้างที่ข้อความเพื่อคัดลอก'); };
-}
 function showDialog(title, html) {
   const old = $('dlg'); if (old) old.remove();
   const el = document.createElement('div'); el.id = 'dlg'; el.className = 'noprint';
@@ -978,7 +961,7 @@ function renderMine() {
   }
   return `${seg}<div class="meta">เวร ${esc(S.shift)} \u00b7 ส่งโดย ${esc(rep.reporter)} \u00b7 แก้ไขล่าสุด ${esc(rep.updatedAt)}</div>
     <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="edit" type="button">แก้ไขรายงานเวร ${esc(S.shift)}</button>
-      <button class="btn ghost" data-act="gotoprint" data-punit="${esc(u.code)}" type="button">พิมพ์รายงาน (ยอดผู้ป่วย + อัตรากำลัง + เหตุการณ์ผิดปกติ)</button>${u.staffSlot ? '<button class="btn ghost" data-act="icutext" type="button">คัดลอกข้อความรายงาน (ส่งไลน์)</button>' : ''}</div>
+      <button class="btn ghost" data-act="gotoprint" data-punit="${esc(u.code)}" type="button">พิมพ์รายงาน (ยอดผู้ป่วย + อัตรากำลัง + เหตุการณ์ผิดปกติ)</button></div>
     ${renderReportView(u, rep)}`;
 }
 const draftNote = () => '<div class="note">แบบฟอร์มของหน่วยงานนี้เป็นตัวอย่าง รอปรับตามรูปแบบรายงานจริง</div>';
@@ -2192,7 +2175,6 @@ function bindView() {
     if (a === 'edit') startEdit();
     else if (a === 'back') go('all');
     else if (a === 'home') go(S.home);
-    else if (a === 'icutext') icuTextDialog();
     else if (a === 'gotoprint') { if (b.dataset.punit) { S.printScope = b.dataset.punit; S.printKind = 'day'; } go('print'); }
     else if (a === 'print') { if (S.pendingAtt > 0) toast('กำลังโหลดไฟล์แนบ รอสักครู่แล้วกดพิมพ์อีกครั้ง'); else window.print(); }
     else if (a === 'tpl') downloadTemplate();
