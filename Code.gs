@@ -80,8 +80,26 @@ function releaseOrphans_() {
   });
 }
 
+// ย้ายข้อมูลครั้งเดียว: บทบาท "อื่นๆ" ถูกยกเลิก (กลับเป็นยังไม่กำหนด) และตำแหน่งในไฟล์ที่เป็นหัวหน้าแผนกได้บทบาท "หัวหน้า"
+function migrateRoles_() {
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty('mig_roles_v1')) return;
+  withLock_(() => {
+    const st = staffSheet_(), data = st.getDataRange().getValues();
+    if (data.length > 1) {
+      const roles = data.slice(1).map(r => [/^(รักษาการ)?\s*หัวหน้า/.test(String(r[7] || '').trim()) ? 'หัวหน้า' : (String(r[3]) === 'อื่นๆ' ? '' : r[3])]);
+      st.getRange(2, 4, roles.length, 1).setValues(roles);
+    }
+    const ts = sheet_(SH_TITLES), tv = ts.getDataRange().getValues().slice(1).filter(r => ROLES.indexOf(String(r[1]).trim()) >= 0).map(r => [r[0], r[1]]);
+    ts.getRange(2, 1, Math.max(ts.getLastRow() - 1, 1), 2).clearContent();
+    if (tv.length) ts.getRange(2, 1, tv.length, 2).setValues(tv);
+    props.setProperty('mig_roles_v1', '1');
+  });
+}
+
 function ensureUsers_() {
   releaseOrphans_();
+  migrateRoles_();
   const sh = sheet_(SH_USERS);
   const need = [ADMIN, MANAGER].concat(allUnitCodes_());
   const have0 = sh.getDataRange().getValues().slice(1).map(r => String(r[0]));
@@ -572,8 +590,8 @@ function saveBindings(token, items) {
   return getAliases(token);
 }
 
-// ===== จับคู่ตำแหน่งงานในไฟล์กับบทบาท (RN / PN / NA / นศ. / อื่นๆ) โดยผู้ดูแลระบบ =====
-// ตำแหน่งที่ระบบไม่รู้จักจะเป็น "อื่นๆ" แอดมินเลือกบทบาทเอง ครั้งเดียว รายชื่อเดิมที่มีตำแหน่งนี้และการอัปโหลดครั้งต่อไปใช้บทบาทที่เลือกทันที
+// ===== จับคู่ตำแหน่งงานในไฟล์กับบทบาท (หัวหน้า / RN / PN / NA / นศ.) โดยผู้ดูแลระบบ =====
+// ตำแหน่งที่ระบบไม่รู้จักจะยังไม่กำหนดบทบาท แอดมินเลือกบทบาทเอง ครั้งเดียว รายชื่อเดิมที่มีตำแหน่งนี้และการอัปโหลดครั้งต่อไปใช้บทบาทที่เลือกทันที
 const normTitle_ = s => String(s || '').toLowerCase().replace(/\s+/g, '');
 function titleMap_() {
   const m = {};

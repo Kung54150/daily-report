@@ -171,7 +171,8 @@
   .chip b { font-size: 11px; color: var(--muted); margin-left: 4px; }
   .chip.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
   .chip.on b { color: inherit; opacity: .8; }
-  .duty { display: grid; grid-template-columns: 1fr 64px 108px 32px; gap: 6px; align-items: center; padding: 5px 0; border-bottom: 1px dashed var(--line); }
+  .duty .rl { color: var(--accent-strong); font-weight: 600; white-space: nowrap; }
+  .duty { display: grid; grid-template-columns: 1fr 108px 32px; gap: 6px; align-items: center; padding: 5px 0; border-bottom: 1px dashed var(--line); }
   .duty .nm { min-width: 0; overflow-wrap: anywhere; }
   .duty select { padding: 6px; font-size: 14px; }
   .x { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--bad); cursor: pointer; }
@@ -436,7 +437,7 @@
   @media (max-width: 480px) {
     .datebar .dlabel { display: none; }
     .row2 { grid-template-columns: 1fr; }
-    .duty { grid-template-columns: 1fr 58px 96px 32px; }
+    .duty { grid-template-columns: 1fr 96px 32px; }
     .row3 { grid-template-columns: 1fr 1fr; }
     .o2row { grid-template-columns: auto 1fr; }
     .o2row input { grid-column: 1 / -1; }
@@ -647,6 +648,7 @@ function bgFrame() {
   pic.style.backgroundSize = '100% 100%'; pic.style.backgroundPosition = '0 0'; pic.style.transform = b.rot ? 'rotate(' + b.rot + 'deg)' : '';
 }
 // ICU: เรียงอัตรากำลังตาม "คนที่" แล้วตามตำแหน่ง
+const asRN = r => (r === 'หัวหน้า' ? 'RN' : r); // หัวหน้านับรวมเป็น RN ในตารางอัตรากำลัง
 const slotSort = staff => staff.map((s, i) => [s, i]).sort((a, b) => (num(a[0].slot) || 999) - (num(b[0].slot) || 999) || S.cfg.roles.indexOf(a[0].role) - S.cfg.roles.indexOf(b[0].role) || a[1] - b[1]).map(x => x[0]);
 function showDialog(title, html) {
   const old = $('dlg'); if (old) old.remove();
@@ -1021,7 +1023,8 @@ function fieldValue(u, vals, f) {
   return vals[f.key];
 }
 const sectionSum = (s, vals) => s.fields.filter(f => !f.type && !f.calc && !f.noSum).reduce((a, f) => a + num(vals[f.key]), 0);
-const roleCounts = staff => S.cfg.roles.map(r => [r, staff.filter(s => s.role === r && s.tag !== 'ออกหน่วย').length]).filter(x => x[1]);
+const roleOpts = cur => (S.cfg.roles.indexOf(cur) < 0 ? `<option value="" selected>\u2014 เลือก \u2014</option>` : '') + S.cfg.roles.map(r => `<option${r === cur ? ' selected' : ''}>${esc(r)}</option>`).join('');
+const roleCounts = staff => S.cfg.roles.map(r => [r, staff.filter(s => s.role === r && s.tag !== 'ออกหน่วย').length]).concat([['ไม่ระบุ', staff.filter(s => S.cfg.roles.indexOf(s.role) < 0 && s.tag !== 'ออกหน่วย').length]]).filter(x => x[1]);
 // ยอดมาตรฐาน / ประเภทผู้ป่วย (สำเนาเดียวกับ Schema.gs)
 function fieldNum(form, vals, key) {
   for (const s of form.sections) for (const f of (s.fields || [])) if (f.key === key && f.calc && !(f.calc.manual && hasVal(vals, key))) return f.calc.plus.reduce((a, k) => a + num(vals[k]), 0) - f.calc.minus.reduce((a, k) => a + num(vals[k]), 0);
@@ -1442,8 +1445,7 @@ function renderStaffPicker() {
     </div>
     <div class="muted" style="font-size:12px;margin-top:4px">ชื่อใหม่จะถูกเพิ่มเข้าทะเบียน ${esc(unit)} อัตโนมัติ \u00b7 แก้ไข/ลบรายชื่อได้ที่แท็บ "ทะเบียนเจ้าหน้าที่"</div>
     <div class="counts">${roleCounts(d.staff).map(([k, n]) => `<span>${esc(k)} ${n}</span>`).join('')}</div>
-    ${d.staff.map((s, i) => `<div class="duty"><span class="nm">${esc(s.name)}</span>
-      <select data-duty="${i}:role" aria-label="ตำแหน่ง">${S.cfg.roles.map(r => `<option${r === s.role ? ' selected' : ''}>${esc(r)}</option>`).join('')}</select>
+    ${d.staff.map((s, i) => `<div class="duty"><span class="nm">${esc(s.name)} <b class="rl">(${S.cfg.roles.indexOf(s.role) >= 0 ? esc(s.role) : 'ไม่ระบุ'})</b></span>
       <select data-duty="${i}:tag" aria-label="หน้าที่"><option value="">หน้าที่ \u2013</option>${S.cfg.dutyTags.map(t => `<option${t === s.tag ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>
       <button type="button" class="x" data-unpick="${i}" aria-label="เอาออก">\u00d7</button>
       ${slotOn ? `<div style="grid-column:1/-1;display:flex;gap:8px;align-items:center"><label class="f" style="margin:0" for="slot_${i}">คนที่</label><input id="slot_${i}" type="number" inputmode="numeric" min="1" max="99" style="width:80px" data-duty="${i}:slot" value="${esc(s.slot || '')}" placeholder="1"></div>` : ''}
@@ -1672,9 +1674,9 @@ function renderStaff() {
   }
   html += `<div class="card"><h3>ทะเบียนเจ้าหน้าที่ ${esc(unitName)} <span class="sub">${list.length} คน \u00b7 ${roleCounts(list).map(([k, n]) => `${k} ${n}`).join(' \u00b7 ')}</span></h3>
     ${list.map(s => S.editStaff === s.id
-      ? `<div class="srow edit"><input id="es_name" value="${esc(s.name)}"><select id="es_role">${S.cfg.roles.map(r => `<option${r === s.role ? ' selected' : ''}>${esc(r)}</option>`).join('')}</select>
+      ? `<div class="srow edit"><input id="es_name" value="${esc(s.name)}"><select id="es_role">${roleOpts(s.role)}</select>
          ${admin ? `<select id="es_unit" style="grid-column:1/-1"><option value="">\u2014 ยังไม่ผูกแผนก \u2014</option>${unitOptgroups(s.unit)}</select>` : ''}<span class="acts"><button type="button" class="btn sm" data-sact="save" data-id="${s.id}">บันทึก</button><button type="button" class="btn ghost sm" data-sact="cancel">ยกเลิก</button></span></div>`
-      : `<div class="srow"><span>${esc(s.name)} ${s.source === 'upload' ? '<span class="pill plain">จากไฟล์</span>' : '<span class="pill warn">เพิ่มเอง</span>'}${s.fileDept && s.fileDept !== s.unit ? ` <small class="muted">${esc(s.fileDept)}</small>` : ''}${s.title ? `<br><small class="muted">ตำแหน่งในไฟล์: ${esc(s.title)}</small>` : ''}</span><select data-staffrole="${s.id}" aria-label="ตำแหน่ง" style="width:auto;padding:4px 6px">${S.cfg.roles.map(r => `<option${r === s.role ? ' selected' : ''}>${esc(r)}</option>`).join('')}</select>
+      : `<div class="srow"><span>${esc(s.name)} ${s.source === 'upload' ? '<span class="pill plain">จากไฟล์</span>' : '<span class="pill warn">เพิ่มเอง</span>'}${s.fileDept && s.fileDept !== s.unit ? ` <small class="muted">${esc(s.fileDept)}</small>` : ''}${s.title ? `<br><small class="muted">ตำแหน่งในไฟล์: ${esc(s.title)}</small>` : ''}</span><select data-staffrole="${s.id}" aria-label="ตำแหน่ง" style="width:auto;padding:4px 6px">${roleOpts(s.role)}</select>
          <span class="acts">${S.delStaff === s.id
            ? `<button type="button" class="btn danger sm" data-sact="del" data-id="${s.id}">ยืนยันลบ</button>`
            : `<button type="button" class="btn ghost sm" data-sact="edit" data-id="${s.id}">แก้ไข</button><button type="button" class="btn ghost sm" data-sact="askdel" data-id="${s.id}">ลบ</button>`}</span></div>`).join('')
@@ -1722,9 +1724,10 @@ function builtinRole(raw) {
   if (/ผู้ช่วยพยาบาล|ผู้ช่วยการพยาบาล|ช่วยการพยาบาล/.test(t)) return 'PN';
   if (/ผู้ช่วยเหลือ|ช่วยเหลือคนไข้|ช่วยเหลือผู้ป่วย/.test(t)) return 'NA';
   if (/นักศึกษา|^นศ/.test(t)) return '\u0e19\u0e28.';
-  if (/หัวหน้าแผนก|ผู้ช่วยหัวหน้า|รักษาการหัวหน้า|ผู้ช่วยผู้จัดการ|ผู้จัดการ/.test(t)) return 'RN';
+  if (/^(รักษาการ)?\s*หัวหน้า/.test(t)) return 'หัวหน้า';
+  if (/ผู้ช่วยหัวหน้า|ผู้ช่วยผู้จัดการ|ผู้จัดการ/.test(t)) return 'RN';
   if (/^พยาบาล|^พว\.?$/.test(t)) return 'RN';
-  return S.cfg.roleAliases[t] || S.cfg.roleAliases[t.toLowerCase()] || (S.cfg.roles.indexOf(t) >= 0 ? t : '\u0e2d\u0e37\u0e48\u0e19\u0e46');
+  return S.cfg.roleAliases[t] || S.cfg.roleAliases[t.toLowerCase()] || (S.cfg.roles.indexOf(t) >= 0 ? t : '');
 }
 const normTitle = t => String(t || '').toLowerCase().replace(/\s+/g, '');
 // ตำแหน่งที่แอดมินจับคู่เองมาก่อนกฎอัตโนมัติ
@@ -1880,7 +1883,7 @@ function renderPrint() {
 // รายงานประจำเดือนของหน่วยงานเดียว: หน้า 1 ยอดรายวัน/เวร + รวม + เฉลี่ย \u00b7 หน้า 2 รายการรวมทั้งเดือน + เหตุการณ์ผิดปกติ
 function printMonthly(u, month, reps) {
   const L = S.cfg.stdLabels, keys = Object.keys(u.form.std || {}), two = shiftsOf(u).length > 1;
-  const staff3 = r => { const st = (r.staff || []).filter(x => x.tag !== 'ออกหน่วย'); return ['RN', 'PN', 'NA'].map(n => st.filter(x => x.role === n).length); };
+  const staff3 = r => { const st = (r.staff || []).filter(x => x.tag !== 'ออกหน่วย'); return ['RN', 'PN', 'NA'].map(n => st.filter(x => asRN(x.role) === n).length); };
   const rows = reps.map(r => ({ r, sv: stdValues(u, r.values), st: staff3(r) }));
   const f1 = x => Number.isInteger(x) ? String(x) : x.toFixed(1);
   const head = t => `<h1>${t} \u00b7 ${esc(u.code)}</h1><div class="d">${esc(monthTitle(month))}</div>`;
@@ -1941,7 +1944,7 @@ function printOverview() {
     spu = units('SPU').filter(u => !ipd.includes(u));
   const sv = (u, k) => { const r = repAt(u, k); return r ? stdValues(u, r.values) : null; };
   const sum = (list, key, k) => list.reduce((a, u) => a + ((sv(u, k) || {})[key] || 0), 0);
-  const sc3 = (u, k) => { const r = repAt(u, k), st = r ? (r.staff || []).filter(x => x.tag !== 'ออกหน่วย') : []; return ['RN', 'PN', 'NA'].map(n => st.filter(x => x.role === n).length); };
+  const sc3 = (u, k) => { const r = repAt(u, k), st = r ? (r.staff || []).filter(x => x.tag !== 'ออกหน่วย') : []; return ['RN', 'PN', 'NA'].map(n => st.filter(x => asRN(x.role) === n).length); };
   const ssum = (list, i, k) => list.reduce((a, u) => a + sc3(u, k)[i], 0);
   const staffTh = '<th>RN</th><th>PN</th><th>NA</th>';
   const staffTd = (u, k) => sc3(u, k).map(n => `<td class="n">${n || '\u2013'}</td>`).join('');
@@ -1978,7 +1981,7 @@ function printOverview() {
     <div><h2>Special Unit</h2><table class="stat">${spu.flatMap(u => shiftsOf(u).map(k => { const s = sv(u, k); return `<tr><td>${shiftLab(u, k)}</td>${s ? `<td class="n b">${s.total}</td><td>${esc(u.form.sections[0].title)}</td>` : '<td colspan="2" class="miss">ยังไม่รายงาน</td>'}</tr>`; })).join('')}</table></div></div>`;
 
   const grpRow = (label, k, list) => { const rs = list.map(u => repAt(u, k)).filter(Boolean), st = rs.flatMap(r => r.staff || []).filter(x => x.tag !== 'ออกหน่วย');
-    const c = r => st.filter(x => x.role === r).length, red = rs.reduce((a, r) => { const d = r.reduce || {}; return a + num(d.RN) + num(d.PN) + num(d.NA); }, 0);
+    const c = r => st.filter(x => asRN(x.role) === r).length, red = rs.reduce((a, r) => { const d = r.reduce || {}; return a + num(d.RN) + num(d.PN) + num(d.NA); }, 0);
     return `<tr${label === 'รวม' ? ' class="tot"' : ''}><td>${esc(label)} \u00b7 ${esc(k)}</td><td class="n">${c('RN')}</td><td class="n">${c('PN')}</td><td class="n">${c('NA')}</td><td class="n">${st.length - c('RN') - c('PN') - c('NA')}</td><td class="n">${red}</td></tr>`; };
   h += `<h2>อัตรากำลัง</h2><table class="stat"><thead><tr><th>กลุ่ม</th><th>RN</th><th>PN</th><th>NA</th><th>อื่นๆ</th><th>ลดอัตรากำลัง (ชม.)</th></tr></thead>
     ${S.cfg.groups.map(g => SH.filter(k => units(g.key).some(u => unitHas(u, k))).map(k => grpRow(g.name, k, units(g.key).filter(u => unitHas(u, k)))).join('')).join('')}
@@ -2142,19 +2145,19 @@ function titleGroups() {
     o.n++; o.roles[s.role] = (o.roles[s.role] || 0) + 1;
   });
   return Object.values(g).map(o => Object.assign(o, { cur: Object.entries(o.roles).sort((a, b) => b[1] - a[1])[0][0] }))
-    .filter(o => builtinRole(o.title) === '\u0e2d\u0e37\u0e48\u0e19\u0e46' || normTitle(o.title) in S.titleMap)
-    .sort((a, b) => (a.cur === '\u0e2d\u0e37\u0e48\u0e19\u0e46' ? 0 : 1) - (b.cur === '\u0e2d\u0e37\u0e48\u0e19\u0e46' ? 0 : 1) || b.n - a.n);
+    .filter(o => builtinRole(o.title) === '' || normTitle(o.title) in S.titleMap)
+    .sort((a, b) => (a.cur === '' ? 0 : 1) - (b.cur === '' ? 0 : 1) || b.n - a.n);
 }
 function renderTitleCard() {
   const gs = titleGroups(), noTitle = S.staff.filter(s => s.source === 'upload' && !s.title).length;
   if (!gs.length && !noTitle) return '';
   S.titleSel = S.titleSel || {};
   return `<div class="card"><h3>จับคู่ตำแหน่งงานกับบทบาท <span class="sub">ตำแหน่งที่ระบบไม่รู้จัก ${gs.filter(o => !(normTitle(o.title) in S.titleMap)).length} ตำแหน่ง</span></h3>
-    <p class="muted" style="margin:0 0 8px;font-size:14px">เลือกบทบาท (RN / PN / NA / นศ. / อื่นๆ) ให้แต่ละตำแหน่งในไฟล์ แล้วกด "บันทึกการจับคู่" รายชื่อที่มีตำแหน่งนี้จะเปลี่ยนทันที และการอัปโหลดครั้งต่อไปใช้ตามที่เลือก (หัวหน้า/ผู้ช่วยหัวหน้าแผนกถูกจัดเป็น RN ให้อัตโนมัติอยู่แล้ว)</p>
+    <p class="muted" style="margin:0 0 8px;font-size:14px">เลือกบทบาท (หัวหน้า / RN / PN / NA / นศ.) ให้แต่ละตำแหน่งในไฟล์ แล้วกด "บันทึกการจับคู่" รายชื่อที่มีตำแหน่งนี้จะเปลี่ยนทันที และการอัปโหลดครั้งต่อไปใช้ตามที่เลือก (หัวหน้า/ผู้ช่วยหัวหน้าแผนกถูกจัดเป็น RN ให้อัตโนมัติอยู่แล้ว)</p>
     ${noTitle ? `<div class="note">มี ${noTitle} คนที่อัปโหลดไว้ก่อนระบบเก็บตำแหน่ง \u2014 อัปโหลดไฟล์รายชื่อซ้ำอีก 1 ครั้งเพื่อให้จับคู่ตำแหน่งได้ครบ</div>` : ''}
     <div class="binding">${gs.map(o => {
       const bound = normTitle(o.title) in S.titleMap, sel = o.title in S.titleSel ? S.titleSel[o.title] : o.cur;
-      return `<span><b>${esc(o.title)}</b> <small class="muted">(${o.n} คน) \u00b7 ${bound ? 'จับคู่แล้ว' : 'ยังเป็นอื่นๆ'}</small></span><select data-title="${esc(o.title)}">${S.cfg.roles.map(r => `<option${r === sel ? ' selected' : ''}>${esc(r)}</option>`).join('')}</select>`;
+      return `<span><b>${esc(o.title)}</b> <small class="muted">(${o.n} คน) \u00b7 ${bound ? 'จับคู่แล้ว' : 'ยังไม่ได้กำหนด'}</small></span><select data-title="${esc(o.title)}">${roleOpts(sel)}</select>`;
     }).join('')}</div>
     ${gs.length ? '<button type="button" class="btn" data-act="titlesave">บันทึกการจับคู่</button>' : ''}</div>`;
 }
