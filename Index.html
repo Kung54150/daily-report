@@ -321,6 +321,8 @@
   .slines .lg { break-inside: avoid; margin-bottom: 4px; }
   .slines .ln.dt { padding-left: 12px; color: var(--fg); margin: 1px 0; text-align: left; }
   @media (min-width: 720px) { .slines { columns: 2; column-gap: 24px; } }
+  .a4 .ubgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 8mm; align-items: start; }
+  .a4 .ubgrid .ub { min-width: 0; }
   .a4 .shpair { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm; align-items: start; }
   .a4 .shpair .shb { margin-top: 2px; min-width: 0; }
   .a4 .shpair .shb .miss { padding: 2px 0; }
@@ -2529,10 +2531,15 @@ function printUnits() {
   const pair = u => `<div class="shpair">${shiftsOf(u).map(k => { const r = repAt(u, k);
     return `<div class="shb"><div class="shl">เวร ${esc(k)}</div>${r ? `<div class="slines">${printLines(u, r, false)}</div>` : '<div class="miss">ยังไม่รายงาน</div>'}</div>`; }).join('')}</div>`;
   let body = printHead('แยกหน่วยงาน \u00b7 ผู้ป่วยนอก');
+  // ผู้ป่วยนอก: OPD1 / OPD3 / PC อยู่หน้าเดียวกัน ตามด้วย ER (เวร Day ซ้าย Night ขวา เหมือนผู้ป่วยใน) แล้วจึงเป็นแผนกอื่น
+  // แต่ละแผนกเป็นกล่องเดียว ถ้าท้ายหน้าไม่พอจะยกไปทั้งกล่องขึ้นหน้าใหม่ ไม่ตัดกลางข้อความ
   secs.filter(sc => sc.group === 'OPD').forEach(sc => {
-    body += `<h2>${esc(sc.label)}</h2><div class="cols">`;
-    sc.units.map(unitCfg).forEach(u => { body += `<div class="ub"><b class="c">${esc(u.code)}</b>${unitShiftBlocks(u)}</div>`; });
-    body += '</div>';
+    const us = sc.units.map(unitCfg), lead = ['OPD1', 'OPD3', 'PC'], one = u => `<div class="ub"><b class="c">${esc(u.code)}</b>${unitShiftBlocks(u)}</div>`;
+    const first = lead.map(c => us.find(u => u.code === c)).filter(Boolean), er = us.find(u => u.code === 'ER');
+    const rest = us.filter(u => first.indexOf(u) < 0 && u !== er);
+    body += `<h2>${esc(sc.label)}</h2><div class="ubgrid">${first.map(one).join('')}</div>`;
+    if (er) body += `<div class="ub"><b class="c">${esc(er.code)}</b>${pair(er)}</div>`;
+    if (rest.length) body += `<div class="ubgrid">${rest.map(one).join('')}</div>`;
   });
   body += `<div class="pgbreak"><h1>รายงานยอดประจำวัน \u00b7 ผู้ป่วยใน / Special Unit</h1><div class="d">${esc(thaiDate(S.date, true))}</div>`;
   secs.filter(sc => sc.group !== 'OPD').forEach(sc => {
