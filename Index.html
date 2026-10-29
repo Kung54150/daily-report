@@ -1269,7 +1269,7 @@ function mountForm() {
   if (u.form.total) pat += `<div class="card"><div class="sumline" style="border:0;margin:0;padding:0"><span>${esc(u.form.total)}</span><span class="num" id="fm_total">0</span></div></div>`;
   if (unitCfg(euUnit()).group === 'OPD') pat += reduceFormHtml(d.reduce || {});
   pat += `<div class="card"><h3>เรื่องแจ้ง</h3><textarea id="fm_notes" rows="3" placeholder="เช่น พรุ่งนี้แพทย์งดออกตรวจ / ไม่มีเอกสารค้างส่ง">${esc(d.notes || '')}</textarea></div>
-    <div class="card"><h3>รายงานเคส</h3><div id="fm_cases"></div><button type="button" class="addinc" id="fm_addcase">+ เพิ่มเคส</button></div>`;
+    <div class="card"><h3>รายงานเคส</h3><div id="fm_cases"></div>${(S.cfg.lineCaseUnits || []).indexOf(euUnit()) >= 0 ? '<button type="button" class="addinc" id="fm_linecase" style="margin-bottom:8px">\u21e9 ดึงเคสจาก LINE</button>' : ''}<button type="button" class="addinc" id="fm_addcase">+ เพิ่มเคส</button></div>`;
 
   const rd = d.reduce || {};
   const isOpd = unitCfg(euUnit()).group === 'OPD';
@@ -1291,6 +1291,19 @@ function mountForm() {
     d.cases.push({ patient: '', age: '', hn: '', time: '', doctor: '', bp: '', pr: '', rr: '', temp: '', spo2: '', o2mode: 'Room air', o2flow: '', detail: '', action: '' });
     S.dirty = true; renderCases();
     const cards = $('fm_cases').querySelectorAll('.inc'); cards[cards.length - 1].scrollIntoView({ block: 'start', behavior: 'smooth' });
+  };
+  // เคสที่บอท LINE แยกจากข้อความในกลุ่ม (ชื่อ เวลา V/S เหตุการณ์) → เพิ่มเป็นเคสในฟอร์ม ให้ตรวจแล้วกดบันทึก
+  if ($('fm_linecase')) $('fm_linecase').onclick = async () => {
+    let list;
+    try { list = await api('getLineCases', S.token, euUnit(), S.date); } catch (e) { handleErr(e); return; }
+    if (!S.editing || S.draft !== d) return;
+    const have = new Set(d.cases.map(c => c.lineId).filter(Boolean));
+    const add = list.filter(x => !have.has(x.lineId));
+    if (!add.length) { toast(list.length ? 'ดึงเคสจาก LINE ครบแล้ว' : 'ไม่มีเคสจาก LINE ของวันนี้ที่รอนำเข้า'); return; }
+    add.forEach(({ sender, ...x }) => d.cases.push(Object.assign(x, { o2mode: x.o2mode || 'Room air' })));
+    if (!d.reporter.trim() && add[0].sender) { d.reporter = add[0].sender; $('fm_reporter').value = d.reporter; }
+    S.dirty = true; renderCases();
+    toast(`ดึง ${add.length} เคสจาก LINE แล้ว \u2014 ตรวจข้อมูลแล้วกดบันทึก`);
   };
   $('sb_msg').textContent = repOf(euUnit(), S.shift) ? 'กำลังแก้ไขรายงานเวร ' + S.shift + ' ที่ส่งแล้ว' : 'รายงานเวร ' + S.shift + ' ยังไม่ได้บันทึก';
 }

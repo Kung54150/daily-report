@@ -19,6 +19,8 @@ const SH_STATS = 'สถิติ';
 const SH_ROOMS = 'ห้อง';
 const SH_ALIASES = 'ชื่อแผนกในไฟล์';
 const SH_TITLES = 'การจับคู่ตำแหน่ง';
+const SH_LINE_CASES = 'เคสจาก LINE'; // ร่างเคสที่บอท LINE (ChatBot) แยกจากข้อความในกลุ่ม — ต้องตรงกับ CASE_DRAFT.SHEET ใน ChatBot
+const LINE_CASE_UNITS = ['OPD1'];      // หน่วยงานที่ดึงเคสจาก LINE ได้
 const ATT_MAX_BYTES = 6 * 1024 * 1024; // ไฟล์แนบสูงสุดต่อไฟล์
 const ATT_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'application/pdf': 'pdf' };
 const ROOMS_PER_IPD = 25; // ห้องเริ่มต้นของแต่ละตึกผู้ป่วยใน เช่น A401 ถึง A425 (แก้ไขได้ในชีต 'ห้อง')
@@ -37,7 +39,11 @@ const HEADERS = {
   [SH_STAFF]: ['id', 'หน่วยงาน', 'ชื่อ-สกุล', 'ตำแหน่ง', 'ที่มา', 'แก้ไขล่าสุด', 'แผนกในไฟล์', 'ตำแหน่งในไฟล์'],
   [SH_ROOMS]: ['หน่วยงาน', 'เลขห้อง', 'ชื่อ/ประเภทห้อง (ไม่บังคับ)'],
   [SH_ALIASES]: ['ชื่อแผนกที่ใช้ในไฟล์', 'หน่วยงานในระบบ'],
-  [SH_TITLES]: ['ตำแหน่งในไฟล์', 'บทบาทในระบบ']
+  [SH_TITLES]: ['ตำแหน่งในไฟล์', 'บทบาทในระบบ'],
+  // ลำดับคอลัมน์ต้องตรงกับ CASE_SHEET_HEADER ใน ChatBot (บอทเป็นผู้สร้างชีตนี้)
+  [SH_LINE_CASES]: ['messageId', 'เวลาส่ง', 'วันที่', 'หน่วยงาน', 'ผู้ส่ง (LINE)', 'ชื่อ-สกุลผู้ป่วย', 'อายุ', 'HN', 'เวลามารับบริการ',
+    'แพทย์เจ้าของไข้', 'BP (mmHg)', 'PR (/min)', 'RR (/min)', 'T (°C)', 'O2 sat (%)', 'O2', 'O2 ที่ให้', 'รายละเอียด', 'การแก้ไขเบื้องต้น',
+    'ข้อความต้นฉบับ', 'สถานะ', 'นำเข้าเมื่อ']
 };
 const ADMIN = 'ADMIN'; // ผู้ดูแลระบบ: ทุกอย่างของผู้จัดการ + อัปโหลด/ผูกรายชื่อเจ้าหน้าที่ + แก้ห้องทุกหน่วยงาน
 const MANAGER = 'MANAGER'; // ผู้จัดการ: ดูสรุป ติดตามรายแผนก และพิมพ์ A4 (ดูอย่างเดียว)
@@ -217,7 +223,7 @@ function auth_(token) {
 }
 
 function getBoot(token) {
-  return { me: auth_(token), config: Object.assign(buildConfig_(), { rooms: getRooms_(), procs: getProcs_() }) };
+  return { me: auth_(token), config: Object.assign(buildConfig_(), { rooms: getRooms_(), procs: getProcs_(), lineCaseUnits: LINE_CASE_UNITS }) };
 }
 
 // ===== รายงาน =====
@@ -309,6 +315,7 @@ function saveReport(token, rep) {
     values[s.totalKey] = docs.reduce((a, d) => a + d.n, 0);
   });
 
+  const lineIds = (rep.cases || []).map(i => i && i.lineId).filter(Boolean).map(String);
   const clean = {
     date: rep.date, unit: unitCode, reporter: String(rep.reporter).trim(),
     updatedAt: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm'),
@@ -345,6 +352,7 @@ function saveReport(token, rep) {
       cs.getRange(cs.getLastRow() + 1, 1, clean.cases.length, CASE_FIELDS.length + 5).setValues(clean.cases.map(i =>
         [clean.date, clean.unit].concat(CASE_FIELDS.map(k => i[k]), [clean.reporter, i.files.map(x => x.name).join(', '), clean.shift])));
     }
+    markLineCases_(lineIds);
 
     recordProcs_(unitCode, form, values);
 
@@ -354,6 +362,35 @@ function saveReport(token, rep) {
     if (stats.length) st.getRange(st.getLastRow() + 1, 1, stats.length, 8).setValues(stats);
   });
   return { ok: true };
+}
+
+// ===== เคสจาก LINE =====
+// ร่างเคสที่ยังไม่ได้นำเข้า ของหน่วยงานและวันที่นั้น (บอทเขียนลงชีต SH_LINE_CASES) — ใช้กรอกฟอร์มรายงานเคสให้อัตโนมัติ
+function getLineCases(token, unit, date) {
+  const me = auth_(token);
+  const code = me.role === 'unit' ? me.unit : String(unit || '');
+  if (me.role === 'manager' || LINE_CASE_UNITS.indexOf(code) < 0) return [];
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SH_LINE_CASES);
+  if (!sh || sh.getLastRow() < 2) return [];
+  const tz = Session.getScriptTimeZone();
+  const str = v => v instanceof Date ? Utilities.formatDate(v, tz, 'HH:mm') : String(v == null ? '' : v);
+  return sh.getDataRange().getValues().slice(1)
+    .filter(r => String(r[3]) === code && fmtDate_(r[2]) === date && String(r[20]) !== 'นำเข้าแล้ว')
+    .map(r => {
+      const o = { lineId: String(r[0]), sender: String(r[4]) };
+      CASE_FIELDS.forEach((k, i) => { o[k] = str(r[5 + i]); });
+      return o;
+    });
+}
+
+// รายงานที่บันทึกมีเคสที่ดึงจาก LINE → ทำเครื่องหมายว่านำเข้าแล้ว จะไม่แสดงให้ดึงซ้ำ
+function markLineCases_(ids) {
+  const sh = ids.length && SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SH_LINE_CASES);
+  if (!sh || sh.getLastRow() < 2) return;
+  const at = stamp_();
+  sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues().forEach((r, i) => {
+    if (ids.indexOf(String(r[0])) >= 0) sh.getRange(i + 2, 21, 1, 2).setValues([['นำเข้าแล้ว', at]]);
+  });
 }
 
 // เหตุการณ์ผิดปกติ: เก็บเฉพาะรายการที่มีรายละเอียด | รายงานเคส (anyField): กรอกช่องใดช่องหนึ่งก็เก็บ ไม่บังคับกรอกครบ
