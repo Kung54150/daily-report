@@ -2616,8 +2616,8 @@ function printLines(u, r, withInc) {
     if (rdLine) lines.push(rdLine);
     if (lines.length) grp('<b>อัตรากำลัง</b>', lines);
   } else {
-    if (u.group === 'OPD') opdGroups(Object.assign({ unit: u.code }, r), firstName).forEach(g => grp(`<b>${esc(g.label)} ${g.n} ${g.unit}</b>`, withInc ? g.items.map(i => i.text) : [g.items.map(i => i.text).join(', ')]));
-    else if (rc.length) grp('<b>อัตรากำลัง</b>', [rc.map(([k, n]) => `${esc(k)} ${n}`).join(', ')]);
+    // ผู้ป่วยนอก: ไม่แสดงเจ้าหน้าที่และแพทย์ในหน้าสรุป (ดูได้ที่แท็บอัตรากำลัง/แพทย์ของแต่ละหน่วยงาน)
+    if (u.group !== 'OPD' && rc.length) grp('<b>อัตรากำลัง</b>', [rc.map(([k, n]) => `${esc(k)} ${n}`).join(', ')]);
     if (rdLine) grp(rdLine, []);
   }
   if (r.notes) grp('<b>เรื่องแจ้ง</b>', [esc(r.notes).replace(/\n/g, ' / ')]);
