@@ -515,6 +515,8 @@ window.addEventListener('unhandledrejection', function (e) { bootFail((e.reason 
 // Apps Script เปิดครั้งแรกหลังไม่ได้ใช้งานจะตอบช้า (cold start) 10-30 วินาทีเป็นเรื่องปกติ จึงแจ้งแบบไม่ใช่ข้อผิดพลาดก่อน แล้วค่อยแจ้งล้มเหลวเมื่อรอนานผิดปกติจริง
 setTimeout(function () {
   if (window.__ready) return;
+  var e0 = document.getElementById('boot_msg');
+  if (e0 && e0.dataset.err) return; // มีข้อผิดพลาดจริงแสดงอยู่แล้ว ไม่ทับด้วยข้อความเดา
   if (!window.__scriptLoaded) return bootFail('ไฟล์ Index วางโค้ดไม่ครบ (ต้องมีครบถึงบรรทัดสุดท้าย)');
   var t = document.getElementById('boot_msg');
   if (t && !t.dataset.err) t.textContent = 'กำลังเชื่อมต่อเซิร์ฟเวอร์ (เปิดครั้งแรกอาจใช้เวลาสักครู่) กรุณารอ...';
@@ -739,7 +741,7 @@ function shrinkImage(file, max) {
   });
 }
 // ความโปร่งใสของกล่องข้อความหน้าอื่นๆ: 100 = ทึบ (ค่าเดิม) ต่ำกว่านั้นเริ่มโปร่งและใส่เงาตัวหนังสือให้อ่านง่าย
-const cardAllVal = () => (S.bg && S.bg.cardAll != null ? +S.bg.cardAll : 100);
+function cardAllVal() { return S.bg && S.bg.cardAll != null ? +S.bg.cardAll : 100; }
 function cardAll(r) { r = r || document.documentElement; r.style.setProperty('--cardall', String(cardAllVal())); r.classList.toggle('cardsoft', cardAllVal() < 100); }
 const APP_VERSION = '2026.10.23-a';
 function loadVersion() {
