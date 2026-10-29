@@ -321,6 +321,9 @@
   .slines .lg { break-inside: avoid; margin-bottom: 4px; }
   .slines .ln.dt { padding-left: 12px; color: var(--fg); margin: 1px 0; text-align: left; }
   @media (min-width: 720px) { .slines { columns: 2; column-gap: 24px; } }
+  .a4 .shpair { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm; align-items: start; }
+  .a4 .shpair .shb { margin-top: 2px; min-width: 0; }
+  .a4 .shpair .shb .miss { padding: 2px 0; }
   .a4 .shb { margin-top: 4px; border: .5pt solid #777; padding: 0 4px 2px; border-radius: 0; }
   .a4 .shb .shl { font-weight: 700; font-size: 9.5pt; background: #e6e6e6; color: #111; margin: 0 -4px 2px; padding: 1px 4px; }
   .a4 .slines { columns: 1; }
@@ -452,12 +455,15 @@
   .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
   .seg button { border: 0; background: var(--surface); padding: 8px 12px; cursor: pointer; color: var(--muted); }
   .seg button.on { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
-  @page { size: A4 portrait; margin: 0; }
+  /* ขอบกระดาษ 10 มม. ทุกหน้า: เครื่องพิมพ์พิมพ์ชิดขอบไม่ได้ (ประมาณ 4-6 มม.) ขอบ 0 ทำให้หัวกระดาษของหน้าที่ 2 เป็นต้นไปและขอบบนตกหล่น */
+  @page { size: A4 portrait; margin: 10mm 10mm 12mm; }
   @media print {
     body { background: #fff; }
     body::before, .top, .tabs, .datebar, .savebar, .noprint, .toast, #login { display: none !important; }
     main, .wrap { padding: 0 !important; max-width: none; }
-    .a4 { box-shadow: none; margin: 0; width: auto; min-height: 0; }
+    .a4 { box-shadow: none; margin: 0; padding: 0; width: auto; min-height: 0; }
+    .a4 .pgbreak { break-before: page; }
+    .a4 h2 { break-after: avoid; }
     .a4.printonly { display: block; }
     .a4 + .a4 { margin-top: 0; break-before: page; }
     .a4 thead { display: table-header-group; }
@@ -2516,14 +2522,24 @@ function incTable(incs, first, cs) {
       <td>${esc(i.detail)}${i.action ? `<br><i>แก้ไข: ${esc(i.action)}</i>` : ''}</td></tr>${(i.files || []).length ? `<tr class="attrow"><td></td><td colspan="${cs ? 3 : 4}"><div class="attbox">${i.files.map(f => `<figure data-attfile="${esc(f.id)}"><figcaption>ไฟล์แนบ: ${esc(f.name)}</figcaption></figure>`).join('')}</div></td></tr>` : ''}`).join('')}</table>`;
 }
 
+// รายงานแยกหน่วยงาน: กลุ่ม 1 ผู้ป่วยนอก (หน้าแรก) / กลุ่ม 2 ผู้ป่วยใน ตึก A B C และ Special Unit ขึ้นกระดาษแผ่นใหม่
+// กลุ่ม 2 ทุกหน่วยงานมีเวร Day และ Night: เวร Day อยู่ซ้าย เวร Night อยู่ขวาเสมอ
 function printUnits() {
-  let body = printHead('แยกหน่วยงาน');
-  S.cfg.sections.forEach(sc => {
+  const secs = S.cfg.sections;
+  const pair = u => `<div class="shpair">${shiftsOf(u).map(k => { const r = repAt(u, k);
+    return `<div class="shb"><div class="shl">เวร ${esc(k)}</div>${r ? `<div class="slines">${printLines(u, r, false)}</div>` : '<div class="miss">ยังไม่รายงาน</div>'}</div>`; }).join('')}</div>`;
+  let body = printHead('แยกหน่วยงาน \u00b7 ผู้ป่วยนอก');
+  secs.filter(sc => sc.group === 'OPD').forEach(sc => {
     body += `<h2>${esc(sc.label)}</h2><div class="cols">`;
     sc.units.map(unitCfg).forEach(u => { body += `<div class="ub"><b class="c">${esc(u.code)}</b>${unitShiftBlocks(u)}</div>`; });
     body += '</div>';
   });
-  return body;
+  body += `<div class="pgbreak"><h1>รายงานยอดประจำวัน \u00b7 ผู้ป่วยใน / Special Unit</h1><div class="d">${esc(thaiDate(S.date, true))}</div>`;
+  secs.filter(sc => sc.group !== 'OPD').forEach(sc => {
+    body += `<h2>${esc(sc.label)}</h2>`;
+    sc.units.map(unitCfg).forEach(u => { body += `<div class="ub"><b class="c">${esc(u.code)}</b>${pair(u)}</div>`; });
+  });
+  return body + '</div>';
 }
 
 // รายงานเฉพาะหน่วยงานเดียว (ละเอียด)
