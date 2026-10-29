@@ -186,6 +186,15 @@
   .duty { display: grid; grid-template-columns: 1fr 108px 32px; gap: 6px; align-items: center; padding: 5px 0; border-bottom: 1px dashed var(--line); }
   .duty .nm { min-width: 0; overflow-wrap: anywhere; }
   .duty select { padding: 6px; font-size: 14px; }
+  .dtime { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+  .dtime .tin { width: 76px; padding: 6px; font-size: 14px; }
+  .drow { display: grid; grid-template-columns: 1fr 128px 32px; gap: 6px; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+  .drow input, .drow select { padding: 6px; font-size: 14px; min-width: 0; }
+  .drow.off input:first-child { text-decoration: line-through; color: var(--muted); }
+  .drow .src { grid-column: 1 / -1; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+  .drow .tm { grid-column: 1 / 3; }
+  .docbind { display: grid; grid-template-columns: minmax(110px, 1fr) 2fr; gap: 6px 10px; align-items: center; margin-bottom: 10px; }
+  .docbind .chips .chip { padding: 3px 9px; font-size: 13px; }
   .x { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--bad); cursor: pointer; }
   .counts { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
   .counts span { background: var(--accent-soft); color: var(--accent-strong); border-radius: 6px; padding: 2px 9px; font-weight: 600; font-size: 14px; }
@@ -988,7 +997,10 @@ function render() {
   else if (S.tab === 'summary') v.innerHTML = renderSummary();
   else if (S.tab === 'incidents') v.innerHTML = renderIncidentsTab();
   else if (S.tab === 'print') v.innerHTML = renderPrint();
-  else if (S.tab === 'staff') v.innerHTML = renderStaff();
+  else if (S.tab === 'staff') {
+    v.innerHTML = renderStaff();
+    if (S.me.role === 'admin' && !S.docInfo) api('getDocInfo', S.token).then(i => { S.docInfo = i; if (S.tab === 'staff' && !S.docUp) render(); }).catch(() => {});
+  }
   else if (S.tab === 'edit') v.innerHTML = '';
   if (S.tab !== S.home && S.tab !== 'edit') v.innerHTML = '<div class="noprint" style="margin-bottom:10px"><button class="btn ghost sm" data-act="home" type="button">\u2039 กลับหน้าแรก</button></div>' + v.innerHTML;
   if ((S.tab === 'mine' || S.tab === 'edit') && S.editing) mountForm();
@@ -1149,6 +1161,10 @@ function subTabs(r) {
   return `<div class="seg" role="tablist">${SUBS.filter(([k]) => !(others && k === 'incident')).map(([k, t]) => `<button type="button" role="tab" data-sub="${k}" class="${S.sub === k ? 'on' : ''}${k === 'incident' && incN ? ' alert' : ''}">${t}${badge[k] ? `<small>${esc(badge[k])}</small>` : ''}</button>`).join('')}</div>`;
 }
 
+const docLine = x => `${esc(x.name)}${x.time ? ' ' + esc(x.time) : ''}${x.off ? ' (งด)' : ''}`;
+const doctorsViewHtml = r => `<div class="card"><h3>แพทย์ออกตรวจ <span class="sub">${(r.doctors || []).filter(x => !x.off).length} ท่าน</span></h3>
+  ${(r.doctors || []).map(x => `<div style="font-size:14px${x.off ? ';text-decoration:line-through;color:var(--muted)' : ''}"><b>${esc(x.name)}</b> ${esc(x.time || '')}${x.off ? ' (งด / ไม่มา)' : ''}</div>`).join('') || '<span class="muted">ไม่ได้ระบุ</span>'}</div>`;
+
 /* ===== มุมมองอ่านอย่างเดียว ===== */
 function renderReportView(u, r) {
   if (S.me.role === 'unit' && r.unit && !sameZone(r.unit) && S.sub === 'incident') S.sub = 'patient';
@@ -1185,8 +1201,8 @@ function renderReportView(u, r) {
     const staff = r.staff || [], rd = r.reduce || {};
     body = `<div class="view-grid"><div class="card"><h3>อัตรากำลัง <span class="sub">เวร ${esc(shiftName(r.shift))}</span></h3>
       <div class="counts">${roleCounts(staff).map(([k, n]) => `<span>${esc(k)} ${n}</span>`).join('') || '<span class="muted">ไม่ได้ระบุ</span>'}</div>
-      ${(u.staffSlot ? slotSort(staff) : staff).map(s => `<div style="font-size:14px"><b style="display:inline-block;min-width:40px">${esc(dutyPos(s, u.code))}</b>${u.staffSlot && s.slot ? `คนที่ ${esc(s.slot)} ` : ''}${esc(s.name)}${s.tag ? ` <span class="pill plain">${esc(s.tag)}${s.tagNote ? ' ' + esc(s.tagNote) : ''}</span>` : ''}</div>`).join('')}</div>
-      ${u.group === 'OPD' ? '' : reduceViewHtml(rd)}</div>`;
+      ${(u.staffSlot ? slotSort(staff) : staff).map(s => `<div style="font-size:14px"><b style="display:inline-block;min-width:40px">${esc(dutyPos(s, u.code))}</b>${u.staffSlot && s.slot ? `คนที่ ${esc(s.slot)} ` : ''}${esc(s.name)}${timeText(s) ? ` <span class="muted">${esc(timeText(s))}</span>` : ''}${s.tag ? ` <span class="pill plain">${esc(s.tag)}${s.tagNote ? ' ' + esc(s.tagNote) : ''}</span>` : ''}</div>`).join('')}</div>
+      ${u.group === 'OPD' ? doctorsViewHtml(r) : reduceViewHtml(rd)}</div>`;
   } else {
     const incs = r.incidents || [];
     body = incs.length ? incs.map((i, n) => `<div class="card inc-view">
@@ -1212,7 +1228,7 @@ function startEdit(unit) {
   }
   const rep = repOf(euUnit(), S.shift);
   S.draft = rep ? JSON.parse(JSON.stringify(rep)) : { date: S.date, unit: euUnit(), values: {}, staff: [], reduce: {}, notes: '', incidents: [], cases: [], reporter: store.get('reporter') || '' };
-  S.draft.date = S.date; S.draft.shift = S.shift; S.draft.cases = S.draft.cases || [];
+  S.draft.date = S.date; S.draft.shift = S.shift; S.draft.cases = S.draft.cases || []; S.docSched = null;
   S.editing = true; S.dirty = false; S.docSt = {};
   render(); window.scrollTo(0, 0);
   prefillCarry();
@@ -1275,13 +1291,15 @@ function mountForm() {
   const isOpd = unitCfg(euUnit()).group === 'OPD';
   const staff = `<div class="card"><h3>อัตรากำลัง</h3>
       <div class="muted" style="margin:0 0 6px">เวร <b>${esc(d.shift)}</b> \u00b7 ${esc(thaiDate(S.date))}</div>
-      <div id="fm_staffbody"></div></div>${isOpd ? '' : reduceFormHtml(rd)}`;
+      <div id="fm_staffbody"></div></div>${isOpd ? `<div class="card"><h3>แพทย์ออกตรวจ <span class="sub">${esc(thaiDate(S.date))}</span></h3>
+      <div class="muted" style="font-size:13px;margin:0 0 6px">ดึงจากตารางเวรแพทย์ตามสาขาของแผนก แก้ชื่อ/เวลา เพิ่ม ลบ หรือเลือก "งด / ไม่มา" ได้เอง</div><div id="fm_docs"></div></div>` : reduceFormHtml(rd)}`;
 
   const inc = `<div id="fm_incs"></div><button type="button" class="addinc" id="fm_addinc">+ เพิ่มเหตุการณ์ผิดปกติ</button>`;
 
   $('view').innerHTML = `<div id="fm_tabs"></div>
     <div data-panel="patient">${pat}</div><div data-panel="staff">${staff}</div><div data-panel="incident">${inc}</div>`;
-  renderStaffPicker(); renderIncidents(); renderCases(); renderRoomPickers(); renderLists(); renderDocs(); S.overWarned = false; recalc(true); showSub();
+  renderStaffPicker(); renderDoctors(); renderIncidents(); renderCases(); renderRoomPickers(); renderLists(); renderDocs(); S.overWarned = false; recalc(true); showSub();
+  if (isOpd) loadDoctors(false);
   $('fm_addinc').onclick = () => {
     d.incidents.push({ type: S.cfg.problemTypes[0], severity: '-', patient: '', age: '', hn: '', time: '', doctor: '', bp: '', pr: '', rr: '', temp: '', spo2: '', o2mode: 'Room air', o2flow: '', detail: '', action: '' });
     S.dirty = true; renderIncidents(); showSub();
@@ -1581,7 +1599,15 @@ function onFormInput(e) {
     const [i, k] = t.dataset.cs.split(':'); d.cases[i][k] = t.value;
     if (k === 'o2mode') { const box = document.querySelector(`[data-o2flowc="${i}"]`); box.hidden = t.value === 'Room air'; }
   }
-  else if (t.dataset.duty) { const [i, k] = t.dataset.duty.split(':'); d.staff[i][k] = t.value; if (k === 'tag' || k === 'role') { renderStaffPicker(); showSub(); } }
+  else if (t.dataset.duty) {
+    const [i, k] = t.dataset.duty.split(':'); d.staff[i][k] = t.value;
+    if (k === 'tag' || k === 'role') { renderStaffPicker(); showSub(); }
+    if (k === 'from' || k === 'to') { const el = document.querySelector(`[data-hrs="${i}"]`); if (el) el.textContent = workHours(d.staff[i]) ? fmtHrs(workHours(d.staff[i])) : ''; }
+  }
+  else if (t.dataset.doc) {
+    const [i, k] = t.dataset.doc.split(':'); d.doctors[i][k] = k === 'off' ? !!t.value : t.value;
+    if (k === 'off') renderDoctors();
+  }
 }
 
 // ยอดคงพยาบาล (ระบบคำนวณจาก ยกมา + รับใหม่ + รับย้าย - ย้ายไป - Refer - Dead - จำหน่าย) ต้องเท่ากับผลรวมลูกบอลสีทุกประเภท
@@ -1638,8 +1664,18 @@ const firstName = n => {
 };
 // ตำแหน่งของคนในเวร: ค่าที่บันทึกไว้ในรายงาน หรือค้นจากทะเบียนของหน่วยงาน
 const dutyPos = (s, unit) => s.pos || (() => { const r = S.staff.find(x => x.name === s.name && x.unit === unit); return posLabel(r ? r.title : '', s.role); })();
+// ผู้ป่วยนอก: เวลาทำงานของแต่ละคน (เริ่ม-เลิก 24 ชม.) และจำนวนชั่วโมง
+const isOpdUnit = code => (unitCfg(code) || {}).group === 'OPD';
+const toMin = t => { const m = /^(\d\d):(\d\d)$/.exec(t || ''); return m ? +m[1] * 60 + +m[2] : null; };
+function workHours(s) {
+  const a = toMin(s.from), b = toMin(s.to);
+  if (a === null || b === null) return 0;
+  return ((b - a + 1440) % 1440 || 1440) / 60;
+}
+const fmtHrs = h => (Math.round(h * 10) / 10) + ' ชม.';
+const timeText = s => s.from || s.to ? `${s.from || '?'}\u2013${s.to || '?'} น.` : '';
 function renderStaffPicker() {
-  const d = S.draft, unit = euUnit(), slotOn = unitCfg(unit).staffSlot;
+  const d = S.draft, unit = euUnit(), slotOn = unitCfg(unit).staffSlot, opd = isOpdUnit(unit);
   const chosen = new Set(d.staff.map(s => s.name));
   const mine = S.staff.filter(s => s.unit === unit && !chosen.has(s.name));
   const opt = s => `<option value="${esc(s.id)}">${esc(s.name)} (${esc(posLabel(s.title, s.role))})</option>`;
@@ -1655,12 +1691,13 @@ function renderStaffPicker() {
       <select id="ns_role">${S.cfg.roles.map(r => `<option>${esc(r)}</option>`).join('')}</select>
       <button type="button" class="btn sm" id="ns_add">+ เพิ่ม</button>
     </div>
-    <div class="muted" style="font-size:12px;margin-top:4px">ชื่อใหม่จะถูกเพิ่มเข้าทะเบียน ${esc(unit)} อัตโนมัติ \u00b7 แก้ไข/ลบรายชื่อได้ที่แท็บ "ทะเบียนเจ้าหน้าที่"</div>
+    <div class="muted" style="font-size:12px;margin-top:4px">ชื่อใหม่จะถูกเพิ่มเข้าทะเบียน ${esc(unit)} อัตโนมัติ \u00b7 แก้ไข/ลบรายชื่อได้ที่แท็บ "ทะเบียนเจ้าหน้าที่"${opd ? ' \u00b7 ระบุเวลาทำงานของแต่ละคน (พิมพ์ 0800) คนถัดไปใช้เวลาเดียวกับคนก่อนหน้าให้ก่อน แก้ได้' : ''}</div>
     <div class="counts">${roleCounts(d.staff).map(([k, n]) => `<span>${esc(k)} ${n}</span>`).join('')}</div>
     ${d.staff.map((s, i) => `<div class="duty"><span class="nm">${esc(s.name)} <b class="rl">(${esc(dutyPos(s, unit))})</b></span>
       <select data-duty="${i}:tag" aria-label="หน้าที่"><option value="">หน้าที่ \u2013</option>${S.cfg.dutyTags.map(t => `<option${t === s.tag ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>
       <button type="button" class="x" data-unpick="${i}" aria-label="เอาออก">\u00d7</button>
       ${slotOn ? `<div style="grid-column:1/-1;display:flex;gap:8px;align-items:center"><label class="f" style="margin:0" for="slot_${i}">คนที่</label><input id="slot_${i}" type="number" inputmode="numeric" min="1" max="99" style="width:80px" data-duty="${i}:slot" value="${esc(s.slot || '')}" placeholder="1"></div>` : ''}
+      ${opd ? `<div class="dtime">เวลาทำงาน <input class="tin" type="text" inputmode="numeric" maxlength="5" placeholder="08:00" autocomplete="off" aria-label="เริ่มงาน" data-duty="${i}:from" value="${esc(s.from || '')}"> \u2013 <input class="tin" type="text" inputmode="numeric" maxlength="5" placeholder="16:00" autocomplete="off" aria-label="เลิกงาน" data-duty="${i}:to" value="${esc(s.to || '')}"> <span data-hrs="${i}">${workHours(s) ? fmtHrs(workHours(s)) : ''}</span></div>` : ''}
       ${s.tag === 'ออกหน่วย' ? `<input style="grid-column:1/-1" data-duty="${i}:tagNote" value="${esc(s.tagNote || '')}" placeholder="ออกไปหน่วยงานใด เช่น C3">` : ''}</div>`).join('')
       || '<p class="muted" style="margin:6px 0 0">ยังไม่ได้เลือกผู้ปฏิบัติงาน</p>'}`;
 
@@ -1668,19 +1705,76 @@ function renderStaffPicker() {
     const val = $('ns_pick').value;
     if (val === '__new') { $('ns_newrow').hidden = false; $('ns_name').focus(); return; }
     const s = S.staff.find(x => String(x.id) === val);
-    if (s) { d.staff.push({ name: s.name, role: s.role, pos: posLabel(s.title, s.role), tag: '' }); S.dirty = true; renderStaffPicker(); showSub(); }
+    if (s) { d.staff.push(Object.assign({ name: s.name, role: s.role, pos: posLabel(s.title, s.role), tag: '' }, lastTimes())); S.dirty = true; renderStaffPicker(); showSub(); }
   };
   $('fm_staffbody').querySelectorAll('[data-unpick]').forEach(b => b.onclick = () => { d.staff.splice(+b.dataset.unpick, 1); S.dirty = true; renderStaffPicker(); showSub(); });
   $('ns_add').onclick = async () => {
     const name = $('ns_name').value.trim(), role = $('ns_role').value;
     if (!name) return toast('พิมพ์ชื่อก่อน');
     if (d.staff.some(s => s.name === name)) return toast('มีชื่อนี้ในเวรแล้ว');
-    d.staff.push({ name, role, pos: posLabel('', role), tag: '' }); S.dirty = true;
+    d.staff.push(Object.assign({ name, role, pos: posLabel('', role), tag: '' }, lastTimes())); S.dirty = true;
     if (!S.staff.some(s => s.unit === unit && s.name === name)) {
       try { await api('saveStaff', S.token, { unit, name, role }); await loadStaff(); toast('เพิ่ม ' + name + ' เข้าทะเบียนแล้ว'); } catch (e) { toast(e.message); }
     }
     renderStaffPicker(); showSub();
   };
+}
+
+// คนที่เพิ่มใหม่ใช้เวลาทำงานเดียวกับคนล่าสุดที่ระบุเวลาไว้ (ผู้ป่วยนอก)
+function lastTimes() {
+  if (!isOpdUnit(euUnit())) return {};
+  const p = S.draft.staff.slice().reverse().find(x => x.from || x.to);
+  return p ? { from: p.from || '', to: p.to || '' } : {};
+}
+
+/* ===== แพทย์ออกตรวจ (ผู้ป่วยนอก): ดึงจากตารางเวรแพทย์ประจำเดือน หน่วยงานแก้ชื่อ/เวลา เพิ่ม ลบ หรือระบุงดได้เอง ===== */
+const docKey = n => String(n || '').replace(/^(?:ทพญ|ทพ|ทญ|นพ|พญ|พ|นส|น\.ส|ดร|คุณ)\s*\.*\s*/, '').replace(/\s+/g, '').toLowerCase();
+const docFromSched = e => ({ name: e.name, time: e.time, sheet: e.sheet, text: e.text, off: !!e.off });
+async function loadDoctors(merge) {
+  const d = S.draft, unit = euUnit();
+  if (!isOpdUnit(unit)) return;
+  let r;
+  try { r = await (merge ? api : apiRaw)('getDocSchedule', S.token, unit, S.date); } catch (e) { if (merge) handleErr(e); return; }
+  if (!S.editing || S.draft !== d) return;
+  S.docSched = r;
+  if (!d.doctors) d.doctors = r.list.map(docFromSched);
+  else if (merge) {
+    const have = new Set(d.doctors.map(x => docKey(x.name)));
+    const add = r.list.filter(e => !have.has(docKey(e.name)));
+    add.forEach(e => d.doctors.push(docFromSched(e)));
+    if (add.length) S.dirty = true;
+    toast(r.loaded ? (add.length ? `เพิ่มแพทย์จากตารางเวร ${add.length} ท่าน` : 'แพทย์ในตารางเวรของวันนี้มีครบแล้ว') : 'ยังไม่มีตารางเวรแพทย์ของเดือนนี้ (Admin อัปโหลดที่แท็บรายชื่อเจ้าหน้าที่)');
+  }
+  renderDoctors();
+}
+function renderDoctors() {
+  const box = $('fm_docs'); if (!box) return;
+  const d = S.draft, list = d.doctors, sc = S.docSched;
+  if (!list) { box.innerHTML = '<p class="muted">กำลังดึงตารางเวรแพทย์...</p>'; return; }
+  const have = new Set(list.map(x => docKey(x.name)));
+  const sugg = [];
+  ((sc && sc.list) || []).concat((sc && sc.others) || []).forEach(e => { if (!have.has(docKey(e.name)) && !sugg.some(x => docKey(x.name) === docKey(e.name))) sugg.push(e); });
+  const on = list.filter(x => !x.off).length;
+  box.innerHTML = `${sc && !sc.loaded ? '<p class="muted" style="font-size:13px;margin:0 0 6px">ยังไม่มีตารางเวรแพทย์ของเดือนนี้ \u2014 เพิ่มชื่อแพทย์เองได้ (Admin อัปโหลดตารางที่แท็บรายชื่อเจ้าหน้าที่)</p>' : ''}
+    <div class="counts"><span>มาออกตรวจ ${on} ท่าน</span>${list.length - on ? `<span>งด/ไม่มา ${list.length - on}</span>` : ''}</div>
+    ${list.map((x, i) => `<div class="drow${x.off ? ' off' : ''}">
+      <input data-doc="${i}:name" value="${esc(x.name)}" placeholder="ชื่อแพทย์" aria-label="ชื่อแพทย์">
+      <select data-doc="${i}:off" aria-label="สถานะ"><option value=""${x.off ? '' : ' selected'}>มาออกตรวจ</option><option value="1"${x.off ? ' selected' : ''}>งด / ไม่มา</option></select>
+      <button type="button" class="x" data-docdel="${i}" aria-label="ลบแพทย์">\u00d7</button>
+      <input class="tm" data-doc="${i}:time" value="${esc(x.time)}" placeholder="เวลาออกตรวจ เช่น 08.00-16.00" aria-label="เวลาออกตรวจ">
+      ${x.text ? `<div class="src">ตารางเวร${x.sheet ? ' (' + esc(x.sheet) + ')' : ''}: ${esc(x.text)}</div>` : ''}</div>`).join('') || '<p class="muted" style="margin:6px 0">ไม่มีแพทย์ในตารางเวรของวันนี้ \u2014 กดเพิ่มแพทย์ได้</p>'}
+    <div class="addrow" style="grid-template-columns:1fr auto">
+      <select id="doc_pick"><option value="">+ เพิ่มแพทย์ (เลือกจากตารางวันนี้)</option>${sugg.map((e, i) => `<option value="${i}">${esc(e.name)}${e.time ? ' ' + esc(e.time) : ''}${e.sheet ? ' \u00b7 ' + esc(e.sheet) : ''}</option>`).join('')}<option value="__new">\uff0b พิมพ์ชื่อแพทย์เอง</option></select>
+      <button type="button" class="btn ghost sm" id="doc_reload" title="เพิ่มแพทย์ในตารางเวรวันนี้ที่ยังไม่มีในรายการ">\u21bb ดึงจากตารางเวร</button>
+    </div>`;
+  box.querySelectorAll('[data-docdel]').forEach(b => b.onclick = () => { list.splice(+b.dataset.docdel, 1); S.dirty = true; renderDoctors(); });
+  $('doc_pick').onchange = () => {
+    const v = $('doc_pick').value; if (!v) return;
+    list.push(v === '__new' ? { name: '', time: '', sheet: '', text: '', off: false } : docFromSched(sugg[+v]));
+    S.dirty = true; renderDoctors();
+    if (v === '__new') { const ins = box.querySelectorAll('[data-doc$=":name"]'); ins[ins.length - 1].focus(); }
+  };
+  $('doc_reload').onclick = () => loadDoctors(true);
 }
 
 /* เหตุการณ์ผิดปกติ: ข้อมูลผู้ป่วย -> V/S -> รายละเอียด */
@@ -1851,6 +1945,9 @@ $('sb_save').onclick = async () => {
       const el = document.querySelector(`[data-v="${f.key}_note"]`); if (el) el.focus(); return;
     }
   }
+  const badS = d.staff.findIndex(x => !validTime(x.from || '') || !validTime(x.to || ''));
+  if (badS >= 0) { S.sub = 'staff'; showSub(); toast(`${d.staff[badS].name}: เวลาทำงานไม่ถูกต้อง ใช้ 24 ชม. เช่น 0800`); return; }
+  if (d.doctors) d.doctors = d.doctors.filter(x => String(x.name || '').trim());
   const badT = d.incidents.findIndex(i => !validTime(i.time || ''));
   if (badT >= 0) { S.sub = 'incident'; showSub(); toast(`เหตุการณ์ที่ ${badT + 1}: เวลาไม่ถูกต้อง ใช้ 24 ชม. เช่น 2030`); return; }
   const bad = d.incidents.findIndex(i => !i.detail.trim());
@@ -1883,7 +1980,7 @@ function renderStaff() {
       <div style="margin-bottom:8px"><button type="button" class="btn ghost sm" data-act="tpl">ดาวน์โหลดไฟล์ตัวอย่าง (CSV)</button></div>
       <input type="file" id="up_file" accept=".xlsx,.xls,.csv">
       <div id="up_preview"></div></div>`;
-    html += renderBindingCard() + renderTitleCard();
+    html += renderDocCard() + renderBindingCard() + renderTitleCard();
     html += `<div class="card"><label class="f" for="st_unit">หน่วยงาน</label><select id="st_unit"><option value="__none"${none ? ' selected' : ''}>ยังไม่ผูกแผนก (${S.staff.filter(s => !s.unit).length} คน)</option>${unitOptgroups(unit)}</select></div>`;
   }
   html += `<div class="card"><h3>ทะเบียนเจ้าหน้าที่ ${esc(unitName)} <span class="sub">${list.length} คน \u00b7 ${roleCounts(list).map(([k, n]) => `${k} ${n}`).join(' \u00b7 ')}</span></h3>
@@ -1922,6 +2019,125 @@ async function staffAction(act, id, unit) {
     }
   } catch (e) { handleErr(e); }
   render();
+}
+
+/* ===== ตารางเวรแพทย์ประจำเดือน (ADMIN อัปโหลดไฟล์ปฏิทิน 1 ชีตต่อสาขา) ===== */
+const DOC_PREFIX = /^(?:ทพญ|ทพ|ทญ|นพ|พญ|พ|นส|น\.ส|ดร|ภก|ภญ|กภ|อ)\s*\.+|^(?:พญ|นพ|ทพญ|ทพ|คุณ|Dr\.?)\s+/i;
+const DOC_EN = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+const DOC_TH = ['มกรา', 'กุมภา', 'มีนา', 'เมษา', 'พฤษภา', 'มิถุนา', 'กรกฎา', 'สิงหา', 'กันยา', 'ตุลา', 'พฤศจิกา', 'ธันวา'];
+function docMonthOf(text) {
+  const t = String(text || '').replace(/0(?=ct)/i, 'O');
+  let m = DOC_EN.findIndex(x => new RegExp('\\b' + x, 'i').test(t));
+  if (m < 0) m = DOC_TH.findIndex(x => t.indexOf(x) >= 0);
+  const y = (t.match(/(25\d\d|20\d\d)/) || [])[1];
+  if (m < 0 || !y) return '';
+  return (+y > 2500 ? +y - 543 : +y) + '-' + String(m + 1).padStart(2, '0');
+}
+const hhmm = (h, m) => String(+h).padStart(2, '0') + '.' + String(m == null || m === '' ? 0 : +m).padStart(2, '0');
+// ช่วงเวลาทั้งหมดในข้อความ เช่น "8-16 และ 17-20.00" ได้ "08.00-16.00, 17.00-20.00" (ไม่นับช่วงในวงเล็บที่มี "งด")
+function docTimes(text) {
+  const t = String(text).replace(/\([^)]*งด[^)]*\)/g, ' '), out = [], re = /(\d{1,2})(?:[.:](\d{1,2}))?\.?\s*-\s*(\d{1,2})(?:[.:](\d{1,2}))?/g;
+  let m;
+  while ((m = re.exec(t))) if (+m[1] <= 24 && +m[3] <= 24 && (m[2] == null || +m[2] < 60) && (m[4] == null || +m[4] < 60)) out.push(hhmm(m[1], m[2]) + '-' + hhmm(m[3], m[4]));
+  return out.join(', ');
+}
+// ข้อความ 1 ช่องในปฏิทิน: แพทย์ท่านละบรรทัด (หรือเลขลำดับ 1. 2.) บรรทัดที่ไม่มีคำนำหน้าเป็นรายละเอียดต่อจากท่านก่อนหน้า
+function docCell(raw) {
+  const out = [];
+  String(raw == null ? '' : raw).replace(/(^|[\s\/])\d{1,2}\.(?=\s*[ก-๙A-Za-z])/g, '\n').split(/\r?\n/).forEach(line => {
+    const l = line.replace(/^[\s*\-\u2022\u00b7]+/, '').replace(/\s+/g, ' ').trim();
+    if (!l) return;
+    if (DOC_PREFIX.test(l) || (!out.length && /\d{1,2}(?:[.:]\d{1,2})?\s*-\s*\d/.test(l) && /^[^\d(]{2,}/.test(l))) out.push(l);
+    else if (out.length) out[out.length - 1] += ' ' + l;
+  });
+  return out.map(text => {
+    const m = text.match(/^([^\d(]+)/);
+    const name = (m ? m[1] : text).replace(/\s+/g, ' ').replace(/\s*(ON\s*CALL|CP|รับ\s*CONSULT.*)$/i, '').trim().replace(/^(ทพญ|ทพ|ทญ|นพ|พญ|พ|นส|น\.ส)\s*\.+\s*/, '$1.');
+    return { name, time: docTimes(text), text, off: /\(\s*งด\s*\)|ไม่(?:ต้อง)?เข้า\s*รพ/.test(text) };
+  }).filter(x => x.name.replace(DOC_PREFIX, '').trim().length >= 2);
+}
+// ปฏิทิน: แถวที่มีแต่เลขวันที่ 1-31 = หัวสัปดาห์ แถวถัดไปคือแพทย์ของแต่ละวันในคอลัมน์นั้น
+function parseDocSchedule(sheets) {
+  let month = '';
+  const entries = [];
+  sheets.forEach(({ name, rows }) => {
+    const sheet = String(name).trim();
+    rows.slice(0, 4).forEach(r => r.forEach(c => { if (!month) month = docMonthOf(c); }));
+    let days = null;
+    rows.forEach(r => {
+      const filled = r.slice(0, 8).map((c, i) => [i, String(c == null ? '' : c).trim()]).filter(x => x[1]);
+      if (filled.length && filled.every(([, c]) => /^\d{1,2}(\.0+)?$/.test(c) && +c >= 1 && +c <= 31)) { days = filled.map(([i, c]) => [i, +c]); return; }
+      if (!days) return;
+      days.forEach(([i, day]) => docCell(r[i]).forEach(d => entries.push(Object.assign({ day, sheet }, d))));
+    });
+  });
+  return { month, entries };
+}
+async function readDocFile(file) {
+  await loadXLSX();
+  const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+  return parseDocSchedule(wb.SheetNames.map(n => ({ name: n, rows: XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, defval: '' }) })));
+}
+// ชื่อชีตที่ระบบเดาหน่วยงานผู้ป่วยนอกให้ (แก้ได้ก่อนยืนยัน)
+const DOC_SUGGEST = [
+  [/สูติ/, ['OBG-IVF']], [/ศัลย์/, ['OPD3']], [/กุมาร|นมแม่|พัฒนาการ/, ['PC']], [/อายุร/, ['OPD1']], [/ENT|จักษุ/i, ['EENT']],
+  [/ทันต/, ['Dent']], [/OPD4|HPC|ER/i, ['HPC', 'ER']], [/CP/, ['PC']]
+];
+function docBindDefault(sheet) {
+  const have = (S.docInfo && S.docInfo.bindings) || {};
+  if (have[sheet]) return have[sheet];
+  const hit = DOC_SUGGEST.find(x => x[0].test(sheet));
+  return hit ? hit[1] : [];
+}
+const opdCodes = () => S.cfg.units.filter(u => u.group === 'OPD').map(u => u.code);
+function renderDocCard() {
+  const info = S.docInfo, up = S.docUp;
+  let html = `<div class="card"><h3>ตารางเวรแพทย์ประจำเดือน <span class="sub">ผู้ป่วยนอก</span></h3>
+    <p class="muted" style="margin:0 0 8px;font-size:14px">อัปโหลดไฟล์ตารางออกตรวจของแพทย์ (Excel .xls / .xlsx ชีตละสาขา) ทุกเดือน ระบบดึงแพทย์ของแต่ละวันเข้าฟอร์มอัตรากำลังของแผนกผู้ป่วยนอกตามสาขาที่ผูกไว้ อัปโหลดเดือนเดิมซ้ำจะแทนที่ทั้งเดือน แผนกยังแก้ เพิ่ม ลบ ปรับเวลาแพทย์ในรายงานเองได้</p>
+    <input type="file" id="doc_file" accept=".xlsx,.xls">
+    <div id="doc_preview">${up ? docPreviewHtml(up) : ''}</div>`;
+  if (info) html += `<p class="muted" style="margin:10px 0 0;font-size:13px">${info.months.length ? 'ตารางที่อัปโหลดแล้ว: ' + info.months.map(m => `<b>${esc(m.month)}</b> (${m.n} รายการ)`).join(', ') : 'ยังไม่เคยอัปโหลดตารางเวร'}</p>`;
+  return html + '</div>';
+}
+function docPreviewHtml(up) {
+  const by = {};
+  up.entries.forEach(e => { by[e.sheet] = (by[e.sheet] || 0) + 1; });
+  const codes = opdCodes();
+  return `<div style="margin-top:10px"><label class="f" for="doc_month">เดือนของตาราง</label><input type="month" id="doc_month" value="${esc(up.month)}">
+    <p style="margin:10px 0 6px">พบ <b>${up.entries.length}</b> รายการ จาก ${Object.keys(by).length} สาขา \u00b7 เลือกหน่วยงานผู้ป่วยนอกที่ใช้แพทย์ของแต่ละสาขา (เลือกได้หลายหน่วยงาน)</p>
+    <div class="docbind">${Object.keys(by).map(k => `<span><b>${esc(k)}</b> <small class="muted">(${by[k]})</small></span><div class="chips">${codes.map(c => `<label class="chip${(up.bind[k] || []).indexOf(c) >= 0 ? ' on' : ''}"><input type="checkbox" hidden data-docbind="${esc(k)}" value="${esc(c)}"${(up.bind[k] || []).indexOf(c) >= 0 ? ' checked' : ''}>${esc(c)}</label>`).join('')}</div>`).join('')}</div>
+    <button type="button" class="btn" id="doc_go"${up.entries.length ? '' : ' disabled'}>ยืนยันอัปโหลดตารางเวรแพทย์</button></div>`;
+}
+function bindDocCard() {
+  if ($('doc_file')) $('doc_file').onchange = async () => {
+    const f = $('doc_file').files[0]; if (!f) return;
+    $('doc_preview').innerHTML = '<p class="muted">กำลังอ่านไฟล์...</p>';
+    try {
+      const r = await Busy.wrap('กำลังอ่านไฟล์...', () => readDocFile(f), true);
+      if (!r.entries.length) throw new Error('ไม่พบรายชื่อแพทย์ในไฟล์ (ต้องเป็นตารางปฏิทินรายเดือน)');
+      const bind = {};
+      Array.from(new Set(r.entries.map(e => e.sheet))).forEach(k => { bind[k] = docBindDefault(k).slice(); });
+      S.docUp = { month: r.month, entries: r.entries, bind };
+      $('doc_preview').innerHTML = docPreviewHtml(S.docUp); bindDocCard();
+    } catch (e) { S.docUp = null; $('doc_preview').innerHTML = `<p style="color:var(--bad)">${esc(e.message)}</p>`; }
+  };
+  const up = S.docUp;
+  if (!up || !$('doc_go')) return;
+  $('doc_month').onchange = () => { up.month = $('doc_month').value; };
+  document.querySelectorAll('[data-docbind]').forEach(cb => cb.onchange = () => {
+    const l = up.bind[cb.dataset.docbind] = up.bind[cb.dataset.docbind] || [];
+    const i = l.indexOf(cb.value); if (cb.checked && i < 0) l.push(cb.value); if (!cb.checked && i >= 0) l.splice(i, 1);
+    cb.closest('.chip').classList.toggle('on', cb.checked);
+  });
+  $('doc_go').onclick = async () => {
+    if (!/^\d{4}-\d{2}$/.test(up.month || '')) return toast('เลือกเดือนของตารางก่อน');
+    $('doc_go').disabled = true;
+    try {
+      const r = await api('uploadDocSchedule', S.token, { month: up.month, entries: up.entries, bindings: up.bind });
+      S.docUp = null; S.docInfo = await api('getDocInfo', S.token); render();
+      toast(`อัปโหลดตารางเวรแพทย์ ${r.month} แล้ว ${r.added} รายการ`);
+    } catch (e) { handleErr(e); $('doc_go').disabled = false; }
+  };
 }
 
 /* อ่านไฟล์รายชื่อ (Excel ใช้ SheetJS โหลดเมื่อจำเป็น) */
@@ -2287,7 +2503,8 @@ function printSingle(u, shift) {
   if (r.notes) h += `<div class="ln"><b>เรื่องแจ้ง:</b> ${esc(r.notes).replace(/\n/g, ' / ')}</div>`;
   const staff = r.staff || [], rd = r.reduce || {};
   h += `<h2>อัตรากำลัง \u00b7 เวร ${esc(shiftName(r.shift))} \u00b7 ${roleCounts(staff).map(([k, n]) => `${esc(k)} ${n}`).join(', ') || 'ไม่ได้ระบุ'}</h2>
-    <div class="cols">${(u.staffSlot ? slotSort(staff) : staff).map(s => `<div class="ln">${esc(dutyPos(s, u.code))}${u.staffSlot && s.slot ? ' \u00b7 คนที่ ' + esc(s.slot) : ''} ${esc(s.name)}${s.tag ? ` (${esc(s.tag)}${s.tagNote ? ' ' + esc(s.tagNote) : ''})` : ''}</div>`).join('')}</div>`;
+    <div class="cols">${(u.staffSlot ? slotSort(staff) : staff).map(s => `<div class="ln">${esc(dutyPos(s, u.code))}${u.staffSlot && s.slot ? ' \u00b7 คนที่ ' + esc(s.slot) : ''} ${esc(s.name)}${timeText(s) ? ' ' + esc(timeText(s)) : ''}${s.tag ? ` (${esc(s.tag)}${s.tagNote ? ' ' + esc(s.tagNote) : ''})` : ''}</div>`).join('')}</div>`;
+  if (u.group === 'OPD' && (r.doctors || []).length) h += `<h2>แพทย์ออกตรวจ \u00b7 ${(r.doctors || []).filter(x => !x.off).length} ท่าน</h2><div class="cols">${r.doctors.map(x => `<div class="ln">${docLine(x)}</div>`).join('')}</div>`;
   const rt = num(rd.RN) + num(rd.PN) + num(rd.NA);
   if (rt || rd.detail) h += `<div class="ln" style="margin-top:3px"><b>ลดอัตรากำลัง ${rt} ชม.</b> (RN ${num(rd.RN)} ชม., PN ${num(rd.PN)} ชม., NA ${num(rd.NA)} ชม.)${rd.detail ? ' \u00b7 ' + esc(rd.detail).replace(/\n/g, ' / ') : ''}</div>`;
   const incs = (r.incidents || []).map(i => Object.assign({ unit: u.code }, i)), css = (r.cases || []).map(i => Object.assign({ unit: u.code }, i));
@@ -2346,6 +2563,8 @@ function printLines(u, r, withInc) {
     if (lines.length) grp('<b>อัตรากำลัง</b>', lines);
   } else {
     if (rc.length) grp('<b>อัตรากำลัง</b>', [rc.map(([k, n]) => `${esc(k)} ${n}`).join(', ')]);
+    if (u.group === 'OPD' && (r.staff || []).some(x => x.from || x.to) && withInc) grp('<b>เวลาทำงาน</b>', r.staff.filter(x => x.from || x.to).map(x => `${esc(firstName(x.name))} ${esc(timeText(x))}`));
+    if (u.group === 'OPD' && (r.doctors || []).length) grp(`<b>แพทย์ออกตรวจ ${r.doctors.filter(x => !x.off).length} ท่าน</b>`, withInc ? r.doctors.map(x => docLine(x)) : [r.doctors.map(x => docLine(x)).join(', ')]);
     if (rdLine) grp(rdLine, []);
   }
   if (r.notes) grp('<b>เรื่องแจ้ง</b>', [esc(r.notes).replace(/\n/g, ' / ')]);
@@ -2498,6 +2717,7 @@ function bindView() {
   v.querySelectorAll('[data-sumgroup]').forEach(b => b.onclick = () => { S.sumGroup = b.dataset.sumgroup; render(); });
   v.querySelectorAll('[data-title]').forEach(sel => sel.onchange = () => { S.titleSel = S.titleSel || {}; S.titleSel[sel.dataset.title] = sel.value; });
   if (S.upRows && $('up_preview') && S.tab === 'staff' && S.upRows.length) drawUpPreview();
+  if ($('doc_file')) bindDocCard();
 
 }
 window.__scriptLoaded = true;
