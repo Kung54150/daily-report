@@ -1151,14 +1151,16 @@ function listCard(s, v) {
 }
 
 /* ===== แท็บย่อยของหน่วยงาน ===== */
-const SUBS = [['patient', 'รายงานผู้ป่วย'], ['staff', 'อัตรากำลัง'], ['incident', 'เหตุการณ์ผิดปกติ']];
+const SUBS = [['patient', 'รายงานผู้ป่วย'], ['staff', 'อัตรากำลัง'], ['doctor', 'แพทย์'], ['incident', 'เหตุการณ์ผิดปกติ']];
 const sameZone = code => { const a = unitCfg(code), b = unitCfg(S.me.unit); return !!(a && b && a.group === b.group); };
 function subTabs(r) {
   const others = S.me.role === 'unit' && r && r.unit && !sameZone(r.unit); // เหตุการณ์ผิดปกติ/รายงานเคสเห็นเฉพาะ Zone ของตนเอง
   const staffN = r ? roleCounts(r.staff || []).map(([k, n]) => k + ' ' + n).join(' ') : '';
   const incN = r ? (r.incidents || []).length : 0;
-  const badge = { staff: staffN, incident: incN ? String(incN) : '' };
-  return `<div class="seg" role="tablist">${SUBS.filter(([k]) => !(others && k === 'incident')).map(([k, t]) => `<button type="button" role="tab" data-sub="${k}" class="${S.sub === k ? 'on' : ''}${k === 'incident' && incN ? ' alert' : ''}">${t}${badge[k] ? `<small>${esc(badge[k])}</small>` : ''}</button>`).join('')}</div>`;
+  const docN = r ? (r.doctors || []).filter(x => !x.off).length : 0;
+  const badge = { staff: staffN, doctor: docN ? String(docN) : '', incident: incN ? String(incN) : '' };
+  const opd = !!(r && r.unit && isOpdUnit(r.unit));
+  return `<div class="seg" role="tablist">${SUBS.filter(([k]) => !(others && k === 'incident') && !(k === 'doctor' && !opd)).map(([k, t]) => `<button type="button" role="tab" data-sub="${k}" class="${S.sub === k ? 'on' : ''}${k === 'incident' && incN ? ' alert' : ''}">${t}${badge[k] ? `<small>${esc(badge[k])}</small>` : ''}</button>`).join('')}</div>`;
 }
 
 const docLine = x => `${esc(x.name)}${x.time ? ' ' + esc(x.time) : ''}${x.off ? ' (งด)' : ''}`;
@@ -1168,6 +1170,7 @@ const doctorsViewHtml = r => `<div class="card"><h3>แพทย์ออกต�
 /* ===== มุมมองอ่านอย่างเดียว ===== */
 function renderReportView(u, r) {
   if (S.me.role === 'unit' && r.unit && !sameZone(r.unit) && S.sub === 'incident') S.sub = 'patient';
+  if (S.sub === 'doctor' && !isOpdUnit(r.unit || u.code)) S.sub = 'staff';
   const v = r.values || {};
   let body = '';
   if (S.sub === 'patient') {
@@ -1202,7 +1205,9 @@ function renderReportView(u, r) {
     body = `<div class="view-grid"><div class="card"><h3>อัตรากำลัง <span class="sub">เวร ${esc(shiftName(r.shift))}</span></h3>
       <div class="counts">${roleCounts(staff).map(([k, n]) => `<span>${esc(k)} ${n}</span>`).join('') || '<span class="muted">ไม่ได้ระบุ</span>'}</div>
       ${(u.staffSlot ? slotSort(staff) : staff).map(s => `<div style="font-size:14px"><b style="display:inline-block;min-width:40px">${esc(dutyPos(s, u.code))}</b>${u.staffSlot && s.slot ? `คนที่ ${esc(s.slot)} ` : ''}${esc(s.name)}${timeText(s) ? ` <span class="muted">${esc(timeText(s))}</span>` : ''}${s.tag ? ` <span class="pill plain">${esc(s.tag)}${s.tagNote ? ' ' + esc(s.tagNote) : ''}</span>` : ''}</div>`).join('')}</div>
-      ${u.group === 'OPD' ? doctorsViewHtml(r) : reduceViewHtml(rd)}</div>`;
+      ${u.group === 'OPD' ? '' : reduceViewHtml(rd)}</div>`;
+  } else if (S.sub === 'doctor') {
+    body = `<div class="view-grid">${doctorsViewHtml(r)}</div>`;
   } else {
     const incs = r.incidents || [];
     body = incs.length ? incs.map((i, n) => `<div class="card inc-view">
@@ -1291,13 +1296,14 @@ function mountForm() {
   const isOpd = unitCfg(euUnit()).group === 'OPD';
   const staff = `<div class="card"><h3>อัตรากำลัง</h3>
       <div class="muted" style="margin:0 0 6px">เวร <b>${esc(d.shift)}</b> \u00b7 ${esc(thaiDate(S.date))}</div>
-      <div id="fm_staffbody"></div></div>${isOpd ? `<div class="card"><h3>แพทย์ออกตรวจ <span class="sub">${esc(thaiDate(S.date))}</span></h3>
-      <div class="muted" style="font-size:13px;margin:0 0 6px">ดึงจากตารางเวรแพทย์ตามสาขาของแผนก แก้ชื่อ/เวลา เพิ่ม ลบ หรือเลือก "งด / ไม่มา" ได้เอง</div><div id="fm_docs"></div></div>` : reduceFormHtml(rd)}`;
+      <div id="fm_staffbody"></div></div>${isOpd ? '' : reduceFormHtml(rd)}`;
+  const docs = `<div class="card"><h3>แพทย์ออกตรวจ <span class="sub">${esc(thaiDate(S.date))}</span></h3>
+      <div class="muted" style="font-size:13px;margin:0 0 6px">ดึงจากตารางเวรแพทย์ตามสาขาของแผนก แก้ชื่อ/เวลา เพิ่ม ลบ หรือเลือก "งด / ไม่มา" ได้เอง</div><div id="fm_docs"></div></div>`;
 
   const inc = `<div id="fm_incs"></div><button type="button" class="addinc" id="fm_addinc">+ เพิ่มเหตุการณ์ผิดปกติ</button>`;
 
   $('view').innerHTML = `<div id="fm_tabs"></div>
-    <div data-panel="patient">${pat}</div><div data-panel="staff">${staff}</div><div data-panel="incident">${inc}</div>`;
+    <div data-panel="patient">${pat}</div><div data-panel="staff">${staff}</div><div data-panel="doctor">${isOpd ? docs : ''}</div><div data-panel="incident">${inc}</div>`;
   renderStaffPicker(); renderDoctors(); renderIncidents(); renderCases(); renderRoomPickers(); renderLists(); renderDocs(); S.overWarned = false; recalc(true); showSub();
   if (isOpd) loadDoctors(false);
   $('fm_addinc').onclick = () => {
