@@ -485,7 +485,7 @@ function bootFail(m) {
   var b = document.getElementById('boot'), t = document.getElementById('boot_msg'), r = document.getElementById('boot_retry');
   if (!b || window.__ready) return;
   b.hidden = false; r.hidden = false;
-  t.style.color = 'var(--bad)'; t.textContent = 'เปิดระบบไม่สำเร็จ: ' + m;
+  t.style.color = 'var(--bad)'; t.dataset.err = '1'; t.textContent = 'เปิดระบบไม่สำเร็จ: ' + m;
 }
 function diag(msg) {
   try {
@@ -509,9 +509,16 @@ function diag(msg) {
 }
 window.addEventListener('error', function (e) { var m = e.message || 'เกิดข้อผิดพลาดในหน้าเว็บ'; bootFail(m + diag(m)); });
 window.addEventListener('unhandledrejection', function (e) { bootFail((e.reason && e.reason.message) || e.reason || 'เกิดข้อผิดพลาด'); });
+// Apps Script เปิดครั้งแรกหลังไม่ได้ใช้งานจะตอบช้า (cold start) 10-30 วินาทีเป็นเรื่องปกติ จึงแจ้งแบบไม่ใช่ข้อผิดพลาดก่อน แล้วค่อยแจ้งล้มเหลวเมื่อรอนานผิดปกติจริง
 setTimeout(function () {
-  if (!window.__ready) bootFail(window.__scriptLoaded ? 'เซิร์ฟเวอร์ไม่ตอบสนอง ลองรีเฟรชหน้านี้' : 'ไฟล์ Index วางโค้ดไม่ครบ (ต้องมีครบถึงบรรทัดสุดท้าย)');
-}, 12000);
+  if (window.__ready) return;
+  if (!window.__scriptLoaded) return bootFail('ไฟล์ Index วางโค้ดไม่ครบ (ต้องมีครบถึงบรรทัดสุดท้าย)');
+  var t = document.getElementById('boot_msg');
+  if (t && !t.dataset.err) t.textContent = 'กำลังเชื่อมต่อเซิร์ฟเวอร์ (เปิดครั้งแรกอาจใช้เวลาสักครู่) กรุณารอ...';
+}, 6000);
+setTimeout(function () {
+  if (!window.__ready && window.__scriptLoaded) bootFail('เซิร์ฟเวอร์ไม่ตอบสนอง ลองรีเฟรชหน้านี้');
+}, 60000);
 </script>
 
 <!-- ===== เข้าสู่ระบบ ===== -->
