@@ -1163,6 +1163,20 @@ function subTabs(r) {
   return `<div class="seg" role="tablist">${SUBS.filter(([k]) => !(others && k === 'incident') && !(k === 'doctor' && !opd)).map(([k, t]) => `<button type="button" role="tab" data-sub="${k}" class="${S.sub === k ? 'on' : ''}${k === 'incident' && incN ? ' alert' : ''}">${t}${badge[k] ? `<small>${esc(badge[k])}</small>` : ''}</button>`).join('')}</div>`;
 }
 
+// รายงานผู้ป่วยนอก: แยกตำแหน่งชัดเจน แพทย์ / พยาบาล (RN) / PN / NA / นศ. / ไม่ระบุ  (นับไม่รวมคนที่ออกหน่วย)
+const OPD_STAFF_GROUPS = [['พยาบาล (RN)', ['RN', 'หัวหน้า']], ['PN', ['PN']], ['NA', ['NA']], ['นศ.', ['นศ.']]];
+function opdGroups(r, nameFn) {
+  const staff = r.staff || [], docs = r.doctors || [], out = [];
+  if (docs.length) out.push({ label: 'แพทย์', n: docs.filter(x => !x.off).length, unit: 'ท่าน', items: docs.map(x => ({ text: esc(x.name) + (x.time ? ' ' + esc(x.time) : '') + (x.off ? ' (งด)' : ''), off: !!x.off })) });
+  const known = OPD_STAFF_GROUPS.flatMap(g => g[1]);
+  OPD_STAFF_GROUPS.concat([['ไม่ระบุ', null]]).forEach(([label, roles]) => {
+    const l = staff.filter(x => roles ? roles.indexOf(x.role) >= 0 : known.indexOf(x.role) < 0);
+    if (!l.length) return;
+    out.push({ label, n: l.filter(x => x.tag !== 'ออกหน่วย').length, unit: 'คน', items: l.map(x => ({ text: esc(nameFn ? nameFn(x.name) : x.name) + (x.role === 'หัวหน้า' ? ' (' + esc(dutyPos(x, r.unit)) + ')' : '') + (timeText(x) ? ' ' + esc(timeText(x)) : '') + (x.tag ? ' [' + esc(x.tag) + (x.tagNote ? ' ' + esc(x.tagNote) : '') + ']' : '') })) });
+  });
+  return out;
+}
+const opdGroupsHtml = r => { const g = opdGroups(r); return g.length ? g.map(x => `<div style="margin-top:8px"><b>${esc(x.label)}</b> <span class="pill plain">${x.n} ${x.unit}</span></div>${x.items.map(i => `<div style="font-size:14px;padding-left:10px${i.off ? ';text-decoration:line-through;color:var(--muted)' : ''}">${i.text}</div>`).join('')}`).join('') : '<span class="muted">ไม่ได้ระบุ</span>'; };
 const docLine = x => `${esc(x.name)}${x.time ? ' ' + esc(x.time) : ''}${x.off ? ' (งด)' : ''}`;
 const doctorsViewHtml = r => `<div class="card"><h3>แพทย์ออกตรวจ <span class="sub">${(r.doctors || []).filter(x => !x.off).length} ท่าน</span></h3>
   ${(r.doctors || []).map(x => `<div style="font-size:14px${x.off ? ';text-decoration:line-through;color:var(--muted)' : ''}"><b>${esc(x.name)}</b> ${esc(x.time || '')}${x.off ? ' (งด / ไม่มา)' : ''}</div>`).join('') || '<span class="muted">ไม่ได้ระบุ</span>'}</div>`;
@@ -1202,6 +1216,8 @@ function renderReportView(u, r) {
     if ((r.cases || []).length) body += `<h3 style="margin:14px 0 8px">รายงานเคส (${r.cases.length})</h3>` + r.cases.map((i, n) => caseCardHtml(i, n + 1)).join('');
   } else if (S.sub === 'staff') {
     const staff = r.staff || [], rd = r.reduce || {};
+    if (u.group === 'OPD') body = `<div class="view-grid"><div class="card"><h3>อัตรากำลัง <span class="sub">เวร ${esc(shiftName(r.shift))}</span></h3>${opdGroupsHtml(Object.assign({ unit: u.code }, r))}</div></div>`;
+    else
     body = `<div class="view-grid"><div class="card"><h3>อัตรากำลัง <span class="sub">เวร ${esc(shiftName(r.shift))}</span></h3>
       <div class="counts">${roleCounts(staff).map(([k, n]) => `<span>${esc(k)} ${n}</span>`).join('') || '<span class="muted">ไม่ได้ระบุ</span>'}</div>
       ${(u.staffSlot ? slotSort(staff) : staff).map(s => `<div style="font-size:14px"><b style="display:inline-block;min-width:40px">${esc(dutyPos(s, u.code))}</b>${u.staffSlot && s.slot ? `คนที่ ${esc(s.slot)} ` : ''}${esc(s.name)}${timeText(s) ? ` <span class="muted">${esc(timeText(s))}</span>` : ''}${s.tag ? ` <span class="pill plain">${esc(s.tag)}${s.tagNote ? ' ' + esc(s.tagNote) : ''}</span>` : ''}</div>`).join('')}</div>
@@ -1699,7 +1715,7 @@ function renderStaffPicker() {
     </div>
     <div class="muted" style="font-size:12px;margin-top:4px">ชื่อใหม่จะถูกเพิ่มเข้าทะเบียน ${esc(unit)} อัตโนมัติ \u00b7 แก้ไข/ลบรายชื่อได้ที่แท็บ "ทะเบียนเจ้าหน้าที่"${opd ? ' \u00b7 ระบุเวลาทำงานของแต่ละคน (พิมพ์ 0800) คนถัดไปใช้เวลาเดียวกับคนก่อนหน้าให้ก่อน แก้ได้' : ''}</div>
     <div class="counts">${roleCounts(d.staff).map(([k, n]) => `<span>${esc(k)} ${n}</span>`).join('')}</div>
-    ${d.staff.map((s, i) => `<div class="duty"><span class="nm">${esc(s.name)} <b class="rl">(${esc(dutyPos(s, unit))})</b></span>
+    ${d.staff.map((s, i) => [s, i]).reverse().map(([s, i]) => `<div class="duty"><span class="nm">${esc(s.name)} <b class="rl">(${esc(dutyPos(s, unit))})</b></span>
       <select data-duty="${i}:tag" aria-label="หน้าที่"><option value="">หน้าที่ \u2013</option>${S.cfg.dutyTags.map(t => `<option${t === s.tag ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>
       <button type="button" class="x" data-unpick="${i}" aria-label="เอาออก">\u00d7</button>
       ${slotOn ? `<div style="grid-column:1/-1;display:flex;gap:8px;align-items:center"><label class="f" style="margin:0" for="slot_${i}">คนที่</label><input id="slot_${i}" type="number" inputmode="numeric" min="1" max="99" style="width:80px" data-duty="${i}:slot" value="${esc(s.slot || '')}" placeholder="1"></div>` : ''}
@@ -1763,7 +1779,7 @@ function renderDoctors() {
   const on = list.filter(x => !x.off).length;
   box.innerHTML = `${sc && !sc.loaded ? '<p class="muted" style="font-size:13px;margin:0 0 6px">ยังไม่มีตารางเวรแพทย์ของเดือนนี้ \u2014 เพิ่มชื่อแพทย์เองได้ (Admin อัปโหลดตารางที่แท็บรายชื่อเจ้าหน้าที่)</p>' : ''}
     <div class="counts"><span>มาออกตรวจ ${on} ท่าน</span>${list.length - on ? `<span>งด/ไม่มา ${list.length - on}</span>` : ''}</div>
-    ${list.map((x, i) => `<div class="drow${x.off ? ' off' : ''}">
+    ${list.map((x, i) => [x, i]).reverse().map(([x, i]) => `<div class="drow${x.off ? ' off' : ''}">
       <input data-doc="${i}:name" value="${esc(x.name)}" placeholder="ชื่อแพทย์" aria-label="ชื่อแพทย์">
       <select data-doc="${i}:off" aria-label="สถานะ"><option value=""${x.off ? '' : ' selected'}>มาออกตรวจ</option><option value="1"${x.off ? ' selected' : ''}>งด / ไม่มา</option></select>
       <button type="button" class="x" data-docdel="${i}" aria-label="ลบแพทย์">\u00d7</button>
@@ -2508,9 +2524,11 @@ function printSingle(u, shift) {
   h += '</div>';
   if (r.notes) h += `<div class="ln"><b>เรื่องแจ้ง:</b> ${esc(r.notes).replace(/\n/g, ' / ')}</div>`;
   const staff = r.staff || [], rd = r.reduce || {};
+  if (u.group === 'OPD') h += `<h2>อัตรากำลัง \u00b7 เวร ${esc(shiftName(r.shift))}</h2>` + opdGroups(Object.assign({ unit: u.code }, r)).map(g => `<div class="ln"><b>${esc(g.label)} ${g.n} ${g.unit}</b></div><div class="cols">${g.items.map(i => `<div class="ln">${i.text}</div>`).join('')}</div>`).join('');
+  else {
   h += `<h2>อัตรากำลัง \u00b7 เวร ${esc(shiftName(r.shift))} \u00b7 ${roleCounts(staff).map(([k, n]) => `${esc(k)} ${n}`).join(', ') || 'ไม่ได้ระบุ'}</h2>
     <div class="cols">${(u.staffSlot ? slotSort(staff) : staff).map(s => `<div class="ln">${esc(dutyPos(s, u.code))}${u.staffSlot && s.slot ? ' \u00b7 คนที่ ' + esc(s.slot) : ''} ${esc(s.name)}${timeText(s) ? ' ' + esc(timeText(s)) : ''}${s.tag ? ` (${esc(s.tag)}${s.tagNote ? ' ' + esc(s.tagNote) : ''})` : ''}</div>`).join('')}</div>`;
-  if (u.group === 'OPD' && (r.doctors || []).length) h += `<h2>แพทย์ออกตรวจ \u00b7 ${(r.doctors || []).filter(x => !x.off).length} ท่าน</h2><div class="cols">${r.doctors.map(x => `<div class="ln">${docLine(x)}</div>`).join('')}</div>`;
+  }
   const rt = num(rd.RN) + num(rd.PN) + num(rd.NA);
   if (rt || rd.detail) h += `<div class="ln" style="margin-top:3px"><b>ลดอัตรากำลัง ${rt} ชม.</b> (RN ${num(rd.RN)} ชม., PN ${num(rd.PN)} ชม., NA ${num(rd.NA)} ชม.)${rd.detail ? ' \u00b7 ' + esc(rd.detail).replace(/\n/g, ' / ') : ''}</div>`;
   const incs = (r.incidents || []).map(i => Object.assign({ unit: u.code }, i)), css = (r.cases || []).map(i => Object.assign({ unit: u.code }, i));
@@ -2568,9 +2586,8 @@ function printLines(u, r, withInc) {
     if (rdLine) lines.push(rdLine);
     if (lines.length) grp('<b>อัตรากำลัง</b>', lines);
   } else {
-    if (rc.length) grp('<b>อัตรากำลัง</b>', [rc.map(([k, n]) => `${esc(k)} ${n}`).join(', ')]);
-    if (u.group === 'OPD' && (r.staff || []).some(x => x.from || x.to) && withInc) grp('<b>เวลาทำงาน</b>', r.staff.filter(x => x.from || x.to).map(x => `${esc(firstName(x.name))} ${esc(timeText(x))}`));
-    if (u.group === 'OPD' && (r.doctors || []).length) grp(`<b>แพทย์ออกตรวจ ${r.doctors.filter(x => !x.off).length} ท่าน</b>`, withInc ? r.doctors.map(x => docLine(x)) : [r.doctors.map(x => docLine(x)).join(', ')]);
+    if (u.group === 'OPD') opdGroups(Object.assign({ unit: u.code }, r), firstName).forEach(g => grp(`<b>${esc(g.label)} ${g.n} ${g.unit}</b>`, withInc ? g.items.map(i => i.text) : [g.items.map(i => i.text).join(', ')]));
+    else if (rc.length) grp('<b>อัตรากำลัง</b>', [rc.map(([k, n]) => `${esc(k)} ${n}`).join(', ')]);
     if (rdLine) grp(rdLine, []);
   }
   if (r.notes) grp('<b>เรื่องแจ้ง</b>', [esc(r.notes).replace(/\n/g, ' / ')]);
