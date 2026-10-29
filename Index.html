@@ -743,7 +743,7 @@ function shrinkImage(file, max) {
 // ความโปร่งใสของกล่องข้อความหน้าอื่นๆ: 100 = ทึบ (ค่าเดิม) ต่ำกว่านั้นเริ่มโปร่งและใส่เงาตัวหนังสือให้อ่านง่าย
 function cardAllVal() { return S.bg && S.bg.cardAll != null ? +S.bg.cardAll : 100; }
 function cardAll(r) { r = r || document.documentElement; r.style.setProperty('--cardall', String(cardAllVal())); r.classList.toggle('cardsoft', cardAllVal() < 100); }
-const APP_VERSION = '2026.10.23-a';
+const APP_VERSION = '2026.10.29-c';
 function loadVersion() {
   if (S.srvVer || S.srvVerLoading) return;
   S.srvVerLoading = true;
