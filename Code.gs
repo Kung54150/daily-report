@@ -19,6 +19,8 @@ const SH_STATS = 'สถิติ';
 const SH_ROOMS = 'ห้อง';
 const SH_ALIASES = 'ชื่อแผนกในไฟล์';
 const SH_TITLES = 'การจับคู่ตำแหน่ง';
+const SH_DOCS = 'ตารางเวรแพทย์';      // ตารางออกตรวจของแพทย์ประจำเดือน (อัปโหลดโดย ADMIN) แถวละแพทย์ 1 ท่าน/วัน
+const SH_DOC_BIND = 'ผูกตารางแพทย์';  // ชื่อชีต (สาขา) ในไฟล์ตารางแพทย์ → หน่วยงานผู้ป่วยนอก
 const SH_LINE_CASES = 'เคสจาก LINE'; // ร่างเคสที่บอท LINE (ChatBot) แยกจากข้อความในกลุ่ม — ต้องตรงกับ CASE_DRAFT.SHEET ใน ChatBot
 const LINE_CASE_UNITS = ['OPD1'];      // หน่วยงานที่ดึงเคสจาก LINE ได้
 const ATT_MAX_BYTES = 6 * 1024 * 1024; // ไฟล์แนบสูงสุดต่อไฟล์
@@ -40,6 +42,8 @@ const HEADERS = {
   [SH_ROOMS]: ['หน่วยงาน', 'เลขห้อง', 'ชื่อ/ประเภทห้อง (ไม่บังคับ)'],
   [SH_ALIASES]: ['ชื่อแผนกที่ใช้ในไฟล์', 'หน่วยงานในระบบ'],
   [SH_TITLES]: ['ตำแหน่งในไฟล์', 'บทบาทในระบบ'],
+  [SH_DOCS]: ['เดือน', 'วันที่', 'สาขา (ชื่อชีต)', 'แพทย์', 'เวลาออกตรวจ', 'ข้อความในตาราง', 'งด'],
+  [SH_DOC_BIND]: ['สาขา (ชื่อชีต)', 'หน่วยงานในระบบ (คั่นด้วย ,)'],
   // ลำดับคอลัมน์ต้องตรงกับ CASE_SHEET_HEADER ใน ChatBot (บอทเป็นผู้สร้างชีตนี้)
   [SH_LINE_CASES]: ['messageId', 'เวลาส่ง', 'วันที่', 'หน่วยงาน', 'ผู้ส่ง (LINE)', 'ชื่อ-สกุลผู้ป่วย', 'อายุ', 'HN', 'เวลามารับบริการ',
     'แพทย์เจ้าของไข้', 'BP (mmHg)', 'PR (/min)', 'RR (/min)', 'T (°C)', 'O2 sat (%)', 'O2', 'O2 ที่ให้', 'รายละเอียด', 'การแก้ไขเบื้องต้น',
@@ -173,7 +177,7 @@ function changePassword(token, oldPw, newPw) {
 }
 
 // รุ่นของโค้ดฝั่งเซิร์ฟเวอร์ (แสดงในแผงตั้งค่าเทียบกับรุ่นของหน้าเว็บ เพื่อตรวจว่าวางไฟล์/Deploy ครบหรือยัง)
-const SERVER_VERSION = '2026.10.23-a';
+const SERVER_VERSION = '2026.10.29-a';
 function getServerVersion() {
   let photos = -1;
   try { photos = Object.keys(THEME_IMAGES).length; } catch (e) { photos = -1; }
@@ -321,7 +325,11 @@ function saveReport(token, rep) {
     updatedAt: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm'),
     values,
     shift: rep.shift,
-    staff: (rep.staff || []).filter(s => s && s.name).map(s => ({ name: String(s.name), role: s.role || '', pos: String(s.pos || '').slice(0, 40), tag: s.tag || '', tagNote: s.tagNote || '', slot: String(s.slot == null ? '' : s.slot).slice(0, 3) })),
+    staff: (rep.staff || []).filter(s => s && s.name).map(s => ({ name: String(s.name), role: s.role || '', pos: String(s.pos || '').slice(0, 40), tag: s.tag || '', tagNote: s.tagNote || '', slot: String(s.slot == null ? '' : s.slot).slice(0, 3), from: hm_(s.from), to: hm_(s.to) })),
+    // ผู้ป่วยนอก: แพทย์ที่ออกตรวจวันนั้น (ดึงจากตารางเวรแพทย์แล้วหน่วยงานแก้ เพิ่ม ลบ ปรับเวลาเองได้) off = งด/ไม่มา
+    doctors: myUnit.group === 'OPD' ? (rep.doctors || []).filter(x => x && String(x.name || '').trim()).slice(0, 60).map(x => ({
+      name: String(x.name).replace(/\s+/g, ' ').trim().slice(0, 60), time: String(x.time || '').trim().slice(0, 60),
+      sheet: String(x.sheet || '').slice(0, 40), text: String(x.text || '').slice(0, 200), off: !!x.off })) : undefined,
     reduce: rep.reduce || {},
     notes: String(rep.notes || ''),
     incidents: cleanCases_(rep.incidents, INC_FIELDS),
@@ -431,6 +439,8 @@ function statRows_(u, rep) {
     if (n) rows.push(row('อัตรากำลัง', r, n));
   });
   ['RN', 'PN', 'NA'].forEach(r => { if (Number(rep.reduce[r])) rows.push(row('ลดอัตรากำลัง (ชม.)', r, Number(rep.reduce[r]))); });
+  const docN = (rep.doctors || []).filter(x => !x.off).length;
+  if (docN) rows.push(row('แพทย์ออกตรวจ', 'แพทย์', docN));
   rep.incidents.forEach(i => rows.push(row('เหตุการณ์ผิดปกติ', i.type, 1)));
   if (rep.cases.length) rows.push(row('รายงานเคส', 'เคส', rep.cases.length));
   return rows;
@@ -671,6 +681,91 @@ function uploadStaff(token, rows) {
   });
 }
 
+// ===== ตารางเวรแพทย์ประจำเดือน (ผู้ป่วยนอก) =====
+// ADMIN อัปโหลดไฟล์ทุกเดือน (หน้าเว็บอ่านไฟล์ปฏิทินแล้วส่งเป็นรายการ) แต่ละชีตคือสาขาแพทย์ ผูกกับหน่วยงานผู้ป่วยนอกได้หลายหน่วยงาน
+// ฟอร์มอัตรากำลังของผู้ป่วยนอกดึงแพทย์ของวันนั้นมาให้ หน่วยงานแก้ เพิ่ม ลบ ปรับเวลาเองได้
+const opdUnits_ = () => GROUPS.find(g => g.key === 'OPD').units;
+function docBindings_() {
+  const out = {};
+  sheet_(SH_DOC_BIND).getDataRange().getValues().slice(1).forEach(r => {
+    const k = String(r[0]).trim();
+    if (k) out[k] = String(r[1] || '').split(',').map(x => x.trim()).filter(x => opdUnits_().indexOf(x) >= 0);
+  });
+  return out;
+}
+function saveDocBindings_(map) {
+  const cur = docBindings_();
+  Object.keys(map || {}).forEach(k => { if (String(k).trim()) cur[String(k).trim()] = (map[k] || []).filter(x => opdUnits_().indexOf(x) >= 0); });
+  const rows = Object.keys(cur).map(k => [k, cur[k].join(', ')]);
+  const sh = sheet_(SH_DOC_BIND);
+  sh.getRange(2, 1, Math.max(sh.getLastRow() - 1, 1), 2).clearContent();
+  if (rows.length) sh.getRange(2, 1, rows.length, 2).setValues(rows);
+}
+function getDocInfo(token) {
+  if (auth_(token).role !== 'admin') throw new Error('เฉพาะผู้ดูแลระบบ');
+  const months = {}, sheets = {};
+  sheet_(SH_DOCS).getDataRange().getValues().slice(1).forEach(r => {
+    const m = fmtMonth_(r[0]); if (!m) return;
+    months[m] = (months[m] || 0) + 1; sheets[String(r[2])] = 1;
+  });
+  const bind = docBindings_();
+  Object.keys(bind).forEach(k => { sheets[k] = 1; });
+  return { months: Object.keys(months).sort().reverse().map(m => ({ month: m, n: months[m] })), sheets: Object.keys(sheets).filter(Boolean), bindings: bind };
+}
+function saveDocBindings(token, map) {
+  if (auth_(token).role !== 'admin') throw new Error('เฉพาะผู้ดูแลระบบ');
+  withLock_(() => saveDocBindings_(map));
+  return getDocInfo(token);
+}
+// data = { month: 'yyyy-mm', entries: [{ day, sheet, name, time, text, off }], bindings: { ชื่อชีต: [หน่วยงาน] } } — แทนที่ตารางของเดือนนั้นทั้งหมด
+function uploadDocSchedule(token, data) {
+  if (auth_(token).role !== 'admin') throw new Error('เฉพาะผู้ดูแลระบบ');
+  const month = String(data && data.month || '');
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error('กรุณาเลือกเดือนของตาราง');
+  const last = new Date(+month.slice(0, 4), +month.slice(5), 0).getDate();
+  const rows = ((data && data.entries) || []).filter(e => e && String(e.name || '').trim() && +e.day >= 1 && +e.day <= last).slice(0, 20000)
+    .map(e => [month, month + '-' + String(+e.day).padStart(2, '0'), String(e.sheet || '').trim().slice(0, 60), String(e.name).replace(/\s+/g, ' ').trim().slice(0, 60),
+      String(e.time || '').slice(0, 60), String(e.text || '').replace(/\s+/g, ' ').trim().slice(0, 200), e.off ? 'งด' : '']);
+  if (!rows.length) throw new Error('ไม่พบรายชื่อแพทย์ในไฟล์');
+  withLock_(() => {
+    const sh = sheet_(SH_DOCS);
+    ensureHeaders_(sh, HEADERS[SH_DOCS]);
+    const keep = sh.getDataRange().getValues().slice(1).filter(r => String(r[0]).trim() && fmtMonth_(r[0]) !== month).map(r => [fmtMonth_(r[0]), fmtDate_(r[1]), r[2], r[3], r[4], r[5], r[6]]);
+    const all = keep.concat(rows);
+    sh.getRange(2, 1, Math.max(sh.getLastRow() - 1, 1), 7).clearContent();
+    sh.getRange(2, 1, all.length, 7).setValues(all);
+    if (data.bindings) saveDocBindings_(data.bindings);
+  });
+  return { month, added: rows.length, sheets: new Set(rows.map(r => r[2])).size };
+}
+// หน่วยงานผู้ป่วยนอกที่ข้อความในตารางระบุไว้ เช่น "(HPC)" "(OPD+ER)" — "OPD" เฉยๆ (ไม่มีเลข) = หน่วยงานที่ผูกกับสาขานั้น
+function docTags_(text) {
+  const t = String(text || '');
+  return opdUnits_().filter(c => new RegExp('(^|[^A-Za-z0-9])' + c.replace(/[-]/g, '\\-') + '(?![A-Za-z0-9])', 'i').test(t));
+}
+// แพทย์ในตารางของวันนั้นที่ตรงกับหน่วยงาน: อยู่ในสาขาที่ผูกไว้ (ถ้าข้อความระบุหน่วยงานอื่นเท่านั้นจะไม่นับ) หรือข้อความระบุหน่วยงานนี้ตรงๆ
+// others = แพทย์ท่านอื่นในตารางวันนั้น (ใช้เลือกเพิ่มเอง)
+function getDocSchedule(token, unit, date) {
+  const me = auth_(token);
+  if (me.role === 'unit' && unit !== me.unit) throw new Error('ดูได้เฉพาะหน่วยงานตนเอง');
+  if (opdUnits_().indexOf(unit) < 0 || !/^\d{4}-\d{2}-\d{2}$/.test(String(date))) throw new Error('ข้อมูลไม่ถูกต้อง');
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss.getSheetByName(SH_DOCS)) return { loaded: false, list: [], others: [] };
+  const bind = docBindings_(), list = [], others = [];
+  let loaded = false;
+  sheet_(SH_DOCS).getDataRange().getValues().slice(1).forEach(r => {
+    if (fmtMonth_(r[0]) === String(date).slice(0, 7)) loaded = true;
+    if (fmtDate_(r[1]) !== date) return;
+    const e = { name: String(r[3]), time: String(r[4] || ''), sheet: String(r[2] || ''), text: String(r[5] || ''), off: String(r[6] || '') === 'งด' };
+    const tags = docTags_(e.text), bound = (bind[e.sheet] || []).indexOf(unit) >= 0;
+    const hit = tags.indexOf(unit) >= 0 || (bound && (!tags.length || /(^|[^A-Za-z])OPD(?!\s*\d)/i.test(e.text)));
+    (hit ? list : others).push(e);
+  });
+  const start = e => (e.time.match(/^(\d\d)\.(\d\d)/) || [0, 99, 0]).slice(1).join('');
+  list.sort((a, b) => start(a) < start(b) ? -1 : start(a) > start(b) ? 1 : 0);
+  return { loaded, list, others };
+}
+
 // ===== ผูกชื่อแผนกในไฟล์รายชื่อ กับหน่วยงานในระบบ (ADMIN) =====
 // เช่น ไฟล์ HR เขียน "ศูนย์อายุรกรรม" แต่ในระบบคือ OPD1 ผูกครั้งเดียว รายชื่อทั้งแผนกย้ายเข้าหน่วยงานนั้น
 // และการอัปโหลดครั้งต่อไปจัดเข้าให้เอง  unit = '' คือยกเลิกการผูก
@@ -750,7 +845,7 @@ function sheet_(name) {
     sh.setFrozenRows(1);
     sh.getRange(1, 1, 1, HEADERS[name].length).setFontWeight('bold');
     if (name !== SH_STAFF) sh.getRange('A:A').setNumberFormat('@'); // วันที่/รหัสหน่วยงานเก็บเป็นข้อความ
-    if (name === SH_USERS || name === SH_ROOMS) sh.getRange('B:B').setNumberFormat('@');
+    if (name === SH_USERS || name === SH_ROOMS || name === SH_DOCS) sh.getRange('B:B').setNumberFormat('@');
     if (name === SH_ROOMS) sh.getRange('C:C').setNumberFormat('@');
   }
   return sh;
@@ -779,6 +874,14 @@ function nextId_(data) {
 
 function normName_(s) {
   return String(s).replace(/^\s*(คุณ|นางสาว|นาง|นาย|น\.ส\.)\s*/, '').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+// เวลา 24 ชม. HH:MM (ไม่ถูกต้อง = ว่าง)
+function hm_(v) { const t = String(v == null ? '' : v).trim(); return /^([01]\d|2[0-3]):[0-5]\d$/.test(t) ? t : ''; }
+
+function fmtMonth_(v) {
+  if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM');
+  return String(v || '').trim().slice(0, 7);
 }
 
 function stamp_() {
