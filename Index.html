@@ -290,6 +290,9 @@
   html.has-bg .card.fit { background: color-mix(in srgb, var(--surface) calc(var(--cardfit, 0) * 1%), transparent); border-color: color-mix(in srgb, var(--line) calc(var(--cardfit, 0) * 1%), transparent); box-shadow: none; -webkit-backdrop-filter: blur(calc(var(--cardfit, 0) * 0.08px)); backdrop-filter: blur(calc(var(--cardfit, 0) * 0.08px));
     text-shadow: 0 0 2px var(--bg), 0 0 5px var(--bg), 0 0 10px var(--bg), 0 0 18px var(--bg); }
   html.has-bg .card.fit .muted, html.has-bg .card.fit p { color: var(--fg); }
+  /* กล่องข้อความหน้าอื่นๆ (ไม่ใช่หน้าแรก): --cardall 100 = ทึบเหมือนเดิม, 0 = ไม่มีกล่อง */
+  html.has-bg .card:not(.fit), html.has-bg .ucard { background: color-mix(in srgb, var(--surface) calc(var(--cardall, 100) * 1%), transparent); border-color: color-mix(in srgb, var(--line) calc(var(--cardall, 100) * 1%), transparent); -webkit-backdrop-filter: blur(calc((100 - var(--cardall, 100)) * 0.08px)); backdrop-filter: blur(calc((100 - var(--cardall, 100)) * 0.08px)); }
+  html.has-bg.cardsoft .card:not(.fit), html.has-bg.cardsoft .ucard { text-shadow: 0 0 2px var(--bg), 0 0 5px var(--bg), 0 0 10px var(--bg); }
   @media (max-width: 600px) {
     .top .wrap { height: 44px; padding-block: 0; gap: 8px; }
     .top .title { font-size: 14px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -719,8 +722,8 @@ function setStickTop() { const t = document.querySelector('.tabs'); if (t) docum
 window.addEventListener('resize', () => { setStickTop(); if (S.bg) bgFrame(); });
 function applyBg() {
   const r = document.documentElement;
-  if (S.bg && S.bg.data) { r.classList.add('has-bg'); bgImageCss(); ensureNat(); bgFrame(); r.style.setProperty('--bgdim', String(S.bg.dim == null ? 0.8 : S.bg.dim)); r.style.setProperty('--cardfit', String(S.bg.card == null ? 0 : S.bg.card)); }
-  else { r.classList.remove('has-bg'); $('bgimg').style.backgroundImage = ''; $('bgfillr').style.backgroundImage = ''; $('bgpic').style.backgroundImage = ''; $('bgpic').style.transform = ''; r.style.removeProperty('--bgdim'); r.style.removeProperty('--cardfit'); }
+  if (S.bg && S.bg.data) { r.classList.add('has-bg'); bgImageCss(); ensureNat(); bgFrame(); r.style.setProperty('--bgdim', String(S.bg.dim == null ? 0.8 : S.bg.dim)); r.style.setProperty('--cardfit', String(S.bg.card == null ? 0 : S.bg.card)); cardAll(r); }
+  else { r.classList.remove('has-bg'); $('bgimg').style.backgroundImage = ''; $('bgfillr').style.backgroundImage = ''; $('bgpic').style.backgroundImage = ''; $('bgpic').style.transform = ''; r.style.removeProperty('--bgdim'); r.style.removeProperty('--cardfit'); r.style.removeProperty('--cardall'); r.classList.remove('cardsoft'); }
 }
 applyBg();
 function shrinkImage(file, max) {
@@ -735,6 +738,9 @@ function shrinkImage(file, max) {
     img.src = url;
   });
 }
+// ความโปร่งใสของกล่องข้อความหน้าอื่นๆ: 100 = ทึบ (ค่าเดิม) ต่ำกว่านั้นเริ่มโปร่งและใส่เงาตัวหนังสือให้อ่านง่าย
+const cardAllVal = () => (S.bg && S.bg.cardAll != null ? +S.bg.cardAll : 100);
+function cardAll(r) { r = r || document.documentElement; r.style.setProperty('--cardall', String(cardAllVal())); r.classList.toggle('cardsoft', cardAllVal() < 100); }
 const APP_VERSION = '2026.10.23-a';
 function loadVersion() {
   if (S.srvVer || S.srvVerLoading) return;
@@ -764,6 +770,8 @@ function renderSettings() {
       <input type="range" id="bg_dim" min="40" max="95" step="5" value="${Math.round((S.bg && S.bg.dim != null ? S.bg.dim : 0.8) * 100)}"${S.bg ? '' : ' disabled'}>
       <label class="f" for="bg_card">ความโปร่งใสของกล่องข้อความหน้าแรก <b id="bg_cv">${Math.round(S.bg && S.bg.card != null ? S.bg.card : 0)}%</b> <small class="muted">(0 = ไม่มีกล่อง ตัวหนังสือมีเงาขาวช่วยให้อ่านง่าย)</small></label>
       <input type="range" id="bg_card" min="0" max="95" step="5" value="${Math.round(S.bg && S.bg.card != null ? S.bg.card : 0)}"${S.bg ? '' : ' disabled'}>
+      <label class="f" for="bg_cardall">ความโปร่งใสของกล่องข้อความหน้าอื่นๆ <b id="bg_cav">${cardAllVal()}%</b> <small class="muted">(100 = กล่องทึบเหมือนเดิม ยิ่งน้อยยิ่งเห็นรูปพื้นหลัง 0 = ไม่มีกล่อง)</small></label>
+      <input type="range" id="bg_cardall" min="0" max="100" step="5" value="${cardAllVal()}"${S.bg ? '' : ' disabled'}>
       ${(() => { const b = S.bg || {}, cp = curP(), off = S.bg ? '' : ' disabled'; return `
       <label class="f" for="bg_zoom">ขนาดรูป (ซูมออก \u2194 ซูมเข้า) <b id="bg_zv">${Math.round((b.zoom || 1) * 100)}%</b></label><input type="range" id="bg_zoom" min="20" max="300" step="5" value="${Math.round((b.zoom || 1) * 100)}"${off}>
       <label class="f" for="bg_x">เลื่อนรูปไป ซ้าย \u2194 ขวา</label><input type="range" id="bg_x" min="0" max="100" step="1" value="${Math.round(cp[0])}"${off}>
@@ -809,6 +817,8 @@ function renderSettings() {
   $('bg_dim').onchange = () => store.set('bg', S.bg);
   $('bg_card').oninput = e => { S.bg.card = +e.target.value; document.documentElement.style.setProperty('--cardfit', String(S.bg.card)); $('bg_cv').textContent = e.target.value + '%'; };
   $('bg_card').onchange = () => store.set('bg', S.bg);
+  $('bg_cardall').oninput = e => { S.bg.cardAll = +e.target.value; cardAll(); $('bg_cav').textContent = e.target.value + '%'; };
+  $('bg_cardall').onchange = () => store.set('bg', S.bg);
   const ensurePos = () => { const p = curP(); if (S.bg.px == null) { S.bg.px = p[0]; S.bg.py = p[1]; } };
   const frame = (k, f) => { $(k).oninput = e => { ensurePos(); S.bg[f.key] = f.val(+e.target.value); bgFrame(); }; $(k).onchange = () => store.set('bg', S.bg); };
   frame('bg_zoom', { key: 'zoom', val: v => v / 100 }); $('bg_zoom').addEventListener('input', e => { $('bg_zv').textContent = e.target.value + '%'; }); frame('bg_x', { key: 'px', val: v => v }); frame('bg_y', { key: 'py', val: v => v });
@@ -816,7 +826,7 @@ function renderSettings() {
   box.querySelectorAll('[data-bgfill]').forEach(bt => bt.onclick = () => { if (!S.bg) return; S.bg.fill = bt.dataset.bgfill; store.set('bg', S.bg); bgImageCss(); bgFrame(); renderSettings(); });
   $('bg_fillc').oninput = e => { S.bg.fillColor = e.target.value; bgImageCss(); bgFrame(); };
   $('bg_fillc').onchange = () => store.set('bg', S.bg);
-  $('bg_reset').onclick = () => { delete S.bg.zoom; delete S.bg.px; delete S.bg.py; delete S.bg.rot; delete S.bg.card; delete S.bg.fill; delete S.bg.fillColor; store.set('bg', S.bg); bgImageCss(); bgFrame(); renderSettings(); };
+  $('bg_reset').onclick = () => { delete S.bg.zoom; delete S.bg.px; delete S.bg.py; delete S.bg.rot; delete S.bg.card; delete S.bg.cardAll; delete S.bg.fill; delete S.bg.fillColor; store.set('bg', S.bg); bgImageCss(); bgFrame(); renderSettings(); };
   $('bg_clear').onclick = () => { S.bg = null; store.set('bg', null); applyBg(); renderSettings(); };
   const rb = $('rs_btn');
   if (rb) rb.onclick = async () => {
@@ -1495,6 +1505,17 @@ function finishTime(v) {
   return '';
 }
 const validTime = v => v === '' || /^([01]\d|2[0-3]):[0-5]\d$/.test(v);
+// กดช่องเวลาครั้งเดียวแล้วคลุมข้อความทั้งช่อง พิมพ์เวลาใหม่ทับได้เลย (ไม่ต้องลบหรือดับเบิลคลิก)
+function selectTime(e) {
+  const t = e.target;
+  if (!(S.editing && t && ((t.classList && t.classList.contains('tin')) || (t.dataset && /:time$/.test(t.dataset.doc || ''))))) return;
+  t.dataset.sel = '1';
+  const go = () => { try { t.select(); t.setSelectionRange(0, t.value.length); } catch (x) {} };
+  const v0 = t.value;
+  go(); setTimeout(() => { if (t.value === v0) go(); }, 0); // มือถือ/บางเบราว์เซอร์เลือกตำแหน่งเคอร์เซอร์หลังโฟกัส จึงเลือกซ้ำอีกครั้ง (ถ้ายังไม่ได้พิมพ์)
+}
+$('view').addEventListener('focusin', selectTime);
+$('view').addEventListener('mouseup', e => { if (S.editing && e.target.dataset && e.target.dataset.sel) { e.preventDefault(); delete e.target.dataset.sel; } });
 $('view').addEventListener('focusout', e => {
   const t = e.target;
   if (!(S.editing && t.classList && t.classList.contains('tin'))) return;
