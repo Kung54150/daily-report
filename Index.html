@@ -457,8 +457,8 @@
   .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
   .seg button { border: 0; background: var(--surface); padding: 8px 12px; cursor: pointer; color: var(--muted); }
   .seg button.on { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
-  /* ขอบกระดาษ 10 มม. ทุกหน้า: เครื่องพิมพ์พิมพ์ชิดขอบไม่ได้ (ประมาณ 4-6 มม.) ขอบ 0 ทำให้หัวกระดาษของหน้าที่ 2 เป็นต้นไปและขอบบนตกหล่น */
-  @page { size: A4 portrait; margin: 10mm 10mm 12mm; }
+  /* ขอบกระดาษ บน 2.5 ซม. ล่าง 1.5 ซม. ซ้ายขวา 1 ซม. ทุกหน้า: เครื่องพิมพ์พิมพ์ชิดขอบไม่ได้ (ประมาณ 4-6 มม.) ขอบ 0 ทำให้หัวกระดาษของหน้าที่ 2 เป็นต้นไปและขอบบนตกหล่น */
+  @page { size: A4 portrait; margin: 25mm 10mm 15mm; }
   @media print {
     body { background: #fff; }
     body::before, .top, .tabs, .datebar, .savebar, .noprint, .toast, #login { display: none !important; }
