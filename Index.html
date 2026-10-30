@@ -310,13 +310,19 @@
   html.has-bg .card:not(.fit), html.has-bg .ucard { background: color-mix(in srgb, var(--surface) calc(var(--cardall, 100) * 1%), transparent); border-color: color-mix(in srgb, var(--line) calc(var(--cardall, 100) * 1%), transparent); -webkit-backdrop-filter: blur(calc((100 - var(--cardall, 100)) * 0.08px)); backdrop-filter: blur(calc((100 - var(--cardall, 100)) * 0.08px)); }
   html.has-bg.cardsoft .card:not(.fit), html.has-bg.cardsoft .ucard { text-shadow: 0 0 2px var(--bg), 0 0 5px var(--bg), 0 0 10px var(--bg); }
   @media (max-width: 600px) {
-    .top .wrap { height: 44px; padding-block: 0; gap: 8px; }
-    .top .title { font-size: 14px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .top .title small { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .unit-pill { font-size: 13px; padding: 2px 9px; }
-    .top button { font-size: 12px; padding: 3px 8px; white-space: nowrap; }
-    .tabs { top: calc(env(safe-area-inset-top, 0px) + 44px); }
-    .tabs button { padding: 9px 11px; font-size: 14px; }
+    .top .wrap { height: 38px; padding-block: 0; gap: 8px; }
+    .top .title { font-size: 13px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .top .title small { font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .unit-pill { font-size: 12px; padding: 1px 8px; }
+    .top button { font-size: 11px; padding: 2px 7px; white-space: nowrap; }
+    .tabs { top: calc(env(safe-area-inset-top, 0px) + 38px); }
+    .tabs button { padding: 6px 10px; font-size: 13px; border-bottom-width: 2px; }
+    .seg { padding: 3px; gap: 3px; margin-bottom: 8px; border-radius: 8px; }
+    .seg button { padding: 5px 4px; font-size: 13px; line-height: 1.2; }
+    .seg button small { font-size: 10px; }
+    .seg[role="tablist"] { position: static; }
+    .seg.sumtabs { display: flex; width: 100%; padding: 2px; gap: 2px; margin-bottom: 6px; }
+    .seg.sumtabs button { padding: 5px 2px; font-size: 12.5px; white-space: nowrap; letter-spacing: -.1px; }
   }
   .bw { display: none; }
   .a4 .bw { display: inline; }
@@ -893,8 +899,19 @@ const unitHas = (u, k) => (u.shifts || ['Day', 'Night']).includes(k);
 const shiftsOf = u => u.shifts || ['Day', 'Night'];
 const repAt = (u, k) => (S.dayRaw[u.code] || {})[k];
 // full = ส่งครบทุกเวรของหน่วยงาน, part = ส่งบางเวร, none = ยังไม่ส่ง
-const unitState = u => { const n = shiftsOf(u).filter(k => repAt(u, k)).length; return n === shiftsOf(u).length ? 'full' : n ? 'part' : 'none'; };
-const missingShifts = u => shiftsOf(u).filter(k => !repAt(u, k));
+// ส่งแล้ว = มีการรายงานยอดประจำวัน (ตัวเลขยอดผู้ป่วย / รายการ) แล้วเท่านั้น; มีแค่อัตรากำลัง แพทย์ หรือเรื่องแจ้ง ยังไม่ถือว่าเสร็จสิ้น
+function countsReported(u, r) {
+  const v = (r && r.values) || {}, has = k => v[k] !== undefined && v[k] !== '' && v[k] !== null;
+  return u.form.sections.some(s => {
+    if (s.type === 'list') return (v[s.key] || []).length > 0;
+    if (s.type === 'docs') return (v[s.key] || []).some(d => num(d.n) > 0 || (d.rows || []).length > 0);
+    if (s.type === 'grid') return s.rows.some(rw => s.cols.some(c => has(rw[0] + '_' + c[0])));
+    return (s.fields || []).some(f => !f.type && !f.calc && !f.carryFrom && (has(f.key) || (s.categories && ['g', 'y', 'o', 'r'].some(b => has(f.key + '_' + b)))));
+  });
+}
+const sentAt = (u, k) => { const r = repAt(u, k); return !!r && countsReported(u, r); };
+const unitState = u => { const n = shiftsOf(u).filter(k => sentAt(u, k)).length; return n === shiftsOf(u).length ? 'full' : n ? 'part' : 'none'; };
+const missingShifts = u => shiftsOf(u).filter(k => !sentAt(u, k));
 const missingText = () => S.cfg.units.filter(u => unitState(u) !== 'full').map(u => esc(u.code) + (shiftsOf(u).length > 1 && unitState(u) === 'part' ? ' (' + missingShifts(u).join(', ') + ')' : '')).join(', ');
 const shiftLab = (u, k) => esc(u.code) + (shiftsOf(u).length > 1 ? ' \u00b7 ' + esc(k) : '');
 function deriveReports(vs) {
@@ -1056,7 +1073,7 @@ function renderMine() {
   const u = unitCfg(S.me.unit);
   if (!unitHas(u, S.shift)) S.shift = u.shifts[0];
   const rep = repOf(u.code, S.shift);
-  const seg = u.shifts.length < 2 ? '' : `<div class="seg" style="position:static">${u.shifts.map(k => `<button type="button" data-mshift="${k}" class="${S.shift === k ? 'on' : ''}">เวร ${k}<small>${repOf(u.code, k) ? 'ส่งแล้ว' : 'ยังไม่ส่ง'}</small></button>`).join('')}</div>`;
+  const seg = u.shifts.length < 2 ? '' : `<div class="seg" style="position:static">${u.shifts.map(k => `<button type="button" data-mshift="${k}" class="${S.shift === k ? 'on' : ''}">เวร ${k}<small>${sentAt(u, k) ? 'ส่งแล้ว' : 'ยังไม่ส่ง'}</small></button>`).join('')}</div>`;
   if (!rep) {
     return `${seg}${u.form.draft ? draftNote() : ''}<div class="card fit"><h3>ยังไม่ได้ส่งรายงานเวร ${esc(S.shift)} ของ ${esc(thaiDate(S.date))}</h3>
       <p class="muted" style="margin:0 0 12px">กรอกยอดผู้ป่วย อัตรากำลัง และเหตุการณ์ผิดปกติของหน่วยงาน ${esc(u.code)}</p>
@@ -2850,8 +2867,8 @@ function bindView() {
     } catch (e) { $('up_preview').innerHTML = `<p style="color:var(--bad)">${esc(e.message)}</p>`; }
   };
   v.querySelectorAll('[data-dept]').forEach(sel => sel.onchange = () => { S.bindSel[sel.dataset.dept] = sel.value; });
-  v.querySelectorAll('[data-incgroup]').forEach(b => b.onclick = () => { S.incGroup = b.dataset.incgroup; render(); });
-  v.querySelectorAll('[data-sumgroup]').forEach(b => b.onclick = () => { S.sumGroup = b.dataset.sumgroup; render(); });
+  v.querySelectorAll('[data-incgroup]').forEach(b => b.onclick = () => { S.incGroup = b.dataset.incgroup; render(); window.scrollTo(0, 0); });
+  v.querySelectorAll('[data-sumgroup]').forEach(b => b.onclick = () => { S.sumGroup = b.dataset.sumgroup; render(); window.scrollTo(0, 0); });
   v.querySelectorAll('[data-title]').forEach(sel => sel.onchange = () => { S.titleSel = S.titleSel || {}; S.titleSel[sel.dataset.title] = sel.value; });
   if (S.upRows && $('up_preview') && S.tab === 'staff' && S.upRows.length) drawUpPreview();
   if ($('doc_file')) bindDocCard();
