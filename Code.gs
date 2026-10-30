@@ -325,7 +325,7 @@ function saveReport(token, rep) {
     updatedAt: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm'),
     values,
     shift: rep.shift,
-    staff: (rep.staff || []).filter(s => s && s.name).map(s => ({ name: String(s.name), role: s.role || '', pos: String(s.pos || '').slice(0, 40), subs: (Array.isArray(s.subs) ? s.subs : []).filter(x => (form.staffSubs || []).indexOf(x) >= 0), tag: s.tag || '', tagNote: s.tagNote || '', slot: String(s.slot == null ? '' : s.slot).slice(0, 3), from: hm_(s.from), to: hm_(s.to) })),
+    staff: (rep.staff || []).filter(s => s && s.name).map(s => cleanStaff_(s, form)),
     // ผู้ป่วยนอก: แพทย์ที่ออกตรวจวันนั้น (ดึงจากตารางเวรแพทย์แล้วหน่วยงานแก้ เพิ่ม ลบ ปรับเวลาเองได้) off = งด/ไม่มา
     doctors: myUnit.group === 'OPD' ? (rep.doctors || []).filter(x => x && String(x.name || '').trim()).slice(0, 60).map(x => ({
       name: String(x.name).replace(/\s+/g, ' ').trim().slice(0, 60), time: String(x.time || '').trim().slice(0, 60),
@@ -877,6 +877,19 @@ function normName_(s) {
 }
 
 // เวลา 24 ชม. HH:MM (ไม่ถูกต้อง = ว่าง)
+// เจ้าหน้าที่ในเวร: ถ้าหน่วยงานมีแผนกย่อย (PC: PC / WCC / CTDC) เก็บหลายช่วงเวลาได้ ช่วงละแผนก (slots) และสรุป from/to/subs จากช่วงเหล่านั้น
+function cleanStaff_(s, form) {
+  const o = { name: String(s.name), role: s.role || '', pos: String(s.pos || '').slice(0, 40), tag: s.tag || '', tagNote: s.tagNote || '', slot: String(s.slot == null ? '' : s.slot).slice(0, 3), from: hm_(s.from), to: hm_(s.to), subs: [] };
+  const subs = form.staffSubs || [];
+  if (subs.length) {
+    const slots = (Array.isArray(s.slots) ? s.slots : []).slice(0, 8).map(x => ({ from: hm_(x && x.from), to: hm_(x && x.to), sub: subs.indexOf(x && x.sub) >= 0 ? x.sub : '' })).filter(x => x.from || x.to || x.sub);
+    if (slots.length) {
+      o.slots = slots; o.from = slots[0].from; o.to = slots[0].to;
+      slots.forEach(x => { if (x.sub && o.subs.indexOf(x.sub) < 0) o.subs.push(x.sub); });
+    } else o.subs = (Array.isArray(s.subs) ? s.subs : []).filter(x => subs.indexOf(x) >= 0);
+  }
+  return o;
+}
 function hm_(v) { const t = String(v == null ? '' : v).trim(); return /^([01]\d|2[0-3]):[0-5]\d$/.test(t) ? t : ''; }
 
 function fmtMonth_(v) {

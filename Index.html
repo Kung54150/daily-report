@@ -186,7 +186,11 @@
   .duty { display: grid; grid-template-columns: 1fr 108px 32px; gap: 6px; align-items: center; padding: 5px 0; border-bottom: 1px dashed var(--line); }
   .duty .nm { min-width: 0; overflow-wrap: anywhere; }
   .duty select { padding: 6px; font-size: 14px; }
-  .dsubs { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; font-size: 14px; color: var(--muted); }
+  .slots { grid-column: 1 / -1; display: grid; gap: 6px; }
+  .slot { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--sunk); font-size: 13px; color: var(--muted); }
+  .slot .tin { width: 74px; padding: 6px; font-size: 14px; }
+  .slotfoot { display: flex; gap: 10px; align-items: center; font-size: 13px; color: var(--muted); }
+  .dsubs { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; font-size: 14px; color: var(--muted); }
   .dsubs label { display: inline-flex; align-items: center; gap: 5px; margin: 0; color: var(--fg); cursor: pointer; }
   .dsubs input { width: 20px; height: 20px; padding: 0; accent-color: var(--accent-strong); }
   .dtime { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
@@ -1200,20 +1204,36 @@ function opdGroups(r, nameFn) {
   const staff = r.staff || [], docs = r.doctors || [], out = [];
   if (docs.length) out.push({ label: 'แพทย์', n: docs.filter(x => !x.off).length, unit: 'ท่าน', items: docs.map(x => ({ text: esc(x.name) + (x.time ? ' ' + esc(x.time) : '') + (x.off ? ' (งด)' : ''), off: !!x.off })) });
   const known = OPD_STAFF_GROUPS.flatMap(g => g[1]);
+  const subsCfg = ((unitCfg(r.unit) || {}).form || {}).staffSubs;
+  if (subsCfg && staff.length) {
+    // PC: แยกอัตรากำลังตามแผนกที่ได้รับมอบหมาย (PC / WCC / CTDC) แต่ละแผนกแยกพยาบาล (RN) และ PN/NA; คนเดียวกันที่ไปหลายแผนกขึ้นทุกแผนกพร้อมเวลาของแผนกนั้น
+    const entries = [];
+    staff.forEach(x => {
+      const sl = (x.slots && x.slots.length) ? x.slots : [{ from: x.from, to: x.to, sub: (x.subs || [])[0] || '' }];
+      const bySub = {};
+      sl.forEach(y => { const k = (subsCfg.indexOf(y.sub) >= 0 ? y.sub : ''); (bySub[k] = bySub[k] || []).push(slotText(y)); });
+      if (!x.slots && (x.subs || []).length > 1) (x.subs || []).forEach(k => { if (subsCfg.indexOf(k) >= 0 && !bySub[k]) bySub[k] = [timeText(x)]; });
+      Object.keys(bySub).forEach(k => entries.push({ x, sub: k, time: bySub[k].filter(Boolean).join(', ') }));
+    });
+    subsCfg.concat(['']).forEach(sub => {
+      const l = entries.filter(e => e.sub === sub);
+      if (!l.length) return;
+      const items = [];
+      OPD_STAFF_GROUPS.concat([['ไม่ระบุ', null]]).forEach(([label, roles]) => {
+        const g = l.filter(e => roles ? roles.indexOf(e.x.role) >= 0 : known.indexOf(e.x.role) < 0);
+        if (!g.length) return;
+        items.push({ text: '<b>' + esc(label) + '</b> ' + g.filter(e => e.x.tag !== 'ออกหน่วย').length + ' คน' });
+        g.forEach(e => items.push({ text: esc(nameFn ? nameFn(e.x.name) : e.x.name) + (e.x.role === 'หัวหน้า' ? ' (' + esc(dutyPos(e.x, r.unit)) + ')' : '') + (e.time ? ' ' + esc(e.time) : '') + (e.x.tag ? ' [' + esc(e.x.tag) + (e.x.tagNote ? ' ' + esc(e.x.tagNote) : '') + ']' : '') }));
+      });
+      out.push({ label: sub || 'ไม่ระบุแผนก', n: l.filter(e => e.x.tag !== 'ออกหน่วย').length, unit: 'คน', items });
+    });
+    return out;
+  }
   OPD_STAFF_GROUPS.concat([['ไม่ระบุ', null]]).forEach(([label, roles]) => {
     const l = staff.filter(x => roles ? roles.indexOf(x.role) >= 0 : known.indexOf(x.role) < 0);
     if (!l.length) return;
     out.push({ label, n: l.filter(x => x.tag !== 'ออกหน่วย').length, unit: 'คน', items: l.map(x => ({ text: esc(nameFn ? nameFn(x.name) : x.name) + (x.role === 'หัวหน้า' ? ' (' + esc(dutyPos(x, r.unit)) + ')' : '') + (timeText(x) ? ' ' + esc(timeText(x)) : '') + ((x.subs || []).length ? ' \u00b7 ' + esc(x.subs.join(', ')) : '') + (x.tag ? ' [' + esc(x.tag) + (x.tagNote ? ' ' + esc(x.tagNote) : '') + ']' : '') })) });
   });
-  const subs = ((unitCfg(r.unit) || {}).form || {}).staffSubs;
-  if (subs && staff.length) {
-    // สรุปแยกตามแผนกย่อย เช่น PC: RN 2, PN/NA 1
-    const cnt = l => OPD_STAFF_GROUPS.map(([label, roles]) => [label, l.filter(x => roles.indexOf(x.role) >= 0).length]).filter(x => x[1]).map(x => `${x[0] === 'พยาบาล (RN)' ? 'RN' : x[0]} ${x[1]}`).join(', ');
-    const act = staff.filter(x => x.tag !== 'ออกหน่วย'), items = subs.map(n => [n, act.filter(x => (x.subs || []).indexOf(n) >= 0)]).filter(x => x[1].length).map(([n, l]) => ({ text: esc(n) + ': ' + esc(cnt(l)) }));
-    const none = act.filter(x => !(x.subs || []).length);
-    if (none.length) items.push({ text: 'ไม่ระบุแผนก: ' + esc(cnt(none)) });
-    if (items.length) out.push({ label: 'แยกตามแผนก', n: act.length, unit: 'คน', items });
-  }
   return out;
 }
 const opdGroupsHtml = r => { const g = opdGroups(r); return g.length ? g.map(x => `<div style="margin-top:8px"><b>${esc(x.label)}</b> <span class="pill plain">${x.n} ${x.unit}</span></div>${x.items.map(i => `<div style="font-size:14px;padding-left:10px${i.off ? ';text-decoration:line-through;color:var(--muted)' : ''}">${i.text}</div>`).join('')}`).join('') : '<span class="muted">ไม่ได้ระบุ</span>'; };
@@ -1643,10 +1663,13 @@ $('view').addEventListener('keydown', e => {
 function onFormInput(e) {
   const t = e.target, d = S.draft;
   S.dirty = true;
-  if (t.dataset && t.dataset.dsub) {
-    // ผู้ป่วยนอก PC: ติ๊กว่าเจ้าหน้าที่ประจำแผนกไหน (PC / WCC / CTDC) เลือกได้หลายแผนก
-    const [i, n] = t.dataset.dsub.split(':'), st = d.staff[i], cur = st.subs || [];
-    st.subs = t.checked ? cur.filter(x => x !== n).concat(n) : cur.filter(x => x !== n);
+  if (t.dataset && (t.dataset.sf || t.dataset.ss)) {
+    // PC: แต่ละช่วงเวลาระบุเวลาเริ่ม-เลิกและแผนก (PC / WCC / CTDC); คนเดียวกันเพิ่มได้หลายช่วง
+    if (t.classList && t.classList.contains('tin')) t.value = typingTime(t.value);
+    const st = t.dataset.sf ? t.dataset.sf.split(':') : t.dataset.ss.split(':'), p = d.staff[st[0]], sl = ensureSlots(p)[st[1]];
+    if (t.dataset.sf) sl[st[2]] = t.value; else sl.sub = t.value;
+    syncSlots(p);
+    const el = document.querySelector(`[data-hrs="${st[0]}"]`); if (el) el.textContent = workHours(p) ? 'รวม ' + fmtHrs(workHours(p)) : '';
     return;
   }
   const agk = t.dataset && (t.dataset.ag || t.dataset.agc);
@@ -1749,13 +1772,14 @@ const posU = (unit, p) => ((unitCfg(unit) || {}).group === 'OPD' && (p === 'PN' 
 // ผู้ป่วยนอก: เวลาทำงานของแต่ละคน (เริ่ม-เลิก 24 ชม.) และจำนวนชั่วโมง
 const isOpdUnit = code => (unitCfg(code) || {}).group === 'OPD';
 const toMin = t => { const m = /^(\d\d):(\d\d)$/.exec(t || ''); return m ? +m[1] * 60 + +m[2] : null; };
-function workHours(s) {
-  const a = toMin(s.from), b = toMin(s.to);
-  if (a === null || b === null) return 0;
-  return ((b - a + 1440) % 1440 || 1440) / 60;
-}
+const spanHours = (f, t) => { const a = toMin(f), b = toMin(t); return a === null || b === null ? 0 : ((b - a + 1440) % 1440 || 1440) / 60; };
+const workHours = s => (s.slots && s.slots.length ? s.slots.reduce((a, x) => a + spanHours(x.from, x.to), 0) : spanHours(s.from, s.to));
+// แผนกย่อย (PC): คนเดียวกันมีหลายช่วงเวลา แต่ละช่วงอยู่คนละแผนกได้ (slots) ; from/to/subs เก็บสรุปจากช่วงแรกและทุกช่วง
+const ensureSlots = s => { if (!s.slots || !s.slots.length) s.slots = [{ from: s.from || '', to: s.to || '', sub: (s.subs || [])[0] || '' }]; return s.slots; };
+const syncSlots = s => { const sl = s.slots || []; s.from = sl[0] ? sl[0].from : ''; s.to = sl[0] ? sl[0].to : ''; s.subs = sl.map(x => x.sub).filter((x, i, a) => x && a.indexOf(x) === i); };
+const slotText = x => (x.from || x.to ? `${x.from || '?'}\u2013${x.to || '?'} น.` : '');
 const fmtHrs = h => (Math.round(h * 10) / 10) + ' ชม.';
-const timeText = s => s.from || s.to ? `${s.from || '?'}\u2013${s.to || '?'} น.` : '';
+const timeText = s => (s.slots && s.slots.length > 1 ? s.slots.map(slotText).filter(Boolean).join(', ') : (s.from || s.to ? `${s.from || '?'}\u2013${s.to || '?'} น.` : ''));
 function renderStaffPicker() {
   const d = S.draft, unit = euUnit(), slotOn = unitCfg(unit).staffSlot, opd = isOpdUnit(unit), subsCfg = unitCfg(unit).form.staffSubs;
   const chosen = new Set(d.staff.map(s => s.name));
@@ -1779,8 +1803,11 @@ function renderStaffPicker() {
       <select data-duty="${i}:tag" aria-label="หน้าที่"><option value="">หน้าที่ \u2013</option>${S.cfg.dutyTags.map(t => `<option${t === s.tag ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>
       <button type="button" class="x" data-unpick="${i}" aria-label="เอาออก">\u00d7</button>
       ${slotOn ? `<div style="grid-column:1/-1;display:flex;gap:8px;align-items:center"><label class="f" style="margin:0" for="slot_${i}">คนที่</label><input id="slot_${i}" type="number" inputmode="numeric" min="1" max="99" style="width:80px" data-duty="${i}:slot" value="${esc(s.slot || '')}" placeholder="1"></div>` : ''}
-      ${opd ? `<div class="dtime">เวลาทำงาน <input class="tin" type="text" inputmode="numeric" maxlength="5" placeholder="08:00" autocomplete="off" aria-label="เริ่มงาน" data-duty="${i}:from" value="${esc(s.from || '')}"> \u2013 <input class="tin" type="text" inputmode="numeric" maxlength="5" placeholder="16:00" autocomplete="off" aria-label="เลิกงาน" data-duty="${i}:to" value="${esc(s.to || '')}"> <span data-hrs="${i}">${workHours(s) ? fmtHrs(workHours(s)) : ''}</span></div>` : ''}
-      ${subsCfg ? `<div class="dsubs">ประจำแผนก ${subsCfg.map(n => `<label><input type="checkbox" data-dsub="${i}:${esc(n)}"${(s.subs || []).indexOf(n) >= 0 ? ' checked' : ''}> ${esc(n)}</label>`).join('')}</div>` : ''}
+      ${opd && !subsCfg ? `<div class="dtime">เวลาทำงาน <input class="tin" type="text" inputmode="numeric" maxlength="5" placeholder="08:00" autocomplete="off" aria-label="เริ่มงาน" data-duty="${i}:from" value="${esc(s.from || '')}"> \u2013 <input class="tin" type="text" inputmode="numeric" maxlength="5" placeholder="16:00" autocomplete="off" aria-label="เลิกงาน" data-duty="${i}:to" value="${esc(s.to || '')}"> <span data-hrs="${i}">${workHours(s) ? fmtHrs(workHours(s)) : ''}</span></div>` : ''}
+      ${subsCfg ? `<div class="slots">${ensureSlots(s).map((x, j) => `<div class="slot"><span class="dt">เวลา <input class="tin" type="text" inputmode="numeric" maxlength="5" placeholder="08:00" autocomplete="off" aria-label="เริ่มงาน" data-sf="${i}:${j}:from" value="${esc(x.from)}"> \u2013 <input class="tin" type="text" inputmode="numeric" maxlength="5" placeholder="16:00" autocomplete="off" aria-label="เลิกงาน" data-sf="${i}:${j}:to" value="${esc(x.to)}"></span>
+          <span class="dsubs">${subsCfg.map(n => `<label><input type="radio" name="sub_${i}_${j}" data-ss="${i}:${j}" value="${esc(n)}"${x.sub === n ? ' checked' : ''}> ${esc(n)}</label>`).join('')}</span>
+          ${s.slots.length > 1 ? `<button type="button" class="x" data-sdel="${i}:${j}" aria-label="ลบช่วงเวลา">\u00d7</button>` : ''}</div>`).join('')}
+        <div class="slotfoot"><button type="button" class="btn ghost sm" data-sadd="${i}">+ เพิ่มช่วงเวลา / แผนก</button> <span data-hrs="${i}">${workHours(s) ? 'รวม ' + fmtHrs(workHours(s)) : ''}</span></div></div>` : ''}
       ${s.tag === 'ออกหน่วย' ? `<input style="grid-column:1/-1" data-duty="${i}:tagNote" value="${esc(s.tagNote || '')}" placeholder="ออกไปหน่วยงานใด เช่น C3">` : ''}</div>`).join('')
       || '<p class="muted" style="margin:6px 0 0">ยังไม่ได้เลือกผู้ปฏิบัติงาน</p>'}`;
 
@@ -1791,6 +1818,8 @@ function renderStaffPicker() {
     if (s) { d.staff.push(Object.assign({ name: s.name, role: s.role, pos: posLabel(s.title, s.role), tag: '' }, lastTimes())); S.dirty = true; renderStaffPicker(); showSub(); }
   };
   $('fm_staffbody').querySelectorAll('[data-unpick]').forEach(b => b.onclick = () => { d.staff.splice(+b.dataset.unpick, 1); S.dirty = true; renderStaffPicker(); showSub(); });
+  $('fm_staffbody').querySelectorAll('[data-sadd]').forEach(b => b.onclick = () => { const p = d.staff[+b.dataset.sadd], sl = ensureSlots(p), last = sl[sl.length - 1]; sl.push({ from: last.to || '', to: '', sub: '' }); syncSlots(p); S.dirty = true; renderStaffPicker(); showSub(); });
+  $('fm_staffbody').querySelectorAll('[data-sdel]').forEach(b => b.onclick = () => { const [i, j] = b.dataset.sdel.split(':').map(Number), p = d.staff[i]; p.slots.splice(j, 1); syncSlots(p); S.dirty = true; renderStaffPicker(); showSub(); });
   $('ns_add').onclick = async () => {
     const name = $('ns_name').value.trim(), role = $('ns_role').value;
     if (!name) return toast('พิมพ์ชื่อก่อน');
