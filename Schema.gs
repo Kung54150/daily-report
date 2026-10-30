@@ -171,7 +171,7 @@ const FORMS = {
     ] },
     { title: 'แพทย์', fields: [N_('doctor', 'แพทย์ออกตรวจ', 'คน')] }
   ] },
-  PC: { total: 'ยอดรวมทั้งหมด', std: {
+  PC: { staffSubs: ['PC', 'WCC', 'CTDC'], total: 'ยอดรวมทั้งหมด', std: {
     total: ['vac', 'breast', 'vac_nodoc', 'well_nb', 'sick', 'sick_admit', 'sick_icu', 'sick_nb', 'dev_act', 'dev_speech', 'dev_doc', 'dev_psy', 'dev_drug', 'dev_psych'],
     admit: ['well_nb', 'sick_admit', 'sick_icu', 'sick_nb'] }, sections: [
     { title: 'เด็กดี', sum: 'รวม', fields: [N_('vac', 'วัคซีนตามอายุ'), N_('breast', 'คลินิกนมแม่'), N_('vac_nodoc', 'วัคซีน ไม่พบแพทย์'), N_('well_nb', 'Admit NB'), Object.assign(N_('well_refuse', 'ปฏิเสธการรักษา'), { noSum: true })] },
