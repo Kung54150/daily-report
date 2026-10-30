@@ -192,6 +192,12 @@
   .slot .tin { width: 78px; padding: 6px; font-size: 14px; text-align: center; }
   .slotfoot { font-size: 13px; color: var(--muted); min-height: 0; }
   .slotfoot:has([data-hrs]:empty) { display: none; }
+  .deptrow { margin-top: 12px; display: flex; align-items: center; gap: 8px; }
+  .deptname { display: inline-block; padding: 2px 14px; border-radius: 8px; background: var(--accent); color: var(--accent-ink); font-size: 16px; font-weight: 700; letter-spacing: .3px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .a4 .deptrow { margin-top: 5px; gap: 6px; }
+  .a4 .deptname { padding: 0 8px; border-radius: 0; border-left: 4px solid #000; background: #dfe6e6; color: #000; font-size: 11pt; }
+  .a4 .dcount { font-size: 9pt; }
+  .a4 .deptlist { margin-bottom: 2px; }
   .dsubs { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; font-size: 14px; color: var(--muted); }
   .dsubs label { display: inline-flex; align-items: center; gap: 5px; margin: 0; color: var(--fg); cursor: pointer; }
   .dsubs input { width: 20px; height: 20px; padding: 0; accent-color: var(--accent-strong); }
@@ -1225,10 +1231,11 @@ function opdGroups(r, nameFn) {
       OPD_STAFF_GROUPS.concat([['ไม่ระบุ', null]]).forEach(([label, roles]) => {
         const g = l.filter(e => roles ? roles.indexOf(e.x.role) >= 0 : known.indexOf(e.x.role) < 0);
         if (!g.length) return;
-        // ตำแหน่งละบรรทัด: ชื่อทั้งหมดต่อกัน (ประหยัดที่)
-        items.push({ text: '<b>' + esc(label) + ' ' + g.filter(e => e.x.tag !== 'ออกหน่วย').length + ' คน:</b> ' + g.map(e => esc(nameFn ? nameFn(e.x.name) : e.x.name) + (e.x.role === 'หัวหน้า' ? ' (' + esc(dutyPos(e.x, r.unit)) + ')' : '') + (e.time ? ' <span class="muted">' + esc(e.time) + '</span>' : '') + (e.x.tag ? ' [' + esc(e.x.tag) + (e.x.tagNote ? ' ' + esc(e.x.tagNote) : '') + ']' : '')).join(' \u00b7 ') });
+        // หัวข้อตำแหน่ง แล้วชื่อคนละบรรทัด
+        items.push({ text: '<b>' + esc(label) + ' ' + g.filter(e => e.x.tag !== 'ออกหน่วย').length + ' คน</b>' });
+        g.forEach(e => items.push({ text: esc(nameFn ? nameFn(e.x.name) : e.x.name) + (e.x.role === 'หัวหน้า' ? ' (' + esc(dutyPos(e.x, r.unit)) + ')' : '') + (e.time ? ' <span class="muted">' + esc(e.time) + '</span>' : '') + (e.x.tag ? ' [' + esc(e.x.tag) + (e.x.tagNote ? ' ' + esc(e.x.tagNote) : '') + ']' : ''), sub: true }));
       });
-      out.push({ label: sub || 'ไม่ระบุแผนก', n: l.filter(e => e.x.tag !== 'ออกหน่วย').length, unit: 'คน', items });
+      out.push({ label: sub || 'ไม่ระบุแผนก', n: l.filter(e => e.x.tag !== 'ออกหน่วย').length, unit: 'คน', items, dept: true });
     });
     return out;
   }
@@ -1239,7 +1246,7 @@ function opdGroups(r, nameFn) {
   });
   return out;
 }
-const opdGroupsHtml = r => { const g = opdGroups(r); return g.length ? g.map(x => `<div style="margin-top:8px"><b>${esc(x.label)}</b> <span class="pill plain">${x.n} ${x.unit}</span></div>${x.items.map(i => `<div style="font-size:14px;padding-left:10px${i.off ? ';text-decoration:line-through;color:var(--muted)' : ''}">${i.text}</div>`).join('')}`).join('') : '<span class="muted">ไม่ได้ระบุ</span>'; };
+const opdGroupsHtml = r => { const g = opdGroups(r); return g.length ? g.map(x => (x.dept ? `<div class="deptrow"><span class="deptname">${esc(x.label)}</span> <span class="pill plain">${x.n} ${x.unit}</span></div>` : `<div style="margin-top:8px"><b>${esc(x.label)}</b> <span class="pill plain">${x.n} ${x.unit}</span></div>`) + `${x.items.map(i => `<div style="font-size:14px;padding-left:${i.sub ? 24 : 10}px${i.off ? ';text-decoration:line-through;color:var(--muted)' : ''}">${i.text}</div>`).join('')}`).join('') : '<span class="muted">ไม่ได้ระบุ</span>'; };
 const docLine = x => `${esc(x.name)}${x.time ? ' ' + esc(x.time) : ''}${x.off ? ' (งด)' : ''}`;
 const doctorsViewHtml = r => `<div class="card"><h3>แพทย์ออกตรวจ <span class="sub">${(r.doctors || []).filter(x => !x.off).length} ท่าน</span></h3>
   ${(r.doctors || []).map(x => `<div style="font-size:14px${x.off ? ';text-decoration:line-through;color:var(--muted)' : ''}"><b>${esc(x.name)}</b> ${esc(x.time || '')}${x.off ? ' (งด / ไม่มา)' : ''}</div>`).join('') || '<span class="muted">ไม่ได้ระบุ</span>'}</div>`;
@@ -2631,7 +2638,7 @@ function printSingle(u, shift) {
   h += '</div>';
   if (r.notes) h += `<div class="ln"><b>เรื่องแจ้ง:</b> ${esc(r.notes).replace(/\n/g, ' / ')}</div>`;
   const staff = r.staff || [], rd = r.reduce || {};
-  if (u.group === 'OPD') h += `<h2>อัตรากำลัง \u00b7 เวร ${esc(shiftName(r.shift))}</h2>` + opdGroups(Object.assign({ unit: u.code }, r)).map(g => `<div class="ln"><b>${esc(g.label)} ${g.n} ${g.unit}</b></div><div class="cols">${g.items.map(i => `<div class="ln">${i.text}</div>`).join('')}</div>`).join('');
+  if (u.group === 'OPD') h += `<h2>อัตรากำลัง \u00b7 เวร ${esc(shiftName(r.shift))}</h2>` + opdGroups(Object.assign({ unit: u.code }, r)).map(g => (g.dept ? `<div class="deptrow"><span class="deptname">${esc(g.label)}</span> <span class="dcount">${g.n} ${g.unit}</span></div>` : `<div class="ln"><b>${esc(g.label)} ${g.n} ${g.unit}</b></div>`) + `<div class="${g.dept ? 'deptlist' : 'cols'}">${g.items.map(i => `<div class="ln"${i.sub ? ' style="padding-left:10px"' : ''}>${i.text}</div>`).join('')}</div>`).join('');
   else {
   h += `<h2>อัตรากำลัง \u00b7 เวร ${esc(shiftName(r.shift))} \u00b7 ${roleCounts(staff).map(([k, n]) => `${esc(k)} ${n}`).join(', ') || 'ไม่ได้ระบุ'}</h2>
     <div class="cols">${(u.staffSlot ? slotSort(staff) : staff).map(s => `<div class="ln">${esc(dutyPos(s, u.code))}${u.staffSlot && s.slot ? ' \u00b7 คนที่ ' + esc(s.slot) : ''} ${esc(s.name)}${timeText(s) ? ' ' + esc(timeText(s)) : ''}${s.tag ? ` (${esc(s.tag)}${s.tagNote ? ' ' + esc(s.tagNote) : ''})` : ''}</div>`).join('')}</div>`;
