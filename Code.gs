@@ -325,7 +325,7 @@ function saveReport(token, rep) {
     updatedAt: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm'),
     values,
     shift: rep.shift,
-    staff: (rep.staff || []).filter(s => s && s.name).map(s => ({ name: String(s.name), role: s.role || '', pos: String(s.pos || '').slice(0, 40), tag: s.tag || '', tagNote: s.tagNote || '', slot: String(s.slot == null ? '' : s.slot).slice(0, 3), from: hm_(s.from), to: hm_(s.to) })),
+    staff: (rep.staff || []).filter(s => s && s.name).map(s => ({ name: String(s.name), role: s.role || '', pos: String(s.pos || '').slice(0, 40), subs: (Array.isArray(s.subs) ? s.subs : []).filter(x => (form.staffSubs || []).indexOf(x) >= 0), tag: s.tag || '', tagNote: s.tagNote || '', slot: String(s.slot == null ? '' : s.slot).slice(0, 3), from: hm_(s.from), to: hm_(s.to) })),
     // ผู้ป่วยนอก: แพทย์ที่ออกตรวจวันนั้น (ดึงจากตารางเวรแพทย์แล้วหน่วยงานแก้ เพิ่ม ลบ ปรับเวลาเองได้) off = งด/ไม่มา
     doctors: myUnit.group === 'OPD' ? (rep.doctors || []).filter(x => x && String(x.name || '').trim()).slice(0, 60).map(x => ({
       name: String(x.name).replace(/\s+/g, ' ').trim().slice(0, 60), time: String(x.time || '').trim().slice(0, 60),

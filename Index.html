@@ -186,6 +186,9 @@
   .duty { display: grid; grid-template-columns: 1fr 108px 32px; gap: 6px; align-items: center; padding: 5px 0; border-bottom: 1px dashed var(--line); }
   .duty .nm { min-width: 0; overflow-wrap: anywhere; }
   .duty select { padding: 6px; font-size: 14px; }
+  .dsubs { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; font-size: 14px; color: var(--muted); }
+  .dsubs label { display: inline-flex; align-items: center; gap: 5px; margin: 0; color: var(--fg); cursor: pointer; }
+  .dsubs input { width: 20px; height: 20px; padding: 0; accent-color: var(--accent-strong); }
   .dtime { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
   .dtime .tin { width: 76px; padding: 6px; font-size: 14px; }
   .drow { display: grid; grid-template-columns: 1fr 128px 32px; gap: 6px; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--line); }
@@ -1109,7 +1112,8 @@ function fieldValue(u, vals, f) {
 }
 const sectionSum = (s, vals) => s.fields.filter(f => !f.type && !f.calc && !f.noSum).reduce((a, f) => a + num(vals[f.key]), 0);
 const roleOpts = cur => (S.cfg.roles.indexOf(cur) < 0 ? `<option value="" selected>\u2014 เลือก \u2014</option>` : '') + S.cfg.roles.map(r => `<option${r === cur ? ' selected' : ''}>${esc(r)}</option>`).join('');
-const roleCounts = staff => S.cfg.roles.map(r => [r, staff.filter(s => s.role === r && s.tag !== 'ออกหน่วย').length]).concat([['ไม่ระบุ', staff.filter(s => S.cfg.roles.indexOf(s.role) < 0 && s.tag !== 'ออกหน่วย').length]]).filter(x => x[1]);
+// opd = ผู้ป่วยนอกไม่แยก PN กับ NA ใช้ PN/NA รวมกัน
+const roleCounts = (staff, opd) => (opd ? S.cfg.roles.filter(r => r !== 'NA').map(r => r === 'PN' ? ['PN/NA', staff.filter(s => (s.role === 'PN' || s.role === 'NA') && s.tag !== 'ออกหน่วย').length] : [r, staff.filter(s => s.role === r && s.tag !== 'ออกหน่วย').length]) : S.cfg.roles.map(r => [r, staff.filter(s => s.role === r && s.tag !== 'ออกหน่วย').length])).concat([['ไม่ระบุ', staff.filter(s => S.cfg.roles.indexOf(s.role) < 0 && s.tag !== 'ออกหน่วย').length]]).filter(x => x[1]);
 // ยอดมาตรฐาน / ประเภทผู้ป่วย (สำเนาเดียวกับ Schema.gs)
 function fieldNum(form, vals, key) {
   for (const s of form.sections) for (const f of (s.fields || [])) if (f.key === key && f.calc && !(f.calc.manual && hasVal(vals, key))) return f.calc.plus.reduce((a, k) => a + num(vals[k]), 0) - f.calc.minus.reduce((a, k) => a + num(vals[k]), 0);
@@ -1182,7 +1186,7 @@ const SUBS = [['patient', 'รายงานผู้ป่วย'], ['staff', 
 const sameZone = code => { const a = unitCfg(code), b = unitCfg(S.me.unit); return !!(a && b && a.group === b.group); };
 function subTabs(r) {
   const others = S.me.role === 'unit' && r && r.unit && !sameZone(r.unit); // เหตุการณ์ผิดปกติ/รายงานเคสเห็นเฉพาะ Zone ของตนเอง
-  const staffN = r ? roleCounts(r.staff || []).map(([k, n]) => k + ' ' + n).join(' ') : '';
+  const staffN = r ? roleCounts(r.staff || [], !!(r.unit && isOpdUnit(r.unit))).map(([k, n]) => k + ' ' + n).join(' ') : '';
   const incN = r ? (r.incidents || []).length : 0;
   const docN = r ? (r.doctors || []).filter(x => !x.off).length : 0;
   const badge = { staff: staffN, doctor: docN ? String(docN) : '', incident: incN ? String(incN) : '' };
@@ -1191,7 +1195,7 @@ function subTabs(r) {
 }
 
 // รายงานผู้ป่วยนอก: แยกตำแหน่งชัดเจน แพทย์ / พยาบาล (RN) / PN / NA / นศ. / ไม่ระบุ  (นับไม่รวมคนที่ออกหน่วย)
-const OPD_STAFF_GROUPS = [['พยาบาล (RN)', ['RN', 'หัวหน้า']], ['PN', ['PN']], ['NA', ['NA']], ['นศ.', ['นศ.']]];
+const OPD_STAFF_GROUPS = [['พยาบาล (RN)', ['RN', 'หัวหน้า']], ['PN/NA', ['PN', 'NA']], ['นศ.', ['นศ.']]];
 function opdGroups(r, nameFn) {
   const staff = r.staff || [], docs = r.doctors || [], out = [];
   if (docs.length) out.push({ label: 'แพทย์', n: docs.filter(x => !x.off).length, unit: 'ท่าน', items: docs.map(x => ({ text: esc(x.name) + (x.time ? ' ' + esc(x.time) : '') + (x.off ? ' (งด)' : ''), off: !!x.off })) });
@@ -1199,8 +1203,17 @@ function opdGroups(r, nameFn) {
   OPD_STAFF_GROUPS.concat([['ไม่ระบุ', null]]).forEach(([label, roles]) => {
     const l = staff.filter(x => roles ? roles.indexOf(x.role) >= 0 : known.indexOf(x.role) < 0);
     if (!l.length) return;
-    out.push({ label, n: l.filter(x => x.tag !== 'ออกหน่วย').length, unit: 'คน', items: l.map(x => ({ text: esc(nameFn ? nameFn(x.name) : x.name) + (x.role === 'หัวหน้า' ? ' (' + esc(dutyPos(x, r.unit)) + ')' : '') + (timeText(x) ? ' ' + esc(timeText(x)) : '') + (x.tag ? ' [' + esc(x.tag) + (x.tagNote ? ' ' + esc(x.tagNote) : '') + ']' : '') })) });
+    out.push({ label, n: l.filter(x => x.tag !== 'ออกหน่วย').length, unit: 'คน', items: l.map(x => ({ text: esc(nameFn ? nameFn(x.name) : x.name) + (x.role === 'หัวหน้า' ? ' (' + esc(dutyPos(x, r.unit)) + ')' : '') + (timeText(x) ? ' ' + esc(timeText(x)) : '') + ((x.subs || []).length ? ' \u00b7 ' + esc(x.subs.join(', ')) : '') + (x.tag ? ' [' + esc(x.tag) + (x.tagNote ? ' ' + esc(x.tagNote) : '') + ']' : '') })) });
   });
+  const subs = ((unitCfg(r.unit) || {}).form || {}).staffSubs;
+  if (subs && staff.length) {
+    // สรุปแยกตามแผนกย่อย เช่น PC: RN 2, PN/NA 1
+    const cnt = l => OPD_STAFF_GROUPS.map(([label, roles]) => [label, l.filter(x => roles.indexOf(x.role) >= 0).length]).filter(x => x[1]).map(x => `${x[0] === 'พยาบาล (RN)' ? 'RN' : x[0]} ${x[1]}`).join(', ');
+    const act = staff.filter(x => x.tag !== 'ออกหน่วย'), items = subs.map(n => [n, act.filter(x => (x.subs || []).indexOf(n) >= 0)]).filter(x => x[1].length).map(([n, l]) => ({ text: esc(n) + ': ' + esc(cnt(l)) }));
+    const none = act.filter(x => !(x.subs || []).length);
+    if (none.length) items.push({ text: 'ไม่ระบุแผนก: ' + esc(cnt(none)) });
+    if (items.length) out.push({ label: 'แยกตามแผนก', n: act.length, unit: 'คน', items });
+  }
   return out;
 }
 const opdGroupsHtml = r => { const g = opdGroups(r); return g.length ? g.map(x => `<div style="margin-top:8px"><b>${esc(x.label)}</b> <span class="pill plain">${x.n} ${x.unit}</span></div>${x.items.map(i => `<div style="font-size:14px;padding-left:10px${i.off ? ';text-decoration:line-through;color:var(--muted)' : ''}">${i.text}</div>`).join('')}`).join('') : '<span class="muted">ไม่ได้ระบุ</span>'; };
@@ -1237,7 +1250,7 @@ function renderReportView(u, r) {
       return `<div class="card"><h3>${esc(s.title)}</h3><div class="kv">${rows}${sum}</div></div>`;
     });
     if (u.form.total) cards.push(`<div class="card"><div class="kv"><div><b>${esc(u.form.total)}</b></div><div class="v">${u.form.sections.filter(s => s.sum).reduce((a, s) => a + sectionSum(s, v), 0)}</div></div></div>`);
-    { const rd0 = r.reduce || {}; if (u.group === 'OPD' && (num(rd0.RN) + num(rd0.PN) + num(rd0.NA) || rd0.detail)) cards.push(reduceViewHtml(rd0)); }
+    { const rd0 = r.reduce || {}; if (u.group === 'OPD' && (num(rd0.RN) + num(rd0.PN) + num(rd0.NA) || rd0.detail)) cards.push(reduceViewHtml(rd0, true)); }
     if (r.notes) cards.push(`<div class="card"><h3>เรื่องแจ้ง</h3><div class="pre">${esc(r.notes)}</div></div>`);
     body = `<div class="view-grid">${cards.join('')}</div>`;
     if ((r.cases || []).length) body += `<h3 style="margin:14px 0 8px">รายงานเคส (${r.cases.length})</h3>` + r.cases.map((i, n) => caseCardHtml(i, n + 1)).join('');
@@ -1331,7 +1344,7 @@ function mountForm() {
     pat += '</div>';
   });
   if (u.form.total) pat += `<div class="card"><div class="sumline" style="border:0;margin:0;padding:0"><span>${esc(u.form.total)}</span><span class="num" id="fm_total">0</span></div></div>`;
-  if (unitCfg(euUnit()).group === 'OPD') pat += reduceFormHtml(d.reduce || {});
+  if (unitCfg(euUnit()).group === 'OPD') { const r0 = d.reduce = d.reduce || {}; if (num(r0.NA)) { r0.PN = num(r0.PN) + num(r0.NA); r0.NA = ''; } pat += reduceFormHtml(r0, true); }
   pat += `<div class="card"><h3>เรื่องแจ้ง</h3><textarea id="fm_notes" rows="3" placeholder="เช่น พรุ่งนี้แพทย์งดออกตรวจ / ไม่มีเอกสารค้างส่ง">${esc(d.notes || '')}</textarea></div>
     <div class="card"><h3>รายงานเคส</h3><div id="fm_cases"></div>${(S.cfg.lineCaseUnits || []).indexOf(euUnit()) >= 0 ? '<button type="button" class="addinc" id="fm_linecase" style="margin-bottom:8px">\u21e9 ดึงเคสจาก LINE</button>' : ''}<button type="button" class="addinc" id="fm_addcase">+ เพิ่มเคส</button></div>`;
 
@@ -1630,6 +1643,12 @@ $('view').addEventListener('keydown', e => {
 function onFormInput(e) {
   const t = e.target, d = S.draft;
   S.dirty = true;
+  if (t.dataset && t.dataset.dsub) {
+    // ผู้ป่วยนอก PC: ติ๊กว่าเจ้าหน้าที่ประจำแผนกไหน (PC / WCC / CTDC) เลือกได้หลายแผนก
+    const [i, n] = t.dataset.dsub.split(':'), st = d.staff[i], cur = st.subs || [];
+    st.subs = t.checked ? cur.filter(x => x !== n).concat(n) : cur.filter(x => x !== n);
+    return;
+  }
   const agk = t.dataset && (t.dataset.ag || t.dataset.agc);
   if (agk) {
     // อายุ: ปี / เดือน / วัน รวมเป็นข้อความเก็บในช่อง age (เดือนไม่เกิน 11 วันไม่เกิน 31)
@@ -1702,15 +1721,16 @@ function recalc(quiet) {
 }
 
 /* อัตรากำลัง: เลือกชื่อจาก Drop down หรือพิมพ์ชื่อใหม่ */
-const reduceViewHtml = rd => `<div class="card"><h3>ลดอัตรากำลัง</h3><div class="kv">
-        <div>RN</div><div class="v">${num(rd.RN)} ชม.</div><div>PN</div><div class="v">${num(rd.PN)} ชม.</div><div>NA</div><div class="v">${num(rd.NA)} ชม.</div>
+// ลดอัตรากำลัง: ผู้ป่วยนอกใช้ RN และ PN/NA (รวมกัน เก็บในช่อง PN) ที่เหลือแยก RN / PN / NA
+const reduceViewHtml = (rd, opd) => `<div class="card"><h3>ลดอัตรากำลัง</h3><div class="kv">
+        <div>RN</div><div class="v">${num(rd.RN)} ชม.</div>${opd ? `<div>PN/NA</div><div class="v">${num(rd.PN) + num(rd.NA)} ชม.</div>` : `<div>PN</div><div class="v">${num(rd.PN)} ชม.</div><div>NA</div><div class="v">${num(rd.NA)} ชม.</div>`}
         <div class="total">รวม</div><div class="total v">${num(rd.RN) + num(rd.PN) + num(rd.NA)} ชม.</div></div>
         ${rd.detail ? `<div class="pre muted" style="margin-top:6px;font-size:14px">${esc(rd.detail)}</div>` : ''}</div>`;
-const reduceFormHtml = rd => `<div class="card"><h3>ลดอัตรากำลัง <span class="sub">(ชั่วโมง)</span></h3>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-        ${['RN', 'PN', 'NA'].map(k => `<div><label class="f" for="rd_${k}">${k}</label><input id="rd_${k}" type="number" inputmode="decimal" min="0" step="0.5" value="${esc(rd[k] ?? '')}" placeholder="0"></div>`).join('')}
+const reduceFormHtml = (rd, opd) => `<div class="card"><h3>ลดอัตรากำลัง <span class="sub">(ชั่วโมง)</span></h3>
+      <div style="display:grid;grid-template-columns:repeat(${opd ? 2 : 3},1fr);gap:8px">
+        ${(opd ? [['RN', 'RN'], ['PN', 'PN/NA']] : [['RN', 'RN'], ['PN', 'PN'], ['NA', 'NA']]).map(([k, lab]) => `<div><label class="f" for="rd_${k}">${lab}</label><input id="rd_${k}" type="number" inputmode="decimal" min="0" step="0.5" value="${esc(opd && k === 'PN' ? (num(rd.PN) + num(rd.NA) || '') : (rd[k] ?? ''))}" placeholder="0"></div>`).join('')}
       </div>
-      <label class="f" for="rd_detail">รายละเอียด</label><textarea id="rd_detail" rows="2" placeholder="เช่น RN 15-19 น. / NA ขาด 1 คน 9-17 น.">${esc(rd.detail || '')}</textarea></div>`;
+      <label class="f" for="rd_detail">รายละเอียด</label><textarea id="rd_detail" rows="2" placeholder="เช่น RN 15-19 น. / PN/NA ขาด 1 คน 9-17 น.">${esc(rd.detail || '')}</textarea></div>`;
 // ชื่อต้นอย่างเดียว (ตัดคำนำหน้าและนามสกุล) สำหรับหน้าสรุป
 const firstName = n => {
   // ตัดคำนำหน้า (น.ส. นาย นาง นางสาว คุณ ด.ช. ฯลฯ) ออกก่อน แล้วเอาชื่อต้นอย่างเดียว; คำเต็มต้องตามด้วยช่องว่าง เพื่อไม่ตัดชื่อที่ขึ้นต้นเหมือนกัน เช่น นายิกา
@@ -1723,7 +1743,9 @@ const firstName = n => {
   return t.split(/\s+/)[0] || String(n || '').trim();
 };
 // ตำแหน่งของคนในเวร: ค่าที่บันทึกไว้ในรายงาน หรือค้นจากทะเบียนของหน่วยงาน
-const dutyPos = (s, unit) => s.pos || (() => { const r = S.staff.find(x => x.name === s.name && x.unit === unit); return posLabel(r ? r.title : '', s.role); })();
+const dutyPos = (s, unit) => posU(unit, s.pos || (() => { const r = S.staff.find(x => x.name === s.name && x.unit === unit); return posLabel(r ? r.title : '', s.role); })());
+// ผู้ป่วยนอก: PN และ NA แสดงรวมเป็น PN/NA
+const posU = (unit, p) => ((unitCfg(unit) || {}).group === 'OPD' && (p === 'PN' || p === 'NA') ? 'PN/NA' : p);
 // ผู้ป่วยนอก: เวลาทำงานของแต่ละคน (เริ่ม-เลิก 24 ชม.) และจำนวนชั่วโมง
 const isOpdUnit = code => (unitCfg(code) || {}).group === 'OPD';
 const toMin = t => { const m = /^(\d\d):(\d\d)$/.exec(t || ''); return m ? +m[1] * 60 + +m[2] : null; };
@@ -1735,10 +1757,10 @@ function workHours(s) {
 const fmtHrs = h => (Math.round(h * 10) / 10) + ' ชม.';
 const timeText = s => s.from || s.to ? `${s.from || '?'}\u2013${s.to || '?'} น.` : '';
 function renderStaffPicker() {
-  const d = S.draft, unit = euUnit(), slotOn = unitCfg(unit).staffSlot, opd = isOpdUnit(unit);
+  const d = S.draft, unit = euUnit(), slotOn = unitCfg(unit).staffSlot, opd = isOpdUnit(unit), subsCfg = unitCfg(unit).form.staffSubs;
   const chosen = new Set(d.staff.map(s => s.name));
   const mine = S.staff.filter(s => s.unit === unit && !chosen.has(s.name));
-  const opt = s => `<option value="${esc(s.id)}">${esc(s.name)} (${esc(posLabel(s.title, s.role))})</option>`;
+  const opt = s => `<option value="${esc(s.id)}">${esc(s.name)} (${esc(posU(unit, posLabel(s.title, s.role)))})</option>`;
   $('fm_staffbody').innerHTML = `
     <label class="f" for="ns_pick">เพิ่มผู้ปฏิบัติงานเวรนี้</label>
     <select id="ns_pick">
@@ -1752,12 +1774,13 @@ function renderStaffPicker() {
       <button type="button" class="btn sm" id="ns_add">+ เพิ่ม</button>
     </div>
     <div class="muted" style="font-size:12px;margin-top:4px">ชื่อใหม่จะถูกเพิ่มเข้าทะเบียน ${esc(unit)} อัตโนมัติ \u00b7 แก้ไข/ลบรายชื่อได้ที่แท็บ "ทะเบียนเจ้าหน้าที่"${opd ? ' \u00b7 ระบุเวลาทำงานของแต่ละคน (พิมพ์ 0800) คนถัดไปใช้เวลาเดียวกับคนก่อนหน้าให้ก่อน แก้ได้' : ''}</div>
-    <div class="counts">${roleCounts(d.staff).map(([k, n]) => `<span>${esc(k)} ${n}</span>`).join('')}</div>
+    <div class="counts">${roleCounts(d.staff, opd).map(([k, n]) => `<span>${esc(k)} ${n}</span>`).join('')}</div>
     ${d.staff.map((s, i) => [s, i]).reverse().map(([s, i]) => `<div class="duty"><span class="nm">${esc(s.name)} <b class="rl">(${esc(dutyPos(s, unit))})</b></span>
       <select data-duty="${i}:tag" aria-label="หน้าที่"><option value="">หน้าที่ \u2013</option>${S.cfg.dutyTags.map(t => `<option${t === s.tag ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>
       <button type="button" class="x" data-unpick="${i}" aria-label="เอาออก">\u00d7</button>
       ${slotOn ? `<div style="grid-column:1/-1;display:flex;gap:8px;align-items:center"><label class="f" style="margin:0" for="slot_${i}">คนที่</label><input id="slot_${i}" type="number" inputmode="numeric" min="1" max="99" style="width:80px" data-duty="${i}:slot" value="${esc(s.slot || '')}" placeholder="1"></div>` : ''}
       ${opd ? `<div class="dtime">เวลาทำงาน <input class="tin" type="text" inputmode="numeric" maxlength="5" placeholder="08:00" autocomplete="off" aria-label="เริ่มงาน" data-duty="${i}:from" value="${esc(s.from || '')}"> \u2013 <input class="tin" type="text" inputmode="numeric" maxlength="5" placeholder="16:00" autocomplete="off" aria-label="เลิกงาน" data-duty="${i}:to" value="${esc(s.to || '')}"> <span data-hrs="${i}">${workHours(s) ? fmtHrs(workHours(s)) : ''}</span></div>` : ''}
+      ${subsCfg ? `<div class="dsubs">ประจำแผนก ${subsCfg.map(n => `<label><input type="checkbox" data-dsub="${i}:${esc(n)}"${(s.subs || []).indexOf(n) >= 0 ? ' checked' : ''}> ${esc(n)}</label>`).join('')}</div>` : ''}
       ${s.tag === 'ออกหน่วย' ? `<input style="grid-column:1/-1" data-duty="${i}:tagNote" value="${esc(s.tagNote || '')}" placeholder="ออกไปหน่วยงานใด เช่น C3">` : ''}</div>`).join('')
       || '<p class="muted" style="margin:6px 0 0">ยังไม่ได้เลือกผู้ปฏิบัติงาน</p>'}`;
 
@@ -2043,7 +2066,7 @@ function renderStaff() {
     html += renderDocCard() + renderBindingCard() + renderTitleCard();
     html += `<div class="card"><label class="f" for="st_unit">หน่วยงาน</label><select id="st_unit"><option value="__none"${none ? ' selected' : ''}>ยังไม่ผูกแผนก (${S.staff.filter(s => !s.unit).length} คน)</option>${unitOptgroups(unit)}</select></div>`;
   }
-  html += `<div class="card"><h3>ทะเบียนเจ้าหน้าที่ ${esc(unitName)} <span class="sub">${list.length} คน \u00b7 ${roleCounts(list).map(([k, n]) => `${k} ${n}`).join(' \u00b7 ')}</span></h3>
+  html += `<div class="card"><h3>ทะเบียนเจ้าหน้าที่ ${esc(unitName)} <span class="sub">${list.length} คน \u00b7 ${roleCounts(list, !none && isOpdUnit(unit)).map(([k, n]) => `${k} ${n}`).join(' \u00b7 ')}</span></h3>
     ${list.map(s => S.editStaff === s.id
       ? `<div class="srow edit"><input id="es_name" value="${esc(s.name)}"><select id="es_role">${roleOpts(s.role)}</select>
          ${admin ? `<select id="es_unit" style="grid-column:1/-1"><option value="">\u2014 ยังไม่ผูกแผนก \u2014</option>${unitOptgroups(s.unit)}</select>` : ''}<span class="acts"><button type="button" class="btn sm" data-sact="save" data-id="${s.id}">บันทึก</button><button type="button" class="btn ghost sm" data-sact="cancel">ยกเลิก</button></span></div>`
@@ -2583,7 +2606,7 @@ function printSingle(u, shift) {
     <div class="cols">${(u.staffSlot ? slotSort(staff) : staff).map(s => `<div class="ln">${esc(dutyPos(s, u.code))}${u.staffSlot && s.slot ? ' \u00b7 คนที่ ' + esc(s.slot) : ''} ${esc(s.name)}${timeText(s) ? ' ' + esc(timeText(s)) : ''}${s.tag ? ` (${esc(s.tag)}${s.tagNote ? ' ' + esc(s.tagNote) : ''})` : ''}</div>`).join('')}</div>`;
   }
   const rt = num(rd.RN) + num(rd.PN) + num(rd.NA);
-  if (rt || rd.detail) h += `<div class="ln" style="margin-top:3px"><b>ลดอัตรากำลัง ${rt} ชม.</b> (RN ${num(rd.RN)} ชม., PN ${num(rd.PN)} ชม., NA ${num(rd.NA)} ชม.)${rd.detail ? ' \u00b7 ' + esc(rd.detail).replace(/\n/g, ' / ') : ''}</div>`;
+  if (rt || rd.detail) h += `<div class="ln" style="margin-top:3px"><b>ลดอัตรากำลัง ${rt} ชม.</b> (${u.group === 'OPD' ? `RN ${num(rd.RN)} ชม., PN/NA ${num(rd.PN) + num(rd.NA)} ชม.` : `RN ${num(rd.RN)} ชม., PN ${num(rd.PN)} ชม., NA ${num(rd.NA)} ชม.`})${rd.detail ? ' \u00b7 ' + esc(rd.detail).replace(/\n/g, ' / ') : ''}</div>`;
   const incs = (r.incidents || []).map(i => Object.assign({ unit: u.code }, i)), css = (r.cases || []).map(i => Object.assign({ unit: u.code }, i));
   return h + `<h2>เหตุการณ์ผิดปกติ (${incs.length})</h2>` + (incs.length ? incTable(incs) : '<div>ไม่มีเหตุการณ์ผิดปกติ</div>')
     + (css.length ? `<h2>รายงานเคส (${css.length})</h2>` + incTable(css, null, true) : '');
@@ -2629,9 +2652,9 @@ function printLines(u, r, withInc) {
     if (u.group === 'OPD') out.unshift(`<div class="lg"><div class="ln m">${tl[0]}</div></div>`); // ผู้ป่วยนอก: ยอดรวมทั้งหมดอยู่บรรทัดแรกเสมอ
     else grp(tl[0], []);
   }
-  const rc = roleCounts(r.staff || []);
+  const rc = roleCounts(r.staff || [], u.group === 'OPD');
   const rd = r.reduce || {}, rt = num(rd.RN) + num(rd.PN) + num(rd.NA);
-  const rdLine = rt ? `<b>ลดอัตรากำลัง ${rt} ชม.</b> (${['RN', 'PN', 'NA'].filter(k => num(rd[k])).map(k => `${k} ${num(rd[k])} ชม.`).join(', ')})` : '';
+  const rdLine = rt ? `<b>ลดอัตรากำลัง ${rt} ชม.</b> (${(u.group === 'OPD' ? [['RN', num(rd.RN)], ['PN/NA', num(rd.PN) + num(rd.NA)]] : ['RN', 'PN', 'NA'].map(k => [k, num(rd[k])])).filter(x => x[1]).map(x => `${x[0]} ${x[1]} ชม.`).join(', ')})` : '';
   if (u.group !== 'OPD' && withInc) {
     // ผู้ป่วยใน / Special Unit: แสดงชื่อ (เฉพาะชื่อต้น) ตามตำแหน่ง และการลดอัตรากำลังอยู่กลุ่มเดียวกับอัตรากำลัง
     const names = rl => (r.staff || []).filter(x => x.role === rl && x.tag !== 'ออกหน่วย').map(x => esc(firstName(x.name)));
