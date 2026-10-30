@@ -186,11 +186,19 @@
   .duty { display: grid; grid-template-columns: 1fr 108px 32px; gap: 6px; align-items: center; padding: 5px 0; border-bottom: 1px dashed var(--line); }
   .duty .nm { min-width: 0; overflow-wrap: anywhere; }
   .duty select { padding: 6px; font-size: 14px; }
-  .slots { grid-column: 1 / -1; display: grid; gap: 6px; }
-  .slot { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--sunk); font-size: 13px; color: var(--muted); }
-  .slot .tin { width: 74px; padding: 6px; font-size: 14px; }
-  .slotfoot { display: flex; gap: 10px; align-items: center; font-size: 13px; color: var(--muted); }
-  .dsubs { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; font-size: 14px; color: var(--muted); }
+  .slots { grid-column: 1 / -1; display: grid; gap: 4px; }
+  .slot { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; font-size: 13px; color: var(--muted); }
+  .slot .dt { display: inline-flex; align-items: center; gap: 3px; }
+  .slot .tin { width: 62px; padding: 5px 4px; font-size: 14px; text-align: center; }
+  .slot .x { padding: 2px 8px; }
+  .slotfoot { display: flex; gap: 10px; align-items: center; font-size: 12px; color: var(--muted); }
+  .linkbtn { border: 0; background: none; padding: 2px 0; color: var(--accent-strong); font-weight: 600; font-size: 13px; cursor: pointer; }
+  .sp { position: relative; margin: 0; cursor: pointer; }
+  .sp input { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; }
+  .sp span { display: inline-block; padding: 5px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--fg); font-size: 13px; }
+  .sp input:checked + span { background: var(--accent); color: var(--accent-ink); border-color: var(--accent-strong); font-weight: 600; }
+  .sp input:focus-visible + span { outline: 2px solid var(--accent-strong); }
+  .dsubs { display: flex; flex-wrap: nowrap; gap: 4px; align-items: center; font-size: 14px; color: var(--muted); }
   .dsubs label { display: inline-flex; align-items: center; gap: 5px; margin: 0; color: var(--fg); cursor: pointer; }
   .dsubs input { width: 20px; height: 20px; padding: 0; accent-color: var(--accent-strong); }
   .dtime { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
@@ -1222,8 +1230,8 @@ function opdGroups(r, nameFn) {
       OPD_STAFF_GROUPS.concat([['ไม่ระบุ', null]]).forEach(([label, roles]) => {
         const g = l.filter(e => roles ? roles.indexOf(e.x.role) >= 0 : known.indexOf(e.x.role) < 0);
         if (!g.length) return;
-        items.push({ text: '<b>' + esc(label) + '</b> ' + g.filter(e => e.x.tag !== 'ออกหน่วย').length + ' คน' });
-        g.forEach(e => items.push({ text: esc(nameFn ? nameFn(e.x.name) : e.x.name) + (e.x.role === 'หัวหน้า' ? ' (' + esc(dutyPos(e.x, r.unit)) + ')' : '') + (e.time ? ' ' + esc(e.time) : '') + (e.x.tag ? ' [' + esc(e.x.tag) + (e.x.tagNote ? ' ' + esc(e.x.tagNote) : '') + ']' : '') }));
+        // ตำแหน่งละบรรทัด: ชื่อทั้งหมดต่อกัน (ประหยัดที่)
+        items.push({ text: '<b>' + esc(label) + ' ' + g.filter(e => e.x.tag !== 'ออกหน่วย').length + ' คน:</b> ' + g.map(e => esc(nameFn ? nameFn(e.x.name) : e.x.name) + (e.x.role === 'หัวหน้า' ? ' (' + esc(dutyPos(e.x, r.unit)) + ')' : '') + (e.time ? ' <span class="muted">' + esc(e.time) + '</span>' : '') + (e.x.tag ? ' [' + esc(e.x.tag) + (e.x.tagNote ? ' ' + esc(e.x.tagNote) : '') + ']' : '')).join(' \u00b7 ') });
       });
       out.push({ label: sub || 'ไม่ระบุแผนก', n: l.filter(e => e.x.tag !== 'ออกหน่วย').length, unit: 'คน', items });
     });
@@ -1804,10 +1812,10 @@ function renderStaffPicker() {
       <button type="button" class="x" data-unpick="${i}" aria-label="เอาออก">\u00d7</button>
       ${slotOn ? `<div style="grid-column:1/-1;display:flex;gap:8px;align-items:center"><label class="f" style="margin:0" for="slot_${i}">คนที่</label><input id="slot_${i}" type="number" inputmode="numeric" min="1" max="99" style="width:80px" data-duty="${i}:slot" value="${esc(s.slot || '')}" placeholder="1"></div>` : ''}
       ${opd && !subsCfg ? `<div class="dtime">เวลาทำงาน <input class="tin" type="text" inputmode="numeric" maxlength="5" placeholder="08:00" autocomplete="off" aria-label="เริ่มงาน" data-duty="${i}:from" value="${esc(s.from || '')}"> \u2013 <input class="tin" type="text" inputmode="numeric" maxlength="5" placeholder="16:00" autocomplete="off" aria-label="เลิกงาน" data-duty="${i}:to" value="${esc(s.to || '')}"> <span data-hrs="${i}">${workHours(s) ? fmtHrs(workHours(s)) : ''}</span></div>` : ''}
-      ${subsCfg ? `<div class="slots">${ensureSlots(s).map((x, j) => `<div class="slot"><span class="dt">เวลา <input class="tin" type="text" inputmode="numeric" maxlength="5" placeholder="08:00" autocomplete="off" aria-label="เริ่มงาน" data-sf="${i}:${j}:from" value="${esc(x.from)}"> \u2013 <input class="tin" type="text" inputmode="numeric" maxlength="5" placeholder="16:00" autocomplete="off" aria-label="เลิกงาน" data-sf="${i}:${j}:to" value="${esc(x.to)}"></span>
-          <span class="dsubs">${subsCfg.map(n => `<label><input type="radio" name="sub_${i}_${j}" data-ss="${i}:${j}" value="${esc(n)}"${x.sub === n ? ' checked' : ''}> ${esc(n)}</label>`).join('')}</span>
+      ${subsCfg ? `<div class="slots">${ensureSlots(s).map((x, j) => `<div class="slot"><span class="dt"><input class="tin" type="text" inputmode="numeric" maxlength="5" placeholder="08:00" autocomplete="off" aria-label="เริ่มงาน" data-sf="${i}:${j}:from" value="${esc(x.from)}">\u2013<input class="tin" type="text" inputmode="numeric" maxlength="5" placeholder="16:00" autocomplete="off" aria-label="เลิกงาน" data-sf="${i}:${j}:to" value="${esc(x.to)}"></span>
+          <span class="dsubs">${subsCfg.map(n => `<label class="sp"><input type="radio" name="sub_${i}_${j}" data-ss="${i}:${j}" value="${esc(n)}"${x.sub === n ? ' checked' : ''}><span>${esc(n)}</span></label>`).join('')}</span>
           ${s.slots.length > 1 ? `<button type="button" class="x" data-sdel="${i}:${j}" aria-label="ลบช่วงเวลา">\u00d7</button>` : ''}</div>`).join('')}
-        <div class="slotfoot"><button type="button" class="btn ghost sm" data-sadd="${i}">+ เพิ่มช่วงเวลา / แผนก</button> <span data-hrs="${i}">${workHours(s) ? 'รวม ' + fmtHrs(workHours(s)) : ''}</span></div></div>` : ''}
+        <div class="slotfoot"><button type="button" class="linkbtn" data-sadd="${i}">+ ช่วงเวลา/แผนกเพิ่ม</button><span data-hrs="${i}">${workHours(s) ? 'รวม ' + fmtHrs(workHours(s)) : ''}</span></div></div>` : ''}
       ${s.tag === 'ออกหน่วย' ? `<input style="grid-column:1/-1" data-duty="${i}:tagNote" value="${esc(s.tagNote || '')}" placeholder="ออกไปหน่วยงานใด เช่น C3">` : ''}</div>`).join('')
       || '<p class="muted" style="margin:6px 0 0">ยังไม่ได้เลือกผู้ปฏิบัติงาน</p>'}`;
 
