@@ -3009,9 +3009,10 @@ const SUMMARY_VIEW = {
   OPD1: { 'ยอดรวม': { title: 'ยอดรวม Med+Psy', lead: 'total' }, 'ผู้ป่วยอายุรกรรม': { lead: 'med' }, 'ผู้ป่วยจิตเวช': { lead: 'psy' } },
   OR: { 'ยอดผ่าตัด': { ballTotal: 'total' }, 'ส่งมาจากหน่วยงาน': { skipEmpty: true } },
   'ไตเทียม': {
-    'ยอดรวม': { title: 'Total', lead: 'total' },
-    'รอบ 1': { lead: 'r1', units: true },
-    'รอบ 2': { lead: 'r2', units: true },
+    // compact = บรรทัดเดียวแบบ "รอบ 1 = 11 คน (HD = 11, HDF = 0)" (ช่องแรก = ยอดรวม ที่เหลือ = รายละเอียดในวงเล็บ)
+    'ยอดรวม': { title: 'Total', compact: ['total', 'hd', 'hdf'] },
+    'รอบ 1': { title: 'รอบ 1', compact: ['r1', 'r1_hd', 'r1_hdf'], hideZero: true },
+    'รอบ 2': { title: 'รอบ 2', compact: ['r2', 'r2_hd', 'r2_hdf'], hideZero: true },
     'แยกตามสิทธิ์': { units: true, skipEmpty: true },
     'Complication during HD': { lead: 'comp_total', units: true }
   },
@@ -3050,8 +3051,14 @@ function printLines(u, r, withInc, forPrint, split) {
       s.rows.forEach(rw => { const parts = s.cols.map(c => [c[1], num(v[rw[0] + '_' + c[0]])]).filter(x => x[1]); const t = parts.reduce((a, x) => a + x[1], 0); if (split && !t) return; grp(`<b>${esc(rw[1])} ${t}</b>`, [parts.map(x => esc(x[0]) + ' ' + x[1]).join(', ')]); });
       return;
     }
-    if (s.rounds) { (v[s.rounds.key] || []).forEach((r, i) => { const t = num(r.hd) + num(r.hdf); if (t) grp(`<b>รอบ ${s.rounds.startAt + i} ${t} คน</b>`, [num(r.hd) ? `HD ${num(r.hd)} คน` : '', num(r.hdf) ? `HDF ${num(r.hdf)} คน` : '']); }); return; }
+    if (s.rounds) { (v[s.rounds.key] || []).forEach((r, i) => { const t = num(r.hd) + num(r.hdf); if (t) grp(`<b>รอบ ${s.rounds.startAt + i} = ${t} คน</b> (HD = ${num(r.hd)}, HDF = ${num(r.hdf)})`, []); }); return; }
     const calcs = [], vw = (SUMMARY_VIEW[u.code] || {})[s.title] || {}, btxt = ballList(ballTotals(u, v), false, unitBalls(u));
+    if (vw.compact) {
+      const fs = vw.compact.map(k => s.fields.find(f => f.key === k)), val = f => num(fieldValue(u, v, f));
+      if (vw.hideZero && !val(fs[0])) return;
+      grp(`<b>${esc(vw.title || s.title)} = ${val(fs[0])} ${esc(fs[0].unit || '')}</b> (${fs.slice(1).map(f => `${esc(f.label)} = ${val(f)}`).join(', ')})`, []);
+      return;
+    }
     const items = s.fields.filter(f => f.type !== 'text').map(f => {
       if (f.key === vw.lead) return '';
       const val = fieldValue(u, v, f);
