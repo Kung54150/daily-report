@@ -429,8 +429,9 @@ function statRows_(u, rep) {
   }));
   Object.entries(categoryValues_(u.form, rep.values)).forEach(([k, n]) => rows.push(row('ประเภทผู้ป่วย', k, n)));
   const bv = ballValues_(u.form, rep.values);
-  BALLS.forEach(b => { if (bv[b[0]]) rows.push(row('ลูกบอลสีผู้ป่วย', b[1], bv[b[0]])); });
-  u.form.sections.filter(s => s.categories).forEach(s => s.fields.forEach(f => BALLS.forEach(b => {
+  const fb = formBalls_(u.form);
+  fb.forEach(b => { if (bv[b[0]]) rows.push(row('ลูกบอลสีผู้ป่วย', b[1], bv[b[0]])); });
+  u.form.sections.filter(s => s.categories).forEach(s => s.fields.forEach(f => fb.forEach(b => {
     const n = Number(rep.values[f.key + '_' + b[0]]) || 0;
     if (n) rows.push(row('ลูกบอลสีรายประเภท', f.label + ' \u00b7 ' + b[1], n));
   })));
