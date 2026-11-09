@@ -2474,10 +2474,10 @@ function caseCardHtml(i, n) {
     ${(i.files || []).length ? `<div class="atts">${i.files.map(f => attChip(f, false)).join('')}</div>` : ''}</div>`;
 }
 // กล่องของหน่วยงาน: แผนกที่มี 2 เวรแสดงทั้ง Day และ Night
-function unitShiftBlocks(u, withInc) {
+function unitShiftBlocks(u, withInc, forPrint) {
   const two = shiftsOf(u).length > 1;
   return shiftsOf(u).map(k => { const r = repAt(u, k);
-    const inner = r ? `<div class="slines">${printLines(u, r, withInc)}</div>` : `<div class="miss">${two ? 'เวร ' + esc(k) + ' ' : ''}ยังไม่รายงาน</div>`;
+    const inner = r ? `<div class="slines">${printLines(u, r, withInc, forPrint)}</div>` : `<div class="miss">${two ? 'เวร ' + esc(k) + ' ' : ''}ยังไม่รายงาน</div>`;
     return two ? `<div class="shb"><div class="shl">เวร ${esc(k)}</div>${inner}</div>` : inner; }).join('');
 }
 function renderSummary() {
@@ -2826,12 +2826,12 @@ function incTable(incs, first, cs) {
 function printUnits() {
   const secs = S.cfg.sections;
   const pair = u => `<div class="shpair">${shiftsOf(u).map(k => { const r = repAt(u, k);
-    return `<div class="shb"><div class="shl">เวร ${esc(k)}</div>${r ? `<div class="slines">${printLines(u, r, false)}</div>` : '<div class="miss">ยังไม่รายงาน</div>'}</div>`; }).join('')}</div>`;
+    return `<div class="shb"><div class="shl">เวร ${esc(k)}</div>${r ? `<div class="slines">${printLines(u, r, true, true)}</div>` : '<div class="miss">ยังไม่รายงาน</div>'}</div>`; }).join('')}</div>`;
   let body = printHead('แยกหน่วยงาน \u00b7 ผู้ป่วยนอก');
   // ผู้ป่วยนอก: OPD1 / OPD3 / PC อยู่หน้าเดียวกัน ตามด้วย ER (เวร Day ซ้าย Night ขวา เหมือนผู้ป่วยใน) แล้วจึงเป็นแผนกอื่น
   // แต่ละแผนกเป็นกล่องเดียว ถ้าท้ายหน้าไม่พอจะยกไปทั้งกล่องขึ้นหน้าใหม่ ไม่ตัดกลางข้อความ
   secs.filter(sc => sc.group === 'OPD').forEach(sc => {
-    const us = sc.units.map(unitCfg), lead = ['OPD1', 'OPD3', 'PC'], one = u => `<div class="ub"><b class="c">${esc(u.code)}</b>${unitShiftBlocks(u)}</div>`;
+    const us = sc.units.map(unitCfg), lead = ['OPD1', 'OPD3', 'PC'], one = u => `<div class="ub"><b class="c">${esc(u.code)}</b>${unitShiftBlocks(u, true, true)}</div>`;
     const first = lead.map(c => us.find(u => u.code === c)).filter(Boolean), er = us.find(u => u.code === 'ER');
     const rest = us.filter(u => first.indexOf(u) < 0 && u !== er);
     body += `<h2>${esc(sc.label)}</h2><div class="ubgrid">${first.map(one).join('')}</div>`;
@@ -2901,7 +2901,8 @@ const SUMMARY_VIEW = {
   }
 };
 // รายการหลักเป็นตัวหนา รายละเอียดขึ้นบรรทัดใหม่ขึ้นต้นด้วย -
-function printLines(u, r, withInc) {
+// forPrint = หน้าพิมพ์แยกหน่วยงาน: ผู้ป่วยนอกแสดงจำนวนเจ้าหน้าที่ด้วย (หน้าสรุปบนจอไม่แสดง)
+function printLines(u, r, withInc, forPrint) {
   const v = r.values || {}, out = [];
   const grp = (head, details) => out.push(`<div class="lg">${head ? `<div class="ln m">${head}</div>` : ''}${details.filter(Boolean).map(d => `<div class="ln dt">- ${d}</div>`).join('')}</div>`);
   u.form.sections.forEach(s => {
@@ -2951,7 +2952,7 @@ function printLines(u, r, withInc) {
     if (lines.length) grp('<b>อัตรากำลัง</b>', lines);
   } else {
     // ผู้ป่วยนอก: ไม่แสดงเจ้าหน้าที่และแพทย์ในหน้าสรุป (ดูได้ที่แท็บอัตรากำลัง/แพทย์ของแต่ละหน่วยงาน)
-    if (u.group !== 'OPD' && rc.length) grp('<b>อัตรากำลัง</b>', [rc.map(([k, n]) => `${esc(k)} ${n}`).join(', ')]);
+    if ((u.group !== 'OPD' || forPrint) && rc.length) grp('<b>อัตรากำลัง</b>', [rc.map(([k, n]) => `${esc(k)} ${n}`).join(', ')]);
     if (rdLine) grp(rdLine, []);
   }
   if (r.notes) grp('<b>เรื่องแจ้ง</b>', [esc(r.notes).replace(/\n/g, ' / ')]);
