@@ -2671,7 +2671,12 @@ const SUMMARY_VIEW = {
   ER: { 'ยอดผู้รับบริการ': { title: 'ยอดผู้รับบริการทั้งหมด', lead: 'total' }, 'OPD Case แบ่งตามประเภท (Triage)': { title: 'แยกตามประเภท Triage', nosum: true } },
   EENT: { 'ยอดผู้ป่วย': { title: 'จำนวนคนไข้ทั้งหมด', lead: 'total', nosum: true } },
   OPD1: { 'ยอดรวม': { title: 'ยอดรวม Med+Psy', lead: 'total' }, 'ผู้ป่วยอายุรกรรม': { lead: 'med' }, 'ผู้ป่วยจิตเวช': { lead: 'psy' } },
-  CCC: { 'สรุปยอดแผนก CCC': { title: 'Total ตรวจก่อนเข้างาน', lead: 'total', units: true } }
+  CCC: {
+    'ลูกค้าตรวจสุขภาพ': { units: true, skipEmpty: true },
+    'ลูกค้าตรวจก่อนเข้างาน': { title: 'Total ตรวจก่อนเข้างาน', lead: 'total', units: true },
+    'แผนกอื่นส่งตรวจ': { units: true, skipEmpty: true },
+    'โดนตาม': { units: true, skipEmpty: true }
+  }
 };
 // รายการหลักเป็นตัวหนา รายละเอียดขึ้นบรรทัดใหม่ขึ้นต้นด้วย -
 function printLines(u, r, withInc) {
@@ -2699,7 +2704,7 @@ function printLines(u, r, withInc) {
     }).filter(Boolean);
     const lf = vw.lead && s.fields.find(f => f.key === vw.lead), lv = lf ? fieldValue(u, v, lf) : '';
     const head = (u.form.sections.length > 1 || vw.title ? esc(vw.title || s.title) : '') + (lf && lv !== undefined && lv !== '' ? ` ${lv} ${esc(lf.unit || '')}` : '') + (s.sum && !vw.nosum ? ` ${esc(s.sum)} ${sectionSum(s, v)}` : '');
-    if (items.length || (head.trim() && !s.sum)) grp(head.trim() ? `<b>${head.trim()}</b>` : '', items);
+    if (items.length || (head.trim() && !s.sum && !vw.skipEmpty)) grp(head.trim() ? `<b>${head.trim()}</b>` : '', items);
     calcs.forEach(l => grp(l, []));
     s.fields.filter(f => f.type === 'text' && v[f.key]).forEach(f => grp('', [`${esc(f.label)}: ${esc(v[f.key])}`]));
   });
