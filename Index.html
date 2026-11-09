@@ -348,7 +348,7 @@
   .a4 .opsplit { display: grid; grid-template-columns: 1fr 1fr; gap: 0 3mm; align-items: start; }
   .a4 .opsplit > div { min-width: 0; }
   .a4 .evh { font-weight: 700; font-size: 9.5pt; color: #111; margin: 6px 0 2px; }
-  .a4 .shlab { font-weight: 700; }
+  .a4 .evsh { font-weight: 700; text-decoration: underline; margin: 4px 0 1px; }
   .a4 .opsplit .opside { padding-left: 0; }
   .a4 .shpair { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm; align-items: start; }
   .a4 .shpair .shb { margin-top: 2px; min-width: 0; }
@@ -2846,9 +2846,9 @@ function printUnits() {
     if (!two) inner = ls[0] ? twoCol(ls[0].main.concat(ls[0].side)) : '<div class="miss">ยังไม่รายงาน</div>';
     else {
       inner = `<div class="shpair">${sh.map((k, i) => `<div class="shb"><div class="shl">เวร ${esc(k)}</div>${ls[i] ? `<div class="slines">${gh(ls[i].main)}</div>` : '<div class="miss">ยังไม่รายงาน</div>'}</div>`).join('')}</div>`;
-      const ev = [];
-      sh.forEach((k, i) => (ls[i] ? ls[i].side : []).forEach((g, j) => ev.push(j === 0 ? Object.assign({}, g, { html: g.html.replace('<div class="lg">', `<div class="lg"><div class="ln shlab">เวร ${esc(k)}</div>`), w: g.w + 1 }) : g)));
-      if (ev.length) inner += `<div class="evh">สรุปเหตุการณ์ประจำวัน</div>${twoCol(ev)}`;
+      // สรุปเหตุการณ์ประจำวัน: คอลัมน์เดียวเต็มกล่อง เรียงตามเวร (ป้ายเวรตัวหนาขีดเส้นใต้) ข้ามเวรที่ไม่มีเรื่อง ไม่เปลืองพื้นที่
+      const ev = sh.map((k, i) => ls[i] && ls[i].side.length ? `<div class="evsh">เวร ${esc(k)}</div><div class="slines">${gh(ls[i].side)}</div>` : '').join('');
+      if (ev) inner += `<div class="evh">สรุปเหตุการณ์ประจำวัน</div>${ev}`;
     }
     return `<div class="ub"><b class="c">${esc(u.code)}</b>${inner}</div>`;
   };
