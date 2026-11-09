@@ -1558,7 +1558,7 @@ function renderLists() {
     const s = unitCfg(euUnit()).form.sections.find(x => x.key === box.dataset.list);
     const rows = v[s.key] = v[s.key] || [];
     mountList(box, { items: s.items, rows, unit: listUnit(s), totalLabel: s.totalLabel, memKey: s.key, rerender: renderLists,
-      onChange: () => { v[s.totalKey] = listTotal(s, v); S.dirty = true; } });
+      onChange: () => { v[s.totalKey] = listTotal(s, v); S.dirty = true; recalc(true); } });
   });
 }
 // CSSD: หม้อนึ่ง/อบ แต่ละหม้อเริ่มที่ 3 Lot กด "เพิ่ม Lot" ได้เอง ยอดรวมของหม้อ/ชนิด/ทั้งหมดคำนวณให้
@@ -2941,6 +2941,13 @@ const SUMMARY_VIEW = {
   EENT: { 'ยอดผู้ป่วย': { title: 'จำนวนคนไข้ทั้งหมด', lead: 'total', nosum: true } },
   OPD1: { 'ยอดรวม': { title: 'ยอดรวม Med+Psy', lead: 'total' }, 'ผู้ป่วยอายุรกรรม': { lead: 'med' }, 'ผู้ป่วยจิตเวช': { lead: 'psy' } },
   OR: { 'ยอดผ่าตัด': { ballTotal: 'total' }, 'ส่งมาจากหน่วยงาน': { skipEmpty: true } },
+  'ไตเทียม': {
+    'ยอดรวม': { title: 'Total', lead: 'total' },
+    'รอบ 1': { lead: 'r1', units: true },
+    'รอบ 2': { lead: 'r2', units: true },
+    'แยกตามสิทธิ์': { units: true, skipEmpty: true },
+    'Complication during HD': { lead: 'comp_total', units: true }
+  },
   CCC: {
     'ยอดรวม': { skipEmpty: true },
     'ผู้รับบริการ (จำนวนคน)': { title: 'ผู้รับบริการ', units: true, skipEmpty: true },

@@ -224,7 +224,26 @@ const FORMS = {
     LOTS_('st', 'ST (ST/Pe vacuum) \u00b7 นึ่งด้วยไอน้ำ', 'ST', 'st_total', [['p1', 'หม้อ1'], ['p2', 'หม้อ2'], ['p3', 'หม้อ3'], ['p4', 'หม้อ4']]),
     LOTS_('eo', 'EO (EO) \u00b7 อบแก๊ส', 'EO', 'eo_total', [['p1', 'หม้อ1']])
   ] },
-  'ไตเทียม': { draft: true, std: { total: 'hd' }, sections: [{ title: 'ไตเทียม', fields: [N_('hd', 'ฟอกเลือด (HD)'), N_('hd_new', 'ผู้ป่วยรายใหม่')] }] },
+  // ไตเทียม (HEM): ยอดคนไข้ HD / HDF แยกรอบ 1-2 · ยอดรวม = HD + HDF = ผลรวมแยกตามสิทธิ์ · Complication during HD (รายการประจำ + พิมพ์เพิ่มได้) ระบบรวมให้
+  'ไตเทียม': { std: { total: 'total' }, sections: [
+    { title: 'ยอดรวม', hint: 'Total = HD + HDF (รอบ 1 + รอบ 2)', fields: [
+      Object.assign(N_('total', 'Total', 'คน'), { calc: { plus: ['r1_hd', 'r1_hdf', 'r2_hd', 'r2_hdf'], minus: [] } }),
+      Object.assign(N_('hd', 'HD', 'คน'), { calc: { plus: ['r1_hd', 'r2_hd'], minus: [] } }),
+      Object.assign(N_('hdf', 'HDF', 'คน'), { calc: { plus: ['r1_hdf', 'r2_hdf'], minus: [] } })
+    ] },
+    { title: 'รอบ 1', fields: [N_('r1_hd', 'HD', 'คน'), N_('r1_hdf', 'HDF', 'คน'), Object.assign(N_('r1', 'รวมรอบ 1', 'คน'), { calc: { plus: ['r1_hd', 'r1_hdf'], minus: [] } })] },
+    { title: 'รอบ 2', fields: [N_('r2_hd', 'HD', 'คน'), N_('r2_hdf', 'HDF', 'คน'), Object.assign(N_('r2', 'รวมรอบ 2', 'คน'), { calc: { plus: ['r2_hd', 'r2_hdf'], minus: [] } })] },
+    { title: 'แยกตามสิทธิ์', sum: 'รวม', sumEq: 'total', fields: [
+      N_('r_cgd', 'กรมบัญชีกลาง (รูดบัตร)', 'คน'), N_('r_bkk', 'ข้าราชการ กทม.', 'คน'), N_('r_local', 'ข้าราชการ อปท.', 'คน'),
+      N_('r_sso', 'ประกันสังคม', 'คน'), N_('r_uc', 'สปสช. (Authen ครบ)', 'คน'), N_('r_other', 'รัฐวิสาหกิจ / เงินสด', 'คน')
+    ] },
+    { title: 'Complication during HD', fields: [
+      N_('c_cramp', 'Muscle cramp', 'case'), N_('c_htn', 'Hypertension', 'case'), N_('c_arr', 'Arrhythmia', 'case'),
+      N_('c_hypo', 'Hypotension', 'case'), N_('c_glu', 'Hypoglycemia', 'case'),
+      Object.assign(N_('comp_total', 'รวม Complication', 'case'), { calc: { plus: ['c_cramp', 'c_htn', 'c_arr', 'c_hypo', 'c_glu', 'cx_total'], minus: [] } })
+    ] },
+    Object.assign(LIST_('cx', 'Complication อื่นๆ (พิมพ์เพิ่มได้)', 'cx_total', 'รวม Complication อื่นๆ', [CUSTOM_ITEM]), { unit: 'case' })
+  ] },
   // ห้องผ่าตัด ตามสถิติรายเดือนของหน่วย: ยอดรวม = Major + Minor (ลูกบอลแดง = Major, เขียว = Minor ของแต่ละแผนก)
   // Emergency + Elective ต้องเท่ากับยอดรวม · ส่งมาจาก OPD/IPD · สิทธิการรักษาของแต่ละเคส
   OR: { std: { total: 'total' }, sections: [
@@ -288,7 +307,7 @@ function subGroups_(g) {
 
 // ผู้ป่วยนอกทุกแผนกยกเว้น ER ไม่มีเวร Night
 function unitShifts_(group, code) {
-  return (group === 'OPD' && code !== 'ER') || code === 'CSSD' ? ['Day'] : SHIFTS; // CSSD รายงานเวร Day เวรเดียว
+  return (group === 'OPD' && code !== 'ER') || code === 'CSSD' || code === 'ไตเทียม' ? ['Day'] : SHIFTS; // CSSD / ไตเทียม รายงานรายวัน (เวร Day เวรเดียว)
 }
 
 function buildConfig_() {
