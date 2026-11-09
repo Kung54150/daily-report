@@ -288,7 +288,7 @@ function subGroups_(g) {
 
 // ผู้ป่วยนอกทุกแผนกยกเว้น ER ไม่มีเวร Night
 function unitShifts_(group, code) {
-  return group === 'OPD' && code !== 'ER' ? ['Day'] : SHIFTS;
+  return (group === 'OPD' && code !== 'ER') || code === 'CSSD' ? ['Day'] : SHIFTS; // CSSD รายงานเวร Day เวรเดียว
 }
 
 function buildConfig_() {
