@@ -2496,7 +2496,7 @@ async function loadMonth(unit, month) {
   const key = unit + '|' + month;
   if (S.monthLoading === key) return;
   S.monthLoading = key;
-  try { S.monthData = { key, reports: (await api('getMonth', S.token, month, unit)).reports }; }
+  try { S.monthData = { key, reports: (await api(unit === 'all' ? 'getMonthAll' : 'getMonth', S.token, month, ...(unit === 'all' ? [] : [unit]))).reports }; }
   catch (e) { S.monthData = { key, reports: [] }; handleErr(e); }
   S.monthLoading = null;
   if (S.tab === 'print') render();
@@ -2558,8 +2558,8 @@ async function saveReportFile(fmt) {
   if (S.pendingAtt > 0) return toast('กำลังโหลดไฟล์แนบ รอสักครู่แล้วกดบันทึกอีกครั้ง');
   if (!document.querySelector('.a4-scroll > .a4')) return toast('ยังไม่มีรายงานให้บันทึก รอให้ข้อมูลโหลดก่อน');
   const scope = S.me.role === 'unit' ? S.me.unit : (S.printScope || 'all');
-  const kind = scope === 'all' ? 'day' : (S.printKind || 'day');
-  const base = 'รายงาน_' + scope + '_' + (kind === 'month' ? (S.printMonth || S.date.slice(0, 7)) : S.date);
+  const kind = S.printKind || 'day';
+  const base = 'daily-report_' + (/^[\w-]+$/.test(scope) ? scope : 'unit') + '_' + (kind === 'month' ? (S.printMonth || S.date.slice(0, 7)) : S.date);
   Busy.start('กำลังสร้างไฟล์ ' + (fmt === 'jpg' ? 'JPG' : 'PDF') + '...', true);
   try {
     await loadLib('h2c', 'https:\/\/cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', () => window.html2canvas);
@@ -2569,7 +2569,7 @@ async function saveReportFile(fmt) {
     if (fmt === 'jpg') {
       for (let i = 0; i < pages.length; i++) {
         const blob = await new Promise(r => pages[i].toBlob(r, 'image/jpeg', 0.92));
-        downloadBlob(blob, pages.length > 1 ? `${base}_หน้า${i + 1}.jpg` : base + '.jpg');
+        downloadBlob(blob, pages.length > 1 ? `${base}_p${i + 1}.jpg` : base + '.jpg');
         if (i < pages.length - 1) await sleep(500);
       }
       toast(pages.length > 1 ? `บันทึก JPG ${pages.length} ไฟล์ (หน้าละไฟล์) แล้ว` : 'บันทึก JPG แล้ว');
@@ -2585,14 +2585,14 @@ async function saveReportFile(fmt) {
 function renderPrint() {
   const viewer = S.me.role !== 'unit';
   const scope = viewer ? (S.printScope || 'all') : S.me.unit;
-  const kind = scope === 'all' ? 'day' : (S.printKind || 'day'), month = S.printMonth || S.date.slice(0, 7);
+  const kind = S.printKind || 'day', month = S.printMonth || S.date.slice(0, 7);
   const inFrame = !(window.google && google.script);
   const sign = '<div class="sign">ลงชื่อ ........................................ ผู้สรุปรายงาน<br>(........................................)</div>';
   const bar = `<div class="noprint" style="display:flex;gap:10px;align-items:end;margin-bottom:12px;flex-wrap:wrap">
       ${viewer ? `<div style="flex:0 1 260px"><label class="f" for="p_scope">พิมพ์</label>
         <select id="p_scope"><option value="all">รายงานทั้งหมด (แยกหน่วยงาน + ภาพรวม + เหตุการณ์ผิดปกติ)</option>
         ${unitOptgroups(scope, 'เฉพาะหน่วยงาน \u00b7 ')}</select></div>` : ''}
-      <div style="flex:0 1 170px"><label class="f" for="p_kind">ประเภท</label><select id="p_kind"${scope === 'all' ? ' disabled' : ''}>
+      <div style="flex:0 1 170px"><label class="f" for="p_kind">ประเภท</label><select id="p_kind">
         <option value="day"${kind === 'day' ? ' selected' : ''}>รายวัน (${esc(fmtDMY(S.date))})</option><option value="month"${kind === 'month' ? ' selected' : ''}>รายเดือน</option></select></div>
       ${kind === 'month' ? `<div style="flex:0 1 160px"><label class="f" for="p_month">เดือน</label><input type="month" id="p_month" value="${esc(month)}"></div>` : ''}
       <button type="button" class="btn" data-act="print">พิมพ์</button>
@@ -2603,12 +2603,36 @@ function renderPrint() {
   if (kind === 'month') {
     const key = scope + '|' + month;
     if (!S.monthData || S.monthData.key !== key) { loadMonth(scope, month); return bar + '<div class="card muted fit">กำลังโหลดรายงานรายเดือน...</div>'; }
-    pages = [printMonthly(unitCfg(scope), month, S.monthData.reports) + sign];
+    const reps = S.monthData.reports;
+    if (scope === 'all') { // ภาพรวมทั้งเดือน (แสดงบนจอ) + รายงานรายเดือนของแต่ละหน่วยงาน (พิมพ์ตามหลัง)
+      const byU = {}; reps.forEach(r => (byU[r.unit] = byU[r.unit] || []).push(r));
+      pages = [printMonthlyAll(month, reps) + sign].concat(S.cfg.units.filter(u => byU[u.code]).map(u => ({ html: printMonthly(u, month, byU[u.code]) + sign, printonly: true })));
+    } else pages = [printMonthly(unitCfg(scope), month, reps) + sign];
   } else if (scope === 'all') pages = [{ html: printUnits(), printonly: true }, printOverview() + printIncidents() + sign];
   else pages = shiftsOf(unitCfg(scope)).map(k => printSingle(unitCfg(scope), k) + sign);
-  return bar + (scope === 'all' && kind === 'day' ? '<div class="note noprint">หน้านี้แสดงเฉพาะภาพรวมและเหตุการณ์ผิดปกติ \u2014 เมื่อกดพิมพ์ ระบบจะพิมพ์หน้ารายงานแยกรายหน่วยงานนำหน้าด้วย (ไม่ต้องแสดงซ้ำกับหน้าสรุป)</div>' : '') + `<div class="a4-scroll">${pages.map(p => typeof p === 'string' ? `<div class="a4">${p}</div>` : `<div class="a4${p.printonly ? ' printonly' : ''}">${p.html}</div>`).join('')}</div>`;
+  return bar + (scope === 'all' && kind === 'month' ? '<div class="note noprint">หน้านี้แสดงภาพรวมทั้งเดือน \u2014 เมื่อกดพิมพ์หรือบันทึกไฟล์ ระบบจะเพิ่มรายงานรายเดือนของแต่ละหน่วยงานที่มีรายงานต่อท้ายด้วย</div>' : '') + (scope === 'all' && kind === 'day' ? '<div class="note noprint">หน้านี้แสดงเฉพาะภาพรวมและเหตุการณ์ผิดปกติ \u2014 เมื่อกดพิมพ์ ระบบจะพิมพ์หน้ารายงานแยกรายหน่วยงานนำหน้าด้วย (ไม่ต้องแสดงซ้ำกับหน้าสรุป)</div>' : '') + `<div class="a4-scroll">${pages.map(p => typeof p === 'string' ? `<div class="a4">${p}</div>` : `<div class="a4${p.printonly ? ' printonly' : ''}">${p.html}</div>`).join('')}</div>`;
 }
 
+// ภาพรวมรายเดือนทุกหน่วยงาน: ยอดรวมทั้งเดือนของแต่ละหน่วยงาน (ยอดยกมา/คงพยาบาลแสดงค่าเฉลี่ยต่อเวร)
+function printMonthlyAll(month, reps) {
+  const byU = {}; reps.forEach(r => (byU[r.unit] = byU[r.unit] || []).push(r));
+  const days = new Set(reps.map(r => r.date)).size, f1 = x => Number.isInteger(x) ? String(x) : x.toFixed(1);
+  let h = `<h1>รายงานประจำเดือน \u00b7 ภาพรวม</h1><div class="d">${esc(monthTitle(month))}</div><div class="st">มีรายงาน ${reps.length} ฉบับ จาก ${days} วัน \u00b7 ส่งรายงาน ${Object.keys(byU).length}/${S.cfg.units.length} หน่วยงาน</div>`;
+  S.cfg.groups.forEach(g => {
+    const us = S.cfg.units.filter(u => u.group === g.key);
+    h += `<h2>${esc(g.name)}</h2><table class="stat"><thead><tr><th>หน่วยงาน</th><th>รายงาน (ฉบับ)</th><th>ยอดรวมทั้งเดือน</th></tr></thead>` + us.map(u => {
+      const rs = byU[u.code] || [];
+      if (!rs.length) return `<tr><td>${esc(u.code)}</td><td class="n">\u2013</td><td class="miss">ไม่มีรายงาน</td></tr>`;
+      const L = Object.assign({}, S.cfg.stdLabels, u.form.stdLabels), svs = rs.map(r => stdValues(u, r.values));
+      const parts = Object.keys(u.form.std || {}).map(k => {
+        const sum = svs.reduce((a, x) => a + (x[k] || 0), 0);
+        return (k === 'carried' || k === 'remain') ? `${esc(L[k])} เฉลี่ย ${f1(sum / svs.length)}/เวร` : (sum ? `${esc(L[k])} <b>${sum}</b>` : '');
+      }).filter(Boolean);
+      return `<tr><td>${esc(u.code)}</td><td class="n">${rs.length}</td><td>${parts.join(' \u00b7 ') || '\u2013'}</td></tr>`;
+    }).join('') + '</table>';
+  });
+  return h + '<div class="foot">ยอดรวมทั้งเดือน = ผลรวมของทุกเวรที่ส่งรายงาน \u00b7 รายละเอียดรายวันของแต่ละหน่วยงานอยู่ในหน้าถัดไปเมื่อพิมพ์</div>';
+}
 // รายงานประจำเดือนของหน่วยงานเดียว: หน้า 1 ยอดรายวัน/เวร + รวม + เฉลี่ย \u00b7 หน้า 2 รายการรวมทั้งเดือน + เหตุการณ์ผิดปกติ
 function printMonthly(u, month, reps) {
   const L = Object.assign({}, S.cfg.stdLabels, u.form.stdLabels), keys = Object.keys(u.form.std || {}), two = shiftsOf(u).length > 1;
