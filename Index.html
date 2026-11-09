@@ -1266,7 +1266,7 @@ function subTabs(r) {
 }
 
 // รายงานผู้ป่วยนอก: แยกตำแหน่งชัดเจน แพทย์ / พยาบาล (RN) / PN / NA / นศ. / ไม่ระบุ  (นับไม่รวมคนที่ออกหน่วย)
-const OPD_STAFF_GROUPS = [['พยาบาล (RN)', ['RN', 'หัวหน้า']], ['PN/NA', ['PN', 'NA']], ['นศ.', ['นศ.']]];
+const OPD_STAFF_GROUPS = [['พยาบาล (RN)', ['RN', 'หัวหน้า']], ['PN/NA', ['PN', 'NA']], ['เจ้าหน้าที่', ['เจ้าหน้าที่']], ['EMT', ['EMT']], ['นศ.', ['นศ.']]];
 function opdGroups(r, nameFn) {
   const staff = r.staff || [], docs = r.doctors || [], out = [];
   if (docs.length) out.push({ label: 'แพทย์', n: docs.filter(x => !x.off).length, unit: 'ท่าน', items: docs.map(x => ({ text: esc(x.name) + (x.time ? ' ' + esc(x.time) : '') + (x.off ? ' (งด)' : ''), off: !!x.off })) });
