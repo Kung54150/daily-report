@@ -431,7 +431,7 @@ function statRows_(u, rep) {
   const bld = String(u.sub || '').replace('ตึก ', '');
   const row = (cat, item, n) => [rep.date, g, u.code, cat, item, n, bld, rep.shift];
   const rows = [];
-  Object.entries(stdValues_(u.form, rep.values)).forEach(([k, n]) => rows.push(row('ยอดผู้ป่วย', STD_LABELS[k], n)));
+  Object.entries(stdValues_(u.form, rep.values)).forEach(([k, n]) => rows.push(row(u.form.items ? 'ยอดชิ้นงาน' : 'ยอดผู้ป่วย', (u.form.stdLabels || {})[k] || STD_LABELS[k], n)));
   u.form.sections.filter(s => s.type === 'list').forEach(s => (rep.values[s.key] || []).forEach(r => {
     const it = s.items.find(i => i.k === r.k);
     rows.push(row('รายการบริการ', (it ? it.label : r.k) + (r.name ? ' \u00b7 ' + r.name : ''), r.n));

@@ -219,7 +219,7 @@ const FORMS = {
   LR: { draft: true, std: { total: ['nl', 'cs'] }, sections: [{ title: 'การคลอด', fields: [N_('nl', 'คลอดปกติ'), N_('cs', 'ผ่าคลอด')] }] },
   NB: { draft: true, std: { total: 'nb' }, sections: [{ title: 'ทารกแรกเกิด', fields: [N_('nb', 'ทารกแรกเกิด'), N_('nb_adm', 'Admit ตึกเด็ก')] }] },
   // CSSD: ST = นึ่งด้วยไอน้ำ 4 หม้อ · EO = อบแก๊ส 1 หม้อ · ยอดรวม = ST + EO (ชิ้น)
-  CSSD: { std: { total: 'total' }, sections: [
+  CSSD: { items: true, stdLabels: { total: 'ยอดรวม (ชิ้น)' }, std: { total: 'total' }, sections: [
     { title: 'ยอดรวม', fields: [Object.assign(N_('total', 'ยอดรวม (ST + EO)', 'ชิ้น'), { calc: { plus: ['st_total', 'eo_total'], minus: [] } })] },
     LOTS_('st', 'ST (ST/Pe vacuum) \u00b7 นึ่งด้วยไอน้ำ', 'ST', 'st_total', [['p1', 'หม้อ1'], ['p2', 'หม้อ2'], ['p3', 'หม้อ3'], ['p4', 'หม้อ4']]),
     LOTS_('eo', 'EO (EO) \u00b7 อบแก๊ส', 'EO', 'eo_total', [['p1', 'หม้อ1']])
@@ -288,7 +288,7 @@ function subGroups_(g) {
 
 // ผู้ป่วยนอกทุกแผนกยกเว้น ER ไม่มีเวร Night
 function unitShifts_(group, code) {
-  return group === 'OPD' && code !== 'ER' ? ['Day'] : SHIFTS;
+  return (group === 'OPD' && code !== 'ER') || code === 'CSSD' ? ['Day'] : SHIFTS; // CSSD รายงานเวร Day เวรเดียว
 }
 
 function buildConfig_() {

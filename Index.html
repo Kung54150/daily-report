@@ -1077,12 +1077,12 @@ function renderMine() {
   const seg = u.shifts.length < 2 ? '' : `<div class="seg" style="position:static">${u.shifts.map(k => `<button type="button" data-mshift="${k}" class="${S.shift === k ? 'on' : ''}">เวร ${k}<small>${sentAt(u, k) ? 'ส่งแล้ว' : 'ยังไม่ส่ง'}</small></button>`).join('')}</div>`;
   if (!rep) {
     return `${seg}${u.form.draft ? draftNote() : ''}<div class="card fit"><h3>ยังไม่ได้ส่งรายงานเวร ${esc(S.shift)} ของ ${esc(thaiDate(S.date))}</h3>
-      <p class="muted" style="margin:0 0 12px">กรอกยอดผู้ป่วย อัตรากำลัง และเหตุการณ์ผิดปกติของหน่วยงาน ${esc(u.code)}</p>
+      <p class="muted" style="margin:0 0 12px">กรอก${u.form.items ? 'ยอดชิ้นงาน' : 'ยอดผู้ป่วย'} อัตรากำลัง และเหตุการณ์ผิดปกติของหน่วยงาน ${esc(u.code)}</p>
       <button class="btn" data-act="edit" type="button">เริ่มกรอกรายงานเวร ${esc(S.shift)}</button></div>`;
   }
   return `${seg}<div class="meta">เวร ${esc(S.shift)} \u00b7 ส่งโดย ${esc(rep.reporter)} \u00b7 แก้ไขล่าสุด ${esc(rep.updatedAt)}</div>
     <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="edit" type="button">แก้ไขรายงานเวร ${esc(S.shift)}</button>
-      <button class="btn ghost" data-act="gotoprint" data-punit="${esc(u.code)}" type="button">พิมพ์รายงาน (ยอดผู้ป่วย + อัตรากำลัง + เหตุการณ์ผิดปกติ)</button></div>
+      <button class="btn ghost" data-act="gotoprint" data-punit="${esc(u.code)}" type="button">พิมพ์รายงาน (${u.form.items ? 'ยอดชิ้นงาน' : 'ยอดผู้ป่วย'} + อัตรากำลัง + เหตุการณ์ผิดปกติ)</button></div>
     ${renderReportView(u, rep)}`;
 }
 const draftNote = () => '<div class="note">แบบฟอร์มของหน่วยงานนี้เป็นตัวอย่าง รอปรับตามรูปแบบรายงานจริง</div>';
@@ -1229,6 +1229,7 @@ function listCard(s, v) {
 /* ===== แท็บย่อยของหน่วยงาน ===== */
 const SUBS = [['patient', 'รายงานผู้ป่วย'], ['staff', 'อัตรากำลัง'], ['doctor', 'แพทย์'], ['incident', 'เหตุการณ์ผิดปกติ']];
 const sameZone = code => { const a = unitCfg(code), b = unitCfg(S.me.unit); return !!(a && b && a.group === b.group); };
+const itemsUnit = code => { const u = code && unitCfg(code); return !!(u && u.form.items); }; // หน่วยที่นับเป็นชิ้นงาน (CSSD) ไม่ใช้คำว่าผู้ป่วย
 function subTabs(r) {
   const others = S.me.role === 'unit' && r && r.unit && !sameZone(r.unit); // เหตุการณ์ผิดปกติ/รายงานเคสเห็นเฉพาะ Zone ของตนเอง
   const staffN = r ? roleCounts(r.staff || [], !!(r.unit && isOpdUnit(r.unit))).map(([k, n]) => k + ' ' + n).join(' ') : '';
@@ -1236,7 +1237,7 @@ function subTabs(r) {
   const docN = r ? (r.doctors || []).filter(x => !x.off).length : 0;
   const badge = { staff: staffN, doctor: docN ? String(docN) : '', incident: incN ? String(incN) : '' };
   const opd = !!(r && r.unit && isOpdUnit(r.unit));
-  return `<div class="seg" role="tablist">${SUBS.filter(([k]) => !(others && k === 'incident') && !(k === 'doctor' && !opd)).map(([k, t]) => `<button type="button" role="tab" data-sub="${k}" class="${S.sub === k ? 'on' : ''}${k === 'incident' && incN ? ' alert' : ''}">${t}${badge[k] ? `<small>${esc(badge[k])}</small>` : ''}</button>`).join('')}</div>`;
+  return `<div class="seg" role="tablist">${SUBS.filter(([k]) => !(others && k === 'incident') && !(k === 'doctor' && !opd)).map(([k, t0]) => { const t = k === 'patient' && itemsUnit(r && r.unit) ? 'รายงานยอดชิ้นงาน' : t0; return `<button type="button" role="tab" data-sub="${k}" class="${S.sub === k ? 'on' : ''}${k === 'incident' && incN ? ' alert' : ''}">${t}${badge[k] ? `<small>${esc(badge[k])}</small>` : ''}</button>`; }).join('')}</div>`;
 }
 
 // รายงานผู้ป่วยนอก: แยกตำแหน่งชัดเจน แพทย์ / พยาบาล (RN) / PN / NA / นศ. / ไม่ระบุ  (นับไม่รวมคนที่ออกหน่วย)
@@ -2500,6 +2501,87 @@ async function loadMonth(unit, month) {
   S.monthLoading = null;
   if (S.tab === 'print') render();
 }
+/* ===== บันทึกรายงานเป็นไฟล์ PDF / JPG (สร้างในเครื่องจากหน้ารายงาน A4 ไม่ต้องเปิดหน้าต่างพิมพ์) ===== */
+function loadLib(key, src, ready) {
+  if (ready()) return Promise.resolve();
+  S.libs = S.libs || {};
+  if (!S.libs[key]) S.libs[key] = new Promise((res, rej) => {
+    const el = document.createElement('script'); el.src = src;
+    el.onload = () => res();
+    el.onerror = () => { S.libs[key] = null; rej(new Error('โหลดตัวช่วยสร้างไฟล์ไม่ได้ (ต้องต่ออินเทอร์เน็ต)')); };
+    document.head.appendChild(el);
+  });
+  return S.libs[key];
+}
+function downloadBlob(blob, name) {
+  const url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+// กระดาษ A4 ที่ 200 dpi: เนื้อหากว้าง 190 มม. (ขอบซ้ายขวา 10 มม.) ขอบบน/ล่าง 12 มม.
+const PG = { W: 1654, H: 2339, mx: 79, my: 94 };
+async function reportCanvases() {
+  const pages = Array.from(document.querySelectorAll('.a4-scroll > .a4'));
+  const box = document.createElement('div');
+  box.style.cssText = 'position:fixed;left:-10000px;top:0;width:190mm;background:#fff;z-index:-1';
+  document.body.appendChild(box);
+  const out = [], cw = PG.W - PG.mx * 2, ch = PG.H - PG.my * 2;
+  try {
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    for (const p of pages) {
+      const c = p.cloneNode(true);
+      c.style.cssText = 'display:block;width:190mm;min-height:0;margin:0;padding:0;box-shadow:none;background:#fff';
+      box.appendChild(c);
+      await Promise.all(Array.from(c.querySelectorAll('img')).map(i => i.decode ? i.decode().catch(() => {}) : 0));
+      const top = c.getBoundingClientRect().top, cuts = [0];
+      c.querySelectorAll('.pgbreak').forEach(e => { const y = e.getBoundingClientRect().top - top; if (y > 4) cuts.push(y); }); // จุดขึ้นหน้าใหม่ตามหน้าพิมพ์
+      const cssH = c.scrollHeight; cuts.push(cssH);
+      const cv = await window.html2canvas(c, { scale: 2.2, backgroundColor: '#fff', useCORS: true, logging: false });
+      const k = cv.width / c.getBoundingClientRect().width, sliceH = ch * (cv.width / cw);
+      for (let i = 0; i < cuts.length - 1; i++) {
+        const y0 = Math.round(cuts[i] * k), y1 = Math.min(cv.height, Math.round(cuts[i + 1] * k));
+        for (let y = y0; y < y1 - 2; y += sliceH) {
+          const h = Math.min(sliceH, y1 - y), pg = document.createElement('canvas');
+          pg.width = PG.W; pg.height = PG.H;
+          const g = pg.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, PG.W, PG.H);
+          g.drawImage(cv, 0, y, cv.width, h, PG.mx, PG.my, cw, h * (cw / cv.width));
+          out.push(pg);
+        }
+      }
+      box.removeChild(c);
+    }
+  } finally { box.remove(); }
+  return out;
+}
+async function saveReportFile(fmt) {
+  if (S.pendingAtt > 0) return toast('กำลังโหลดไฟล์แนบ รอสักครู่แล้วกดบันทึกอีกครั้ง');
+  if (!document.querySelector('.a4-scroll > .a4')) return toast('ยังไม่มีรายงานให้บันทึก รอให้ข้อมูลโหลดก่อน');
+  const scope = S.me.role === 'unit' ? S.me.unit : (S.printScope || 'all');
+  const kind = scope === 'all' ? 'day' : (S.printKind || 'day');
+  const base = 'รายงาน_' + scope + '_' + (kind === 'month' ? (S.printMonth || S.date.slice(0, 7)) : S.date);
+  Busy.start('กำลังสร้างไฟล์ ' + (fmt === 'jpg' ? 'JPG' : 'PDF') + '...', true);
+  try {
+    await loadLib('h2c', 'https:\/\/cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', () => window.html2canvas);
+    if (fmt !== 'jpg') await loadLib('jspdf', 'https:\/\/cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', () => window.jspdf);
+    const pages = await reportCanvases();
+    if (!pages.length) throw new Error('ไม่พบหน้ารายงาน');
+    if (fmt === 'jpg') {
+      for (let i = 0; i < pages.length; i++) {
+        const blob = await new Promise(r => pages[i].toBlob(r, 'image/jpeg', 0.92));
+        downloadBlob(blob, pages.length > 1 ? `${base}_หน้า${i + 1}.jpg` : base + '.jpg');
+        if (i < pages.length - 1) await sleep(500);
+      }
+      toast(pages.length > 1 ? `บันทึก JPG ${pages.length} ไฟล์ (หน้าละไฟล์) แล้ว` : 'บันทึก JPG แล้ว');
+    } else {
+      const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
+      pages.forEach((pg, i) => { if (i) pdf.addPage(); pdf.addImage(pg.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297); });
+      downloadBlob(pdf.output('blob'), base + '.pdf');
+      toast(`บันทึก PDF ${pages.length} หน้าแล้ว`);
+    }
+  } catch (e) { toast('บันทึกไฟล์ไม่สำเร็จ: ' + (e && e.message ? e.message : e)); }
+  finally { Busy.end(); }
+}
 function renderPrint() {
   const viewer = S.me.role !== 'unit';
   const scope = viewer ? (S.printScope || 'all') : S.me.unit;
@@ -2513,8 +2595,10 @@ function renderPrint() {
       <div style="flex:0 1 170px"><label class="f" for="p_kind">ประเภท</label><select id="p_kind"${scope === 'all' ? ' disabled' : ''}>
         <option value="day"${kind === 'day' ? ' selected' : ''}>รายวัน (${esc(fmtDMY(S.date))})</option><option value="month"${kind === 'month' ? ' selected' : ''}>รายเดือน</option></select></div>
       ${kind === 'month' ? `<div style="flex:0 1 160px"><label class="f" for="p_month">เดือน</label><input type="month" id="p_month" value="${esc(month)}"></div>` : ''}
-      <button type="button" class="btn" data-act="print">พิมพ์ / บันทึกเป็น PDF</button>
-      <span class="muted" style="font-size:13px">${inFrame ? 'ในหน้าตัวอย่างนี้ปุ่มพิมพ์ใช้ไม่ได้ ในแอปจริงจะเปิดหน้าต่างพิมพ์ของเครื่อง' : 'ตั้งค่ากระดาษ A4 แนวตั้ง'}</span></div>`;
+      <button type="button" class="btn" data-act="print">พิมพ์</button>
+      <div style="flex:0 1 110px"><label class="f" for="p_fmt">ไฟล์</label><select id="p_fmt"><option value="pdf"${S.saveFmt !== 'jpg' ? ' selected' : ''}>PDF</option><option value="jpg"${S.saveFmt === 'jpg' ? ' selected' : ''}>JPG</option></select></div>
+      <button type="button" class="btn ghost" data-act="savefile">บันทึกเป็นไฟล์</button>
+      <span class="muted" style="font-size:13px">${inFrame ? 'ในหน้าตัวอย่างนี้ปุ่มพิมพ์ใช้ไม่ได้ ในแอปจริงจะเปิดหน้าต่างพิมพ์ของเครื่อง' : 'พิมพ์: กระดาษ A4 แนวตั้ง \u00b7 บันทึกไฟล์: PDF 1 ไฟล์ หรือ JPG แยกไฟล์ละหน้า'}</span></div>`;
   let pages;
   if (kind === 'month') {
     const key = scope + '|' + month;
@@ -2527,7 +2611,7 @@ function renderPrint() {
 
 // รายงานประจำเดือนของหน่วยงานเดียว: หน้า 1 ยอดรายวัน/เวร + รวม + เฉลี่ย \u00b7 หน้า 2 รายการรวมทั้งเดือน + เหตุการณ์ผิดปกติ
 function printMonthly(u, month, reps) {
-  const L = S.cfg.stdLabels, keys = Object.keys(u.form.std || {}), two = shiftsOf(u).length > 1;
+  const L = Object.assign({}, S.cfg.stdLabels, u.form.stdLabels), keys = Object.keys(u.form.std || {}), two = shiftsOf(u).length > 1;
   const staff3 = r => { const st = (r.staff || []).filter(x => x.tag !== 'ออกหน่วย'); return ['RN', 'PN', 'NA'].map(n => st.filter(x => asRN(x.role) === n).length); };
   const ex = (u.form.sections.find(x => x.categories && x.additive) || {}).balls || [];
   const rows = reps.map(r => ({ r, sv: stdValues(u, r.values), st: staff3(r), bt: ballTotals(u, r.values || {}) }));
@@ -2695,7 +2779,7 @@ function printSingle(u, shift) {
   let h = `<h1>รายงานยอดประจำวัน \u00b7 ${esc(u.code)} \u00b7 เวร ${esc(shift)}</h1><div class="d">${esc(unitLabel(u))} \u00b7 ${esc(thaiDate(S.date, true))}</div>`;
   if (!r) return h + '<div class="miss" style="text-align:center;margin:20mm 0">หน่วยงานนี้ยังไม่ส่งรายงานเวร ' + esc(shift) + '</div>';
   const v = r.values || {};
-  h += `<div class="st">ผู้รายงาน ${esc(r.reporter)} \u00b7 แก้ไขล่าสุด ${esc(r.updatedAt)}</div><h2>รายงานผู้ป่วย</h2><div class="cols">`;
+  h += `<div class="st">ผู้รายงาน ${esc(r.reporter)} \u00b7 แก้ไขล่าสุด ${esc(r.updatedAt)}</div><h2>${u.form.items ? 'รายงานยอดชิ้นงาน' : 'รายงานผู้ป่วย'}</h2><div class="cols">`;
   u.form.sections.forEach(s => {
     h += `<div class="ub"><b>${esc(s.title)}</b>`;
     if (s.type === 'docs') {
@@ -2913,6 +2997,7 @@ function bindView() {
     else if (a === 'back') go('all');
     else if (a === 'home') go(S.home);
     else if (a === 'gotoprint') { if (b.dataset.punit) { S.printScope = b.dataset.punit; S.printKind = 'day'; } go('print'); }
+    else if (a === 'savefile') saveReportFile((($('p_fmt') || {}).value) || S.saveFmt || 'pdf');
     else if (a === 'print') { if (S.pendingAtt > 0) toast('กำลังโหลดไฟล์แนบ รอสักครู่แล้วกดพิมพ์อีกครั้ง'); else window.print(); }
     else if (a === 'tpl') downloadTemplate();
     else if (a === 'bindsave') saveBindingsNow();
@@ -2923,6 +3008,7 @@ function bindView() {
   v.querySelectorAll('[data-mshift]').forEach(b => b.onclick = () => { S.shift = b.dataset.mshift; render(); });
   v.querySelectorAll('[data-sub]').forEach(b => { if (!S.editing) b.onclick = () => { S.sub = b.dataset.sub; render(); }; });
   if ($('p_scope')) $('p_scope').onchange = () => { S.printScope = $('p_scope').value; render(); };
+  if ($('p_fmt')) $('p_fmt').onchange = () => { S.saveFmt = $('p_fmt').value; };
   if ($('p_kind')) $('p_kind').onchange = () => { S.printKind = $('p_kind').value; render(); };
   if ($('p_month')) $('p_month').onchange = () => { if ($('p_month').value) { S.printMonth = $('p_month').value; render(); } };
   v.querySelectorAll('[data-unit].ucard').forEach(b => b.onclick = () => (b.dataset.unit === S.me.unit ? go('mine') : go('all', b.dataset.unit)));
