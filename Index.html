@@ -2559,15 +2559,33 @@ async function reportCanvases() {
       c.querySelectorAll('.pgbreak').forEach(e => { const y = e.getBoundingClientRect().top - top; if (y > 4) cuts.push(y); }); // จุดขึ้นหน้าใหม่ตามหน้าพิมพ์
       const cssH = c.scrollHeight; cuts.push(cssH);
       const cv = await window.html2canvas(c, { scale: 2.2, backgroundColor: '#fff', useCORS: true, logging: false });
-      const k = cv.width / c.getBoundingClientRect().width, sliceH = ch * (cv.width / cw);
+      const k = cv.width / c.getBoundingClientRect().width, pageCss = ch * (cv.width / cw) / k; // ความสูงเนื้อหาต่อหน้า (px ของหน้าเว็บ)
+      // จุดตัดหน้าที่ปลอดภัย: ระดับ 1 = ต้นกล่องหน่วยงาน/หัวข้อ (ไม่ตัดกลางกล่อง หัวข้อติดกับกล่องแรกของมัน) · ระดับ 2 = ต้นกลุ่มบรรทัด/แถวตาราง (ใช้เมื่อกล่องสูงเกินหนึ่งหน้า)
+      const rel = e => e.getBoundingClientRect().top - top, P1 = [], P2 = [];
+      const lead = e => e && (/^H[12]$/.test(e.tagName) || e.classList.contains('d') || e.classList.contains('st'));
+      const topLevel = root => Array.from(root.children).forEach(ch2 => {
+        if (ch2.classList.contains('pgbreak')) return topLevel(ch2);
+        if (ch2.classList.contains('d') || ch2.classList.contains('st') || lead(ch2.previousElementSibling)) return;
+        P1.push(rel(ch2));
+      });
+      topLevel(c);
+      c.querySelectorAll('.lg, tr, .evsh, .evh, .shl, figure').forEach(e => P2.push(rel(e)));
+      P1.sort((x, y) => x - y); P2.sort((x, y) => x - y);
+      const last = a => (a.length ? a[a.length - 1] : null);
       for (let i = 0; i < cuts.length - 1; i++) {
-        const y0 = Math.round(cuts[i] * k), y1 = Math.min(cv.height, Math.round(cuts[i + 1] * k));
-        for (let y = y0; y < y1 - 2; y += sliceH) {
-          const h = Math.min(sliceH, y1 - y), pg = document.createElement('canvas');
+        const s0 = cuts[i], s1 = cuts[i + 1];
+        for (let y = s0; y < s1 - 2;) {
+          let end = Math.min(y + pageCss, s1);
+          if (end < s1) {
+            const min = y + pageCss * 0.25, cand = last(P1.filter(q => q > min && q <= end)) ?? last(P2.filter(q => q > min && q <= end));
+            if (cand != null) end = cand;
+          }
+          const sy = Math.round(y * k), sh = Math.max(1, Math.min(cv.height, Math.round(end * k)) - sy), pg = document.createElement('canvas');
           pg.width = PG.W; pg.height = PG.H;
           const g = pg.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, PG.W, PG.H);
-          g.drawImage(cv, 0, y, cv.width, h, PG.mx, PG.my, cw, h * (cw / cv.width));
+          g.drawImage(cv, 0, sy, cv.width, sh, PG.mx, PG.my, cw, sh * (cw / cv.width));
           out.push(pg);
+          y = end;
         }
       }
       box.removeChild(c);
