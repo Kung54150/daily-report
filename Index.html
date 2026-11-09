@@ -492,7 +492,10 @@
   .pbar .seg { display: inline-flex; position: static; margin: 0; border-radius: 7px; height: 32px; box-sizing: border-box; padding: 2px; gap: 2px; align-items: stretch; }
   .pbar .seg button, .pbar .seg button.on { white-space: nowrap; padding: 0 10px; font-weight: 400; height: auto; border-radius: 5px; }
   .daterange { display: flex; gap: 4px; align-items: center; flex: 1 1 200px; max-width: 330px; min-width: 0; }
-  .daterange input { flex: 1 1 0; min-width: 0; font-size: 13px; padding: 0 5px; }
+  .dfld { position: relative; flex: 1 1 0; min-width: 0; display: block; }
+  .pbar .dfld input[type=text] { width: 100%; font-size: 13px; padding: 0 28px 0 8px; }
+  .dcal { position: absolute; right: 3px; top: 3px; height: 26px; width: 24px; border: 0; background: transparent; padding: 0; cursor: pointer; color: var(--muted); display: flex; align-items: center; justify-content: center; }
+  .pbar .dnat { position: absolute; left: 0; bottom: 0; width: 1px; height: 1px; padding: 0; border: 0; opacity: 0; pointer-events: none; }
   .daterange .dash { color: var(--muted); }
   .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
   .seg button { border: 0; background: var(--surface); padding: 8px 12px; cursor: pointer; color: var(--muted); }
@@ -2556,15 +2559,33 @@ async function reportCanvases() {
       c.querySelectorAll('.pgbreak').forEach(e => { const y = e.getBoundingClientRect().top - top; if (y > 4) cuts.push(y); }); // จุดขึ้นหน้าใหม่ตามหน้าพิมพ์
       const cssH = c.scrollHeight; cuts.push(cssH);
       const cv = await window.html2canvas(c, { scale: 2.2, backgroundColor: '#fff', useCORS: true, logging: false });
-      const k = cv.width / c.getBoundingClientRect().width, sliceH = ch * (cv.width / cw);
+      const k = cv.width / c.getBoundingClientRect().width, pageCss = ch * (cv.width / cw) / k; // ความสูงเนื้อหาต่อหน้า (px ของหน้าเว็บ)
+      // จุดตัดหน้าที่ปลอดภัย: ระดับ 1 = ต้นกล่องหน่วยงาน/หัวข้อ (ไม่ตัดกลางกล่อง หัวข้อติดกับกล่องแรกของมัน) · ระดับ 2 = ต้นกลุ่มบรรทัด/แถวตาราง (ใช้เมื่อกล่องสูงเกินหนึ่งหน้า)
+      const rel = e => e.getBoundingClientRect().top - top, P1 = [], P2 = [];
+      const lead = e => e && (/^H[12]$/.test(e.tagName) || e.classList.contains('d') || e.classList.contains('st'));
+      const topLevel = root => Array.from(root.children).forEach(ch2 => {
+        if (ch2.classList.contains('pgbreak')) return topLevel(ch2);
+        if (ch2.classList.contains('d') || ch2.classList.contains('st') || lead(ch2.previousElementSibling)) return;
+        P1.push(rel(ch2));
+      });
+      topLevel(c);
+      c.querySelectorAll('.lg, tr, .evsh, .evh, .shl, figure').forEach(e => P2.push(rel(e)));
+      P1.sort((x, y) => x - y); P2.sort((x, y) => x - y);
+      const last = a => (a.length ? a[a.length - 1] : null);
       for (let i = 0; i < cuts.length - 1; i++) {
-        const y0 = Math.round(cuts[i] * k), y1 = Math.min(cv.height, Math.round(cuts[i + 1] * k));
-        for (let y = y0; y < y1 - 2; y += sliceH) {
-          const h = Math.min(sliceH, y1 - y), pg = document.createElement('canvas');
+        const s0 = cuts[i], s1 = cuts[i + 1];
+        for (let y = s0; y < s1 - 2;) {
+          let end = Math.min(y + pageCss, s1);
+          if (end < s1) {
+            const min = y + pageCss * 0.25, cand = last(P1.filter(q => q > min && q <= end)) ?? last(P2.filter(q => q > min && q <= end));
+            if (cand != null) end = cand;
+          }
+          const sy = Math.round(y * k), sh = Math.max(1, Math.min(cv.height, Math.round(end * k)) - sy), pg = document.createElement('canvas');
           pg.width = PG.W; pg.height = PG.H;
           const g = pg.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, PG.W, PG.H);
-          g.drawImage(cv, 0, y, cv.width, h, PG.mx, PG.my, cw, h * (cw / cv.width));
+          g.drawImage(cv, 0, sy, cv.width, sh, PG.mx, PG.my, cw, sh * (cw / cv.width));
           out.push(pg);
+          y = end;
         }
       }
       box.removeChild(c);
@@ -2620,6 +2641,19 @@ function printRange() {
   const from = S.printFrom || S.date;
   return { from, to: S.printTo && S.printTo >= from ? S.printTo : from };
 }
+// วันที่แบบ วัน/เดือน/ปี (dd/mm/yyyy) ไม่ขึ้นกับภาษาของเบราว์เซอร์: พิมพ์ได้ (ใส่ / ให้เอง) หรือกดไอคอนเลือกจากปฏิทิน
+const isoToDmy = iso => { const p = String(iso).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : ''; };
+function parseDmy(t) {
+  let m = /^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})$/.exec(String(t).trim()) || /^(\d{2})(\d{2})(\d{4})$/.exec(String(t).trim());
+  if (!m) return null;
+  let y = +m[3]; if (y >= 2400) y -= 543; // ยอมรับปี พ.ศ.
+  const mo = +m[2], d = +m[1], dt = new Date(y, mo - 1, d);
+  if (!(y >= 2000 && y <= 2200) || dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null;
+  return y + '-' + String(mo).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+}
+const dateField = (id, iso, label) => `<span class="dfld"><input type="text" id="${id}" inputmode="numeric" maxlength="10" autocomplete="off" placeholder="วว/ดด/ปปปป" value="${esc(isoToDmy(iso))}" aria-label="${esc(label)}">
+  <button type="button" class="dcal" data-cal="${id}" aria-label="เลือกจากปฏิทิน"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></button>
+  <input type="date" class="dnat" id="${id}_n" tabindex="-1" aria-hidden="true"></span>`;
 function renderPrint() {
   const viewer = S.me.role !== 'unit';
   const scope = viewer ? (S.printScope || 'all') : S.me.unit;
@@ -2634,7 +2668,7 @@ function renderPrint() {
     <div class="prow"><span class="pl">ประเภท</span><div class="seg">${segBtn('data-pkind', 'day', kind === 'day', 'รายวัน')}${segBtn('data-pkind', 'month', kind === 'month', 'รายเดือน')}</div></div>
     <div class="prow">${kind === 'month'
       ? `<label class="pl" for="p_month">เดือน</label><input type="month" id="p_month" value="${esc(month)}" style="flex:0 1 170px">`
-      : `<label class="pl" for="p_from">วันที่</label><div class="daterange"><input type="date" id="p_from" value="${esc(from)}" aria-label="วันที่เริ่มต้น"><span class="dash">–</span><input type="date" id="p_to" value="${esc(to)}" aria-label="ถึงวันที่"></div>`}
+      : `<label class="pl" for="p_from">วันที่</label><div class="daterange">${dateField('p_from', from, 'วันที่เริ่มต้น')}<span class="dash">\u2013</span>${dateField('p_to', to, 'ถึงวันที่')}</div>`}
       <button type="button" class="btn" data-act="print">พิมพ์</button></div>
     <div class="prow"><label class="pl" for="p_fmt">ไฟล์</label><select id="p_fmt" style="flex:0 0 78px"><option value="pdf"${S.saveFmt !== 'jpg' ? ' selected' : ''}>PDF</option><option value="jpg"${S.saveFmt === 'jpg' ? ' selected' : ''}>JPG</option></select>
       <button type="button" class="btn ghost" data-act="savefile">บันทึกเป็นไฟล์</button></div>
@@ -3107,18 +3141,27 @@ function bindView() {
   if ($('p_scope')) $('p_scope').onchange = () => { S.printScope = S.printLastUnit = $('p_scope').value; render(); };
   v.querySelectorAll('[data-pmode]').forEach(b => b.onclick = () => { S.printScope = b.dataset.pmode === 'all' ? 'all' : (S.printLastUnit || S.cfg.units[0].code); render(); });
   v.querySelectorAll('[data-pkind]').forEach(b => b.onclick = () => { S.printKind = b.dataset.pkind; render(); });
-  if ($('p_from')) $('p_from').onchange = () => {
-    if (!$('p_from').value) return;
-    S.printFrom = $('p_from').value; if (!S.printTo || S.printTo < S.printFrom) S.printTo = S.printFrom;
+  const setFrom = iso => {
+    // เลือกวันเดียว (วันที่ = ถึงวันที่) แล้วเปลี่ยนวันที่เริ่ม: ให้ "ถึงวันที่" ตามไปด้วย ไม่ค้างเป็นวันเดิม (เดิมทำให้พิมพ์/บันทึกได้ทั้งวันที่เลือกและวันบนแถบวันที่)
+    const old = printRange(), single = old.from === old.to;
+    S.printFrom = iso; S.printTo = (single || old.to < iso) ? iso : old.to;
     if (datesBetween(S.printFrom, S.printTo).length > 31) { S.printTo = shiftDate(S.printFrom, 30); toast('เลือกได้ไม่เกิน 31 วัน'); }
     render();
   };
-  if ($('p_to')) $('p_to').onchange = () => {
-    if (!$('p_to').value) return;
-    const f = printRange().from; S.printFrom = f; S.printTo = $('p_to').value < f ? f : $('p_to').value;
+  const setTo = iso => {
+    const f = printRange().from; S.printFrom = f; S.printTo = iso < f ? f : iso;
     if (datesBetween(f, S.printTo).length > 31) { S.printTo = shiftDate(f, 30); toast('เลือกได้ไม่เกิน 31 วัน'); }
     render();
   };
+  [['p_from', setFrom], ['p_to', setTo]].forEach(([id, apply]) => {
+    const t = $(id); if (!t) return;
+    t.oninput = () => { const d = t.value.replace(/\D/g, '').slice(0, 8); t.value = d.length > 4 ? d.slice(0, 2) + '/' + d.slice(2, 4) + '/' + d.slice(4) : d.length > 2 ? d.slice(0, 2) + '/' + d.slice(2) : d; };
+    t.onchange = () => { const iso = parseDmy(t.value); if (iso) apply(iso); else { toast('พิมพ์วันที่เป็น วว/ดด/ปปปป เช่น 09/11/2026'); render(); } };
+    t.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); t.blur(); } };
+    const nat = $(id + '_n'), btn = v.querySelector(`[data-cal="${id}"]`);
+    if (nat) nat.onchange = () => { if (nat.value) apply(nat.value); };
+    if (btn && nat) btn.onclick = () => { nat.value = parseDmy(t.value) || ''; try { nat.showPicker(); } catch (e) { try { nat.focus(); nat.click(); } catch (e2) { toast('พิมพ์วันที่เป็น วว/ดด/ปปปป'); } } };
+  });
   if ($('p_fmt')) $('p_fmt').onchange = () => { S.saveFmt = $('p_fmt').value; };
   if ($('p_month')) $('p_month').onchange = () => { if ($('p_month').value) { S.printMonth = $('p_month').value; render(); } };
   v.querySelectorAll('[data-unit].ucard').forEach(b => b.onclick = () => (b.dataset.unit === S.me.unit ? go('mine') : go('all', b.dataset.unit)));
