@@ -261,6 +261,19 @@ function getMonth(token, month, unit) {
   return { reports };
 }
 
+// รายงานทั้งเดือนของทุกหน่วยงาน (ผู้จัดการ/Admin) สำหรับพิมพ์รายเดือนแบบ "รายงานทั้งหมด"
+function getMonthAll(token, month) {
+  const me = auth_(token);
+  if (me.role !== 'admin' && me.role !== 'manager') throw new Error('ดูรายงานทุกหน่วยงานได้เฉพาะผู้จัดการ/Admin');
+  if (!/^\d{4}-\d{2}$/.test(String(month))) throw new Error('เดือนไม่ถูกต้อง');
+  const codes = allUnitCodes_(), reports = [];
+  sheet_(SH_REPORTS).getDataRange().getValues().slice(1)
+    .filter(r => fmtDate_(r[0]).indexOf(month) === 0 && codes.indexOf(String(r[1])) >= 0)
+    .forEach(r => { const rep = JSON.parse(r[4]); rep.unit = String(r[1]); rep.shift = rowShift_(r[5], rep.shift); reports.push(rep); });
+  reports.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : (a.shift === b.shift ? 0 : a.shift === 'Day' ? -1 : 1));
+  return { reports };
+}
+
 // เวรของแถวข้อมูล: ค่าในคอลัมน์เวร หรือในรายงาน (ข้อมูลเก่าไม่มี = Day)
 function rowShift_(col, fromJson) {
   const v = String(col || fromJson || '').trim();
