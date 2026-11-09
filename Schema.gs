@@ -214,14 +214,14 @@ const FORMS = {
   LR: { draft: true, std: { total: ['nl', 'cs'] }, sections: [{ title: 'การคลอด', fields: [N_('nl', 'คลอดปกติ'), N_('cs', 'ผ่าคลอด')] }] },
   NB: { draft: true, std: { total: 'nb' }, sections: [{ title: 'ทารกแรกเกิด', fields: [N_('nb', 'ทารกแรกเกิด'), N_('nb_adm', 'Admit ตึกเด็ก')] }] },
   'ไตเทียม': { draft: true, std: { total: 'hd' }, sections: [{ title: 'ไตเทียม', fields: [N_('hd', 'ฟอกเลือด (HD)'), N_('hd_new', 'ผู้ป่วยรายใหม่')] }] },
-  // ห้องผ่าตัด ตามสถิติรายเดือนของหน่วย: ยอดรวม = Major + Minor · Elective/Emergency = แยกประเภทเคส · OPD/IPD = หน่วยที่ส่งมา · ที่เหลือ = สิทธิการรักษาของแต่ละเคส
+  // ห้องผ่าตัด ตามสถิติรายเดือนของหน่วย: ยอดรวม = Major + Minor · Emergency = เคสฉุกเฉิน · OPD/IPD = หน่วยที่ส่งมา · ที่เหลือ = สิทธิการรักษาของแต่ละเคส
   OR: { std: { total: 'total' }, sections: [
     { title: 'ยอดผ่าตัด', fields: [Object.assign(N_('total', 'ยอดรวม (Major + Minor)', 'เคส'), { calc: { plus: ['mj_obs', 'mj_gyn', 'mj_surg', 'mj_ortho', 'mj_scope', 'mj_ent', 'mj_cvt', 'mj_pla', 'mj_neuro', 'mj_uro', 'mj_eye', 'mj_ivf_opu', 'mj_tese', 'mj_med', 'mj_ane', 'mn_gyn', 'mn_surg', 'mn_ortho', 'mn_scope', 'mn_eent', 'mn_cvt', 'mn_pla', 'mn_uro', 'mn_eye', 'mn_ivf_fet', 'mn_xray', 'mn_ane'], minus: [] } })] },
     { title: 'ผ่าตัดใหญ่ (Major)', sum: 'รวม Major', fields: [N_('mj_obs', 'OBS'), N_('mj_gyn', 'GYN'), N_('mj_surg', 'SURG'), N_('mj_ortho', 'ORTHO'), N_('mj_scope', 'SCOPE'), N_('mj_ent', 'ENT'), N_('mj_cvt', 'CVT'), N_('mj_pla', 'PLASTIC'), N_('mj_neuro', 'NEURO'), N_('mj_uro', 'URO'), N_('mj_eye', 'EYE'), N_('mj_ivf_opu', 'IVF OPU'), N_('mj_tese', 'TESE'), N_('mj_med', 'MED'), N_('mj_ane', 'ANE')] },
     { title: 'ผ่าตัดเล็ก (Minor)', sum: 'รวม Minor', fields: [N_('mn_gyn', 'GYN'), N_('mn_surg', 'SURG'), N_('mn_ortho', 'ORTHO'), N_('mn_scope', 'SCOPE'), N_('mn_eent', 'EENT'), N_('mn_cvt', 'CVT'), N_('mn_pla', 'PLASTIC'), N_('mn_uro', 'URO'), N_('mn_eye', 'EYE'), N_('mn_ivf_fet', 'IVF FET'), N_('mn_xray', 'X-RAY'), N_('mn_ane', 'ANE')] },
-    { title: 'แยกประเภท', sum: 'รวม (ควรเท่ากับยอดรวม)', fields: [N_('elective', 'Elective'), N_('emergency', 'Emergency')] },
-    { title: 'ส่งมาจากหน่วยงาน', sum: 'รวม (ควรเท่ากับยอดรวม)', fields: [N_('src_opd', 'OPD'), N_('src_ipd', 'IPD')] },
-    { title: 'สิทธิการรักษา', sum: 'รวม (ควรเท่ากับยอดรวม)', fields: [N_('r_self', 'ทั่วไป'), N_('r_ins', 'ประกันชีวิต'), N_('r_fund', 'กองทุน'), N_('r_contract', 'Contact'), N_('r_act', 'พรบ.'), N_('r_ucep', 'UCEP'), N_('r_welfare', 'สวัสดิการ')] }
+    { title: 'ส่งมาจากหน่วยงาน', fields: [N_('src_opd', 'ผู้ป่วยนอก (OPD)'), N_('src_ipd', 'ผู้ป่วยใน (IPD)')] },
+    { title: 'สิทธิการรักษา', sum: 'รวม', fields: [N_('r_self', 'ทั่วไป'), N_('r_ins', 'ประกันชีวิต'), N_('r_fund', 'กองทุน'), N_('r_contract', 'Contract'), N_('r_act', 'พรบ.'), N_('r_ucep', 'UCEP'), N_('r_welfare', 'สวัสดิการ')] },
+    { title: 'Emergency', fields: [N_('emergency', 'Emergency')] }
   ] },};
 
 // ผู้ป่วยนอกที่ยังไม่มีแบบฟอร์มจริง
