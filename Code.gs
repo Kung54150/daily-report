@@ -335,6 +335,18 @@ function saveReport(token, rep) {
     if (rows.length) values[s.key] = rows;
     values[s.totalKey] = rows.reduce((a, r) => a + r.n, 0);
   });
+  // แถวที่ผู้ใช้เพิ่มเอง (เช่น Complication อื่นๆ ของไตเทียม): ชื่อ + จำนวนเต็ม แล้วคำนวณยอดรวมเอง
+  form.sections.filter(s => s.extra).forEach(s => {
+    const ex = s.extra, rows = [];
+    ((rep.values || {})[ex.key] || []).slice(0, 30).forEach(x => {
+      const name = String(x && x.name || '').trim().slice(0, 60), n = Math.max(0, Math.floor(Number(x && x.n)) || 0);
+      if (!name && !n) return;
+      if (!name) throw new Error('กรุณาระบุชื่อ' + (ex.noun || 'รายการ'));
+      rows.push({ name, n });
+    });
+    if (rows.length) values[ex.key] = rows;
+    values[ex.totalKey] = rows.reduce((a, r) => a + r.n, 0);
+  });
   // CSSD: หม้อนึ่ง/อบ แต่ละหม้อมีหลาย Lot; เก็บเป็นจำนวนเต็ม (ช่องว่าง = null) แล้วคำนวณยอดรวมเอง
   form.sections.filter(s => s.type === 'lots').forEach(s => {
     const src = (rep.values || {})[s.key] || {}, out = {};
@@ -474,6 +486,7 @@ function statRows_(u, rep) {
     if (d.n) rows.push(row('ผู้รับบริการรายแพทย์', d.name || '(ไม่ระบุชื่อ)', d.n));
     (d.rows || []).forEach(r => { const it = s.items.find(i => i.k === r.k); rows.push(row('หัตถการ', (it && it.custom ? r.name : it ? it.label : r.k) + ' \u00b7 ' + (d.name || ''), r.n)); });
   }));
+  u.form.sections.filter(s => s.extra).forEach(s => ((rep.values || {})[s.extra.key] || []).forEach(r => { if (r.n) rows.push(row(s.title, r.name, r.n)); }));
   u.form.sections.filter(s => s.type === 'lots').forEach(s => s.pots.forEach(p => (((rep.values || {})[s.key] || {})[p.k] || []).forEach((n, i) => {
     if (n !== null && n !== '' && n !== undefined) rows.push(row('ปราศจากเชื้อ (Lot)', s.prefix + ' ' + p.label + ' Lot' + (i + 1), n));
   })));
@@ -572,6 +585,7 @@ function recordProcs_(unit, form, values) {
     const it = s.items.find(i => i.k === r.k);
     if (it && it.custom && r.name) add.push([s.key, r.name]);
   }));
+  form.sections.filter(s => s.extra).forEach(s => (values[s.extra.key] || []).forEach(r => { if (r.name) add.push([s.extra.key, r.name]); }));
   form.sections.filter(s => s.type === 'docs').forEach(s => (values[s.key] || []).forEach(d => {
     if (d.name) add.push([s.key + ':doc', d.name]);
     (d.rows || []).forEach(r => { const it = s.items.find(i => i.k === r.k); if (it && it.custom && r.name) add.push([s.key, r.name]); });

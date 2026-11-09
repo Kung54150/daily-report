@@ -237,12 +237,12 @@ const FORMS = {
       N_('r_cgd', 'กรมบัญชีกลาง (รูดบัตร)', 'คน'), N_('r_bkk', 'ข้าราชการ กทม.', 'คน'), N_('r_local', 'ข้าราชการ อปท.', 'คน'),
       N_('r_sso', 'ประกันสังคม', 'คน'), N_('r_uc', 'สปสช. (Authen ครบ)', 'คน'), N_('r_other', 'รัฐวิสาหกิจ / เงินสด', 'คน')
     ] },
-    { title: 'Complication during HD', fields: [
+    // extra = แถวที่ผู้ใช้กด "+ เพิ่ม" แล้วพิมพ์ชื่อ + จำนวนเอง (เก็บ { name, n }) ยอดรวมของแถวเหล่านี้อยู่ในช่อง totalKey
+    { title: 'Complication during HD', extra: { key: 'cx', totalKey: 'cx_total', addLabel: 'เพิ่ม Complication', noun: ' Complication', placeholder: 'ชื่อ Complication', unit: 'case' }, fields: [
+      Object.assign(N_('comp_total', 'รวม Complication', 'case'), { calc: { plus: ['c_cramp', 'c_htn', 'c_arr', 'c_hypo', 'c_glu', 'cx_total'], minus: [] } }),
       N_('c_cramp', 'Muscle cramp', 'case'), N_('c_htn', 'Hypertension', 'case'), N_('c_arr', 'Arrhythmia', 'case'),
-      N_('c_hypo', 'Hypotension', 'case'), N_('c_glu', 'Hypoglycemia', 'case'),
-      Object.assign(N_('comp_total', 'รวม Complication', 'case'), { calc: { plus: ['c_cramp', 'c_htn', 'c_arr', 'c_hypo', 'c_glu', 'cx_total'], minus: [] } })
-    ] },
-    Object.assign(LIST_('cx', 'Complication อื่นๆ (พิมพ์เพิ่มได้)', 'cx_total', 'รวม Complication อื่นๆ', [CUSTOM_ITEM]), { unit: 'case' })
+      N_('c_hypo', 'Hypotension', 'case'), N_('c_glu', 'Hypoglycemia', 'case')
+    ] }
   ] },
   // ห้องผ่าตัด ตามสถิติรายเดือนของหน่วย: ยอดรวม = Major + Minor (ลูกบอลแดง = Major, เขียว = Minor ของแต่ละแผนก)
   // Emergency + Elective ต้องเท่ากับยอดรวม · ส่งมาจาก OPD/IPD · สิทธิการรักษาของแต่ละเคส
