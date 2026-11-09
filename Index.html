@@ -345,6 +345,9 @@
   @media (min-width: 720px) { .slines { columns: 2; column-gap: 24px; } }
   .a4 .ubgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 8mm; align-items: start; }
   .a4 .ubgrid .ub { min-width: 0; }
+  .a4 .opsplit { display: grid; grid-template-columns: 1fr 1fr; gap: 0 3mm; align-items: start; }
+  .a4 .opsplit > div { min-width: 0; }
+  .a4 .opsplit .opside { border-left: .5pt solid #bbb; padding-left: 3mm; }
   .a4 .shpair { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm; align-items: start; }
   .a4 .shpair .shb { margin-top: 2px; min-width: 0; }
   .a4 .shpair .shb .miss { padding: 2px 0; }
@@ -2830,13 +2833,15 @@ function printUnits() {
   let body = printHead('แยกหน่วยงาน \u00b7 ผู้ป่วยนอก');
   // ผู้ป่วยนอก: OPD1 / OPD3 / PC อยู่หน้าเดียวกัน ตามด้วย ER (เวร Day ซ้าย Night ขวา เหมือนผู้ป่วยใน) แล้วจึงเป็นแผนกอื่น
   // แต่ละแผนกเป็นกล่องเดียว ถ้าท้ายหน้าไม่พอจะยกไปทั้งกล่องขึ้นหน้าใหม่ ไม่ตัดกลางข้อความ
+  // ผู้ป่วยนอก: เรียงลงมาทีละแผนก ยอด/อัตรากำลังอยู่ซ้าย เรื่องแจ้ง เหตุการณ์ผิดปกติ และรายงานเคสอยู่ขวา (ER แยกเป็นแถวเวร Day / Night)
+  // แต่ละแผนกเป็นกล่องเดียว ถ้าท้ายหน้าไม่พอจะยกไปทั้งกล่องขึ้นหน้าใหม่ ไม่ตัดกลางข้อความ
+  const opdBlock = u => { const two = shiftsOf(u).length > 1;
+    return `<div class="ub"><b class="c">${esc(u.code)}</b>${shiftsOf(u).map(k => { const r = repAt(u, k);
+      if (!r) return `<div class="miss">${two ? 'เวร ' + esc(k) + ' ' : ''}ยังไม่รายงาน</div>`;
+      const x = printLines(u, r, true, true, true);
+      return `${two ? `<div class="shl" style="margin-top:3px">เวร ${esc(k)}</div>` : ''}<div class="opsplit"><div class="slines">${x.main}</div><div class="slines opside">${x.side || '<span class="muted">\u2013</span>'}</div></div>`; }).join('')}</div>`; };
   secs.filter(sc => sc.group === 'OPD').forEach(sc => {
-    const us = sc.units.map(unitCfg), lead = ['OPD1', 'OPD3', 'PC'], one = u => `<div class="ub"><b class="c">${esc(u.code)}</b>${unitShiftBlocks(u, true, true)}</div>`;
-    const first = lead.map(c => us.find(u => u.code === c)).filter(Boolean), er = us.find(u => u.code === 'ER');
-    const rest = us.filter(u => first.indexOf(u) < 0 && u !== er);
-    body += `<h2>${esc(sc.label)}</h2><div class="ubgrid">${first.map(one).join('')}</div>`;
-    if (er) body += `<div class="ub"><b class="c">${esc(er.code)}</b>${pair(er)}</div>`;
-    if (rest.length) body += `<div class="ubgrid">${rest.map(one).join('')}</div>`;
+    body += `<h2>${esc(sc.label)}</h2>${sc.units.map(unitCfg).map(opdBlock).join('')}`;
   });
   body += `<div class="pgbreak"><h1>รายงานยอดประจำวัน \u00b7 ผู้ป่วยใน / Special Unit</h1><div class="d">${esc(thaiDate(S.date, true))}</div>`;
   secs.filter(sc => sc.group !== 'OPD').forEach(sc => {
@@ -2902,9 +2907,11 @@ const SUMMARY_VIEW = {
 };
 // รายการหลักเป็นตัวหนา รายละเอียดขึ้นบรรทัดใหม่ขึ้นต้นด้วย -
 // forPrint = หน้าพิมพ์แยกหน่วยงาน: ผู้ป่วยนอกแสดงจำนวนเจ้าหน้าที่ด้วย (หน้าสรุปบนจอไม่แสดง)
-function printLines(u, r, withInc, forPrint) {
-  const v = r.values || {}, out = [];
-  const grp = (head, details) => out.push(`<div class="lg">${head ? `<div class="ln m">${head}</div>` : ''}${details.filter(Boolean).map(d => `<div class="ln dt">- ${d}</div>`).join('')}</div>`);
+// split = ส่งคืน { main, side }: main = ยอด/อัตรากำลัง, side = เรื่องแจ้ง เหตุการณ์ผิดปกติ รายงานเคส (หน้าพิมพ์ผู้ป่วยนอกวางไว้ฝั่งขวาของยอด)
+function printLines(u, r, withInc, forPrint, split) {
+  const v = r.values || {}, out = [], side = [];
+  let tgt = out;
+  const grp = (head, details) => tgt.push(`<div class="lg">${head ? `<div class="ln m">${head}</div>` : ''}${details.filter(Boolean).map(d => `<div class="ln dt">- ${d}</div>`).join('')}</div>`);
   u.form.sections.forEach(s => {
     if (s.type === 'docs') {
       grp(`<b>${esc(s.title)} ${num(v[s.totalKey])} ${esc(s.unit)}</b>`, []);
@@ -2955,6 +2962,7 @@ function printLines(u, r, withInc, forPrint) {
     if ((u.group !== 'OPD' || forPrint) && rc.length) grp('<b>อัตรากำลัง</b>', [rc.map(([k, n]) => `${esc(k)} ${n}`).join(', ')]);
     if (rdLine) grp(rdLine, []);
   }
+  if (split) tgt = side;
   if (r.notes) grp('<b>เรื่องแจ้ง</b>', [esc(r.notes).replace(/\n/g, ' / ')]);
   const one = t => esc(String(t || '').replace(/\s*\n\s*/g, ' / '));
   const caseText = (i, head) => {
@@ -2965,7 +2973,7 @@ function printLines(u, r, withInc, forPrint) {
   };
   if ((r.incidents || []).length) grp(`<b class="miss">เหตุการณ์ผิดปกติ ${r.incidents.length} เรื่อง</b>`, withInc ? r.incidents.map(i => caseText(i, `<b>${esc(i.type)}</b>${i.severity && i.severity !== '-' ? ` (ระดับ ${esc(i.severity)})` : ''}`)) : []);
   if ((r.cases || []).length) grp(`<b>รายงานเคส ${r.cases.length} เรื่อง</b>`, withInc ? r.cases.map(i => caseText(i, '<b>เคส</b>')) : []);
-  return out.join('');
+  return split ? { main: out.join(''), side: side.join('') } : out.join('');
 }
 
 /* ตรวจรายชื่อก่อนอัปโหลด: นำเข้าทุกคน ชื่อแผนกตามไฟล์เก็บไว้ ผูกกับหน่วยงานในระบบภายหลังได้ */
