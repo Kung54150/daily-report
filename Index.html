@@ -483,6 +483,8 @@
   .a4 tr.tot td { background: #e4e9e9; font-weight: 700; }
   .a4 .foot { font-size: 8pt; color: #555; margin-top: 3px; }
   /* แถบตั้งค่าหน้าพิมพ์: ทุกตัวควบคุมสูงเท่ากัน (32px) ป้ายชื่ออยู่ซ้ายแนวเดียวกัน เพื่อให้เล็ก ชิด ตรงบรรทัด บนมือถือ */
+  .xrow { grid-template-columns: 1fr 84px 32px; }
+  .xdel { border: 0; background: transparent; color: var(--muted); font-size: 20px; line-height: 1; cursor: pointer; padding: 4px; }
   .pbar { margin-bottom: 2px; }
   .prow { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; flex-wrap: wrap; }
   .pl { width: 44px; flex: 0 0 44px; font-size: 13px; color: var(--muted); margin: 0; }
@@ -1332,8 +1334,9 @@ function renderReportView(u, r) {
         if (f.note && num(val) && v[f.key + '_note']) shown += ` <span class="muted" style="font-weight:400;font-size:13px">(${esc(v[f.key + '_note'])})</span>`;
         return `<div>${esc(f.label)}${f.noSum ? ' <small class="muted">(ไม่นับในยอดรวม)</small>' : ''}</div><div class="v">${shown}</div>`;
       }).join('');
+      const xrows = s.extra ? (v[s.extra.key] || []).map(r => `<div>${esc(r.name)}</div><div class="v">${num(r.n)}</div>`).join('') : '';
       const sum = s.sum ? `<div class="total">${esc(s.sum)}</div><div class="total v">${sectionSum(s, v)}</div>` : '';
-      return `<div class="card"><h3>${esc(s.title)}</h3>${s.hint ? `<div class="muted" style="font-size:13px;margin-bottom:6px">${esc(s.hint)}</div>` : ''}<div class="kv">${rows}${sum}</div></div>`;
+      return `<div class="card"><h3>${esc(s.title)}</h3>${s.hint ? `<div class="muted" style="font-size:13px;margin-bottom:6px">${esc(s.hint)}</div>` : ''}<div class="kv">${rows}${xrows}${sum}</div></div>`;
     });
     if (u.form.total) cards.push(`<div class="card"><div class="kv"><div><b>${esc(u.form.total)}</b></div><div class="v">${u.form.sections.filter(s => s.sum).reduce((a, s) => a + sectionSum(s, v), 0)}</div></div></div>`);
     { const rd0 = r.reduce || {}; if (u.group === 'OPD' && (num(rd0.RN) + num(rd0.PN) + num(rd0.NA) || rd0.detail)) cards.push(reduceViewHtml(rd0, true)); }
@@ -1425,6 +1428,7 @@ function mountForm() {
         }
       });
       if (s.fields.some(f => f.rooms)) pat += `<div style="margin-top:8px"><button type="button" class="btn ghost sm" data-roomedit>\u270e แก้ไขรายการห้อง (เลขห้อง / ชื่อ)</button></div><div id="room_editor"></div>`;
+      if (s.extra) pat += `<div data-extra="${esc(s.extra.key)}"></div>`;
       if (s.sum) pat += `<div class="sumline"><span>${esc(s.sum)}</span><span class="num" data-sum="${si}">0</span></div>`;
       if (s.sumEq) pat += `<div class="remwarn" data-sumwarn="${si}"></div>`;
       if (s.categories && allFields(u).some(f => f.key === 'remain' && f.calc)) pat += '<div class="remwarn" data-remwarn></div>';
@@ -1448,7 +1452,7 @@ function mountForm() {
 
   $('view').innerHTML = `<div id="fm_tabs"></div>
     <div data-panel="patient">${pat}</div><div data-panel="staff">${staff}</div><div data-panel="doctor">${isOpd ? docs : ''}</div><div data-panel="incident">${inc}</div>`;
-  renderStaffPicker(); renderDoctors(); renderIncidents(); renderCases(); renderRoomPickers(); renderLists(); renderDocs(); renderLots(); S.overWarned = false; recalc(true); showSub();
+  renderStaffPicker(); renderDoctors(); renderIncidents(); renderCases(); renderRoomPickers(); renderLists(); renderDocs(); renderLots(); renderExtras(); S.overWarned = false; recalc(true); showSub();
   if (isOpd) loadDoctors(false);
   $('fm_addinc').onclick = () => {
     d.incidents.push({ type: S.cfg.problemTypes[0], severity: '-', patient: '', age: '', hn: '', time: '', doctor: '', bp: '', pr: '', rr: '', temp: '', spo2: '', o2mode: 'Room air', o2flow: '', detail: '', action: '' });
@@ -1504,6 +1508,7 @@ function rememberProcs(unit, form, values) {
   form.sections.filter(x => x.type === 'list').forEach(sec => (values[sec.key] || []).forEach(r => {
     const it = sec.items.find(i => i.k === r.k); if (it && it.custom && r.name) add(sec.key, r.name);
   }));
+  form.sections.filter(x => x.extra).forEach(sec => (values[sec.extra.key] || []).forEach(r => { if (r.name) add(sec.extra.key, r.name); }));
   form.sections.filter(x => x.type === 'docs').forEach(sec => (values[sec.key] || []).forEach(d => {
     if (d.name) add(sec.key + ':doc', d.name);
     (d.rows || []).forEach(r => { const it = sec.items.find(i => i.k === r.k); if (it && it.custom && r.name) add(sec.key, r.name); });
@@ -1558,7 +1563,25 @@ function renderLists() {
     const s = unitCfg(euUnit()).form.sections.find(x => x.key === box.dataset.list);
     const rows = v[s.key] = v[s.key] || [];
     mountList(box, { items: s.items, rows, unit: listUnit(s), totalLabel: s.totalLabel, memKey: s.key, rerender: renderLists,
-      onChange: () => { v[s.totalKey] = listTotal(s, v); S.dirty = true; } });
+      onChange: () => { v[s.totalKey] = listTotal(s, v); S.dirty = true; recalc(true); } });
+  });
+}
+// แถวที่กด "+ เพิ่ม" เอง (เช่น Complication อื่นๆ): พิมพ์ชื่อ (แนะนำชื่อที่เคยใช้) + จำนวน กด × ลบแถว ยอดรวมคำนวณให้
+function renderExtras() {
+  const v = S.draft.values;
+  document.querySelectorAll('[data-extra]').forEach(box => {
+    const s = unitCfg(euUnit()).form.sections.find(x => x.extra && x.extra.key === box.dataset.extra), ex = s.extra;
+    const rows = v[ex.key] = v[ex.key] || [], known = (((S.cfg.procs || {})[euUnit()] || {})[ex.key] || []);
+    const total = () => rows.reduce((a, r) => a + num(r.n), 0);
+    v[ex.totalKey] = total();
+    const sync = () => { v[ex.totalKey] = total(); S.dirty = true; recalc(true); };
+    box.innerHTML = rows.map((r, i) => `<div class="frow xrow"><input type="text" data-xname="${i}" list="xl_${esc(ex.key)}" maxlength="60" placeholder="${esc(ex.placeholder || 'ชื่อรายการ')}" value="${esc(r.name)}" aria-label="${esc(ex.placeholder || 'ชื่อรายการ')}">
+        <input type="number" inputmode="numeric" min="0" step="1" data-xn="${i}" value="${esc(r.n ?? '')}" placeholder="\u2013" aria-label="จำนวน ${esc(ex.unit || '')}"><button type="button" class="xdel" data-xdel="${i}" aria-label="ลบแถว">\u00d7</button></div>`).join('')
+      + `<datalist id="xl_${esc(ex.key)}">${known.map(n => `<option value="${esc(n)}"></option>`).join('')}</datalist><button type="button" class="btn ghost sm" data-xadd style="margin-top:6px">+ ${esc(ex.addLabel || 'เพิ่ม')}</button>`;
+    box.querySelectorAll('[data-xname]').forEach(inp => inp.oninput = () => { rows[+inp.dataset.xname].name = inp.value; S.dirty = true; });
+    box.querySelectorAll('[data-xn]').forEach(inp => inp.oninput = () => { rows[+inp.dataset.xn].n = inp.value === '' ? '' : Math.max(0, Math.floor(num(inp.value))); sync(); });
+    box.querySelectorAll('[data-xdel]').forEach(b => b.onclick = () => { rows.splice(+b.dataset.xdel, 1); sync(); renderExtras(); });
+    box.querySelector('[data-xadd]').onclick = () => { rows.push({ name: '', n: '' }); S.dirty = true; renderExtras(); const el = box.querySelector(`[data-xname="${rows.length - 1}"]`); if (el) el.focus(); };
   });
 }
 // CSSD: หม้อนึ่ง/อบ แต่ละหม้อเริ่มที่ 3 Lot กด "เพิ่ม Lot" ได้เอง ยอดรวมของหม้อ/ชนิด/ทั้งหมดคำนวณให้
@@ -2753,6 +2776,10 @@ function printMonthly(u, month, reps) {
     const lines = [];
     if (s.type === 'docs') {
       reps.forEach(r => (( r.values || {})[s.key] || []).forEach(d => { const nm = d.name || '(ไม่ระบุชื่อ)'; lines.push([nm + ' (เคส)', num(d.n)]); (d.rows || []).forEach(x => lines.push([listLabel(s.items.find(i => i.k === x.k), x) + ' \u00b7 ' + nm, num(x.n)])); }));
+    } else if (s.extra && s.fields.length) {
+      s.fields.forEach(f => { if (f.type || f.calc || stdKeys.has(f.key)) return; const n = reps.reduce((a, r) => a + num((r.values || {})[f.key]), 0); if (n) lines.push([f.label, n]); });
+      const agg = {}; reps.forEach(r => ((r.values || {})[s.extra.key] || []).forEach(x => { agg[x.name] = (agg[x.name] || 0) + num(x.n); }));
+      Object.entries(agg).forEach(([k, n]) => { if (n) lines.push([k, n]); });
     } else if (s.type === 'lots') {
       s.pots.forEach(p => { const n = reps.reduce((a, r) => a + potTotal(s, r.values || {}, p), 0); if (n) lines.push([s.prefix + ' ' + p.label + ' (ชิ้น)', n]); });
     } else if (s.type === 'list') {
@@ -2941,12 +2968,21 @@ const SUMMARY_VIEW = {
   EENT: { 'ยอดผู้ป่วย': { title: 'จำนวนคนไข้ทั้งหมด', lead: 'total', nosum: true } },
   OPD1: { 'ยอดรวม': { title: 'ยอดรวม Med+Psy', lead: 'total' }, 'ผู้ป่วยอายุรกรรม': { lead: 'med' }, 'ผู้ป่วยจิตเวช': { lead: 'psy' } },
   OR: { 'ยอดผ่าตัด': { ballTotal: 'total' }, 'ส่งมาจากหน่วยงาน': { skipEmpty: true } },
+  'ไตเทียม': {
+    'ยอดรวม': { title: 'Total', lead: 'total' },
+    'รอบ 1': { lead: 'r1', units: true },
+    'รอบ 2': { lead: 'r2', units: true },
+    'แยกตามสิทธิ์': { units: true, skipEmpty: true },
+    'Complication during HD': { lead: 'comp_total', units: true }
+  },
   CCC: {
-    'ลูกค้าตรวจสุขภาพ': { units: true, skipEmpty: true },
-    'ลูกค้าตรวจก่อนเข้างาน': { title: 'Total ตรวจก่อนเข้างาน', lead: 'total', units: true },
+    'ยอดรวม': { skipEmpty: true },
+    'ผู้รับบริการ (จำนวนคน)': { title: 'ผู้รับบริการ', units: true, skipEmpty: true },
+    'หัตถการ': { title: 'หัตถการ (ไม่นับในยอดรวม)', units: true, skipEmpty: true },
     'แผนกอื่นส่งตรวจ': { units: true, skipEmpty: true },
     'โดนตาม': { units: true, skipEmpty: true }
   }
+
 };
 // รายการหลักเป็นตัวหนา รายละเอียดขึ้นบรรทัดใหม่ขึ้นต้นด้วย -
 // forPrint = หน้าพิมพ์แยกหน่วยงาน: ผู้ป่วยนอกแสดงจำนวนเจ้าหน้าที่ด้วย (หน้าสรุปบนจอไม่แสดง)
@@ -2983,6 +3019,7 @@ function printLines(u, r, withInc, forPrint, split) {
       if (!num(val)) return '';
       return `${esc(f.label)} ${val}${s.categories || (vw.units && f.unit) ? ' ' + esc(s.categories ? (s.catUnit || 'ราย') : f.unit) : ''}${s.categories && ballText(v, f.key, s.balls) ? ' (' + ballText(v, f.key, s.balls) + ')' : ''}${f.pctOf && num(v[f.pctOf]) ? ` (${(num(val) / num(v[f.pctOf]) * 100).toFixed(1)}%)` : ''}${f.note && v[f.key + '_note'] ? ' (' + esc(v[f.key + '_note']) + ')' : ''}`;
     }).filter(Boolean);
+    if (s.extra) (v[s.extra.key] || []).forEach(r => { if (num(r.n)) items.push(`${esc(r.name)} ${num(r.n)}${vw.units && s.extra.unit ? ' ' + esc(s.extra.unit) : ''}`); });
     const lf = vw.lead && s.fields.find(f => f.key === vw.lead), lv = lf ? fieldValue(u, v, lf) : '';
     const head = (u.form.sections.length > 1 || vw.title ? esc(vw.title || s.title) : '') + (lf && lv !== undefined && lv !== '' ? ` ${lv} ${esc(lf.unit || '')}` : '') + (s.sum && !vw.nosum ? ` ${esc(s.sum)} ${sectionSum(s, v)}` : '');
     // หน้าพิมพ์ (split): ไม่พิมพ์หัวข้อเปล่าที่ไม่มียอดเลย เพื่อประหยัดกระดาษ

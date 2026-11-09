@@ -165,17 +165,17 @@ const FORMS = {
     { title: 'ผู้ป่วย Surg', sum: 'รวม Surg', fields: [N_('surg_exam', 'ตรวจรักษา'), N_('surg_proc', 'หัตถการ'), N_('surg_dress', 'ทำแผล'), N_('surg_fu', 'F/U+ทำแผล')] },
     { title: 'อื่นๆ', fields: [N_('ccc', 'เจาะเลือดที่ CCC (ไม่รวมยอด OPD3)')] }
   ] },
-  // CCC ตามตารางสรุปของแผนก: ลูกค้าตรวจสุขภาพ (จำนวนคนไข้) · ลูกค้าตรวจก่อนเข้างาน (Total = จำนวนคนไข้, รายการย่อย = ยอดหัตถการ)
-  // · แผนกอื่นส่งตรวจ (ยอดหัตถการ) · โดนตาม ล่าม-OPD — ยอดหัตถการไม่นำมารวมเป็นจำนวนคนไข้ (คนไข้ 1 รายทำได้หลายหัตถการ)
-  CCC: { std: { total: ['atk', 'labor', 'ekg', 'annual', 'total'] }, sections: [
-    { title: 'ลูกค้าตรวจสุขภาพ', sum: 'รวม', fields: [N_('atk', 'ATK'), N_('labor', 'ตรวจแรงงาน'), N_('ekg', 'EKG'), N_('annual', 'ประจำปี')] },
-    { title: 'ลูกค้าตรวจก่อนเข้างาน', fields: [
-      N_('total', 'Total ตรวจก่อนเข้างาน'),
-      N_('blood', 'เจาะเลือด'), N_('ear', 'ตรวจหู'), N_('eye', 'ตรวจตา (VA/อาชีว)'), N_('lung', 'ตรวจปอด'), N_('hand', 'ตรวจมือ/หลัง')
-    ], hint: 'Total = จำนวนคนไข้ตรวจก่อนเข้างาน \u00b7 รายการย่อยเป็นยอดหัตถการ ไม่ใช่จำนวนคนไข้' },
-    { title: 'แผนกอื่นส่งตรวจ', fields: [
-      N_('ref_ear', 'ตรวจหู'), N_('ref_eye', 'ตรวจตา (VA/อาชีว)'), N_('ref_lung', 'ตรวจปอด'), N_('ref_hand', 'ตรวจมือ/หลัง')
-    ], hint: 'ยอดหัตถการ ไม่ใช่จำนวนคนไข้' },
+  // CCC ตามตารางสรุปของแผนก: ยอดรวมทั้งหมด = ตรวจแรงงานต่างด้าว + ตรวจประจำปี + ตรวจก่อนเข้างาน (จำนวนคน)
+  // หัตถการ (ATK EKG เจาะเลือด ตรวจหู VA/อาชีวะ ปอด มือ/หลัง) และแผนกอื่นส่งตรวจ เป็นยอดหัตถการ ไม่นำไปรวมในยอดรวม · ATK อยู่ในรายการหัตถการ
+  // (คีย์ช่องเดิมคงไว้ รายงานที่ส่งแล้วยังอ่านได้: total = ตรวจก่อนเข้างาน, all = ยอดรวมทั้งหมด)
+  CCC: { std: { total: 'all' }, sections: [
+    { title: 'ยอดรวม', fields: [Object.assign(N_('all', 'ยอดรวมทั้งหมด'), { calc: { plus: ['labor', 'annual', 'total'], minus: [] } })],
+      hint: 'ยอดรวม = ตรวจแรงงานต่างด้าว + ตรวจประจำปี + ตรวจก่อนเข้างาน' },
+    { title: 'ผู้รับบริการ (จำนวนคน)', fields: [N_('labor', 'ตรวจแรงงานต่างด้าว'), N_('annual', 'ตรวจประจำปี'), N_('total', 'ตรวจก่อนเข้างาน')] },
+    { title: 'หัตถการ', fields: [N_('ekg', 'EKG'), N_('blood', 'เจาะเลือด'), N_('ear', 'ตรวจหู'), N_('eye', 'VA/อาชีวะ'), N_('lung', 'ปอด'), N_('hand', 'มือ/หลัง'), N_('atk', 'ATK')],
+      hint: 'ยอดหัตถการ ไม่ใช่จำนวนคน ไม่นำไปรวมในยอดรวม' },
+    { title: 'แผนกอื่นส่งตรวจ', fields: [N_('ref_ear', 'หู'), N_('ref_eye', 'VA/อาชีวะ'), N_('ref_lung', 'ปอด'), N_('ref_hand', 'มือ/หลัง')],
+      hint: 'ยอดหัตถการ ไม่ใช่จำนวนคน' },
     { title: 'โดนตาม', fields: [N_('interp', 'ล่าม-OPD', 'ครั้ง')] }
   ] },
   'OBG-IVF': { std: { total: ['obg', 'gyn', 'ivf', 'gyn_sp', 'eki', 'stim', 'consult', 'nhso'], admit: ['ad_cs', 'ad_or', 'ad_induce', 'ad_tocolysis', 'ad_obsgyn', 'ad_abort'] }, sections: [
@@ -224,7 +224,26 @@ const FORMS = {
     LOTS_('st', 'ST (ST/Pe vacuum) \u00b7 นึ่งด้วยไอน้ำ', 'ST', 'st_total', [['p1', 'หม้อ1'], ['p2', 'หม้อ2'], ['p3', 'หม้อ3'], ['p4', 'หม้อ4']]),
     LOTS_('eo', 'EO (EO) \u00b7 อบแก๊ส', 'EO', 'eo_total', [['p1', 'หม้อ1']])
   ] },
-  'ไตเทียม': { draft: true, std: { total: 'hd' }, sections: [{ title: 'ไตเทียม', fields: [N_('hd', 'ฟอกเลือด (HD)'), N_('hd_new', 'ผู้ป่วยรายใหม่')] }] },
+  // ไตเทียม (HEM): ยอดคนไข้ HD / HDF แยกรอบ 1-2 · ยอดรวม = HD + HDF = ผลรวมแยกตามสิทธิ์ · Complication during HD (รายการประจำ + พิมพ์เพิ่มได้) ระบบรวมให้
+  'ไตเทียม': { std: { total: 'total' }, sections: [
+    { title: 'ยอดรวม', hint: 'Total = HD + HDF (รอบ 1 + รอบ 2)', fields: [
+      Object.assign(N_('total', 'Total', 'คน'), { calc: { plus: ['r1_hd', 'r1_hdf', 'r2_hd', 'r2_hdf'], minus: [] } }),
+      Object.assign(N_('hd', 'HD', 'คน'), { calc: { plus: ['r1_hd', 'r2_hd'], minus: [] } }),
+      Object.assign(N_('hdf', 'HDF', 'คน'), { calc: { plus: ['r1_hdf', 'r2_hdf'], minus: [] } })
+    ] },
+    { title: 'รอบ 1', fields: [N_('r1_hd', 'HD', 'คน'), N_('r1_hdf', 'HDF', 'คน'), Object.assign(N_('r1', 'รวมรอบ 1', 'คน'), { calc: { plus: ['r1_hd', 'r1_hdf'], minus: [] } })] },
+    { title: 'รอบ 2', fields: [N_('r2_hd', 'HD', 'คน'), N_('r2_hdf', 'HDF', 'คน'), Object.assign(N_('r2', 'รวมรอบ 2', 'คน'), { calc: { plus: ['r2_hd', 'r2_hdf'], minus: [] } })] },
+    { title: 'แยกตามสิทธิ์', sum: 'รวม', sumEq: 'total', fields: [
+      N_('r_cgd', 'กรมบัญชีกลาง (รูดบัตร)', 'คน'), N_('r_bkk', 'ข้าราชการ กทม.', 'คน'), N_('r_local', 'ข้าราชการ อปท.', 'คน'),
+      N_('r_sso', 'ประกันสังคม', 'คน'), N_('r_uc', 'สปสช. (Authen ครบ)', 'คน'), N_('r_other', 'รัฐวิสาหกิจ / เงินสด', 'คน')
+    ] },
+    // extra = แถวที่ผู้ใช้กด "+ เพิ่ม" แล้วพิมพ์ชื่อ + จำนวนเอง (เก็บ { name, n }) ยอดรวมของแถวเหล่านี้อยู่ในช่อง totalKey
+    { title: 'Complication during HD', extra: { key: 'cx', totalKey: 'cx_total', addLabel: 'เพิ่ม Complication', noun: ' Complication', placeholder: 'ชื่อ Complication', unit: 'case' }, fields: [
+      Object.assign(N_('comp_total', 'รวม Complication', 'case'), { calc: { plus: ['c_cramp', 'c_htn', 'c_arr', 'c_hypo', 'c_glu', 'cx_total'], minus: [] } }),
+      N_('c_cramp', 'Muscle cramp', 'case'), N_('c_htn', 'Hypertension', 'case'), N_('c_arr', 'Arrhythmia', 'case'),
+      N_('c_hypo', 'Hypotension', 'case'), N_('c_glu', 'Hypoglycemia', 'case')
+    ] }
+  ] },
   // ห้องผ่าตัด ตามสถิติรายเดือนของหน่วย: ยอดรวม = Major + Minor (ลูกบอลแดง = Major, เขียว = Minor ของแต่ละแผนก)
   // Emergency + Elective ต้องเท่ากับยอดรวม · ส่งมาจาก OPD/IPD · สิทธิการรักษาของแต่ละเคส
   OR: { std: { total: 'total' }, sections: [
@@ -288,7 +307,7 @@ function subGroups_(g) {
 
 // ผู้ป่วยนอกทุกแผนกยกเว้น ER ไม่มีเวร Night
 function unitShifts_(group, code) {
-  return (group === 'OPD' && code !== 'ER') || code === 'CSSD' ? ['Day'] : SHIFTS; // CSSD รายงานเวร Day เวรเดียว
+  return (group === 'OPD' && code !== 'ER') || code === 'CSSD' || code === 'ไตเทียม' ? ['Day'] : SHIFTS; // CSSD / ไตเทียม รายงานรายวัน (เวร Day เวรเดียว)
 }
 
 function buildConfig_() {
