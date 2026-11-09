@@ -2942,11 +2942,13 @@ const SUMMARY_VIEW = {
   OPD1: { 'ยอดรวม': { title: 'ยอดรวม Med+Psy', lead: 'total' }, 'ผู้ป่วยอายุรกรรม': { lead: 'med' }, 'ผู้ป่วยจิตเวช': { lead: 'psy' } },
   OR: { 'ยอดผ่าตัด': { ballTotal: 'total' }, 'ส่งมาจากหน่วยงาน': { skipEmpty: true } },
   CCC: {
-    'ลูกค้าตรวจสุขภาพ': { units: true, skipEmpty: true },
-    'ลูกค้าตรวจก่อนเข้างาน': { title: 'Total ตรวจก่อนเข้างาน', lead: 'total', units: true },
+    'ยอดรวม': { skipEmpty: true },
+    'ผู้รับบริการ (จำนวนคน)': { title: 'ผู้รับบริการ', units: true, skipEmpty: true },
+    'หัตถการ': { title: 'หัตถการ (ไม่นับในยอดรวม)', units: true, skipEmpty: true },
     'แผนกอื่นส่งตรวจ': { units: true, skipEmpty: true },
     'โดนตาม': { units: true, skipEmpty: true }
   }
+
 };
 // รายการหลักเป็นตัวหนา รายละเอียดขึ้นบรรทัดใหม่ขึ้นต้นด้วย -
 // forPrint = หน้าพิมพ์แยกหน่วยงาน: ผู้ป่วยนอกแสดงจำนวนเจ้าหน้าที่ด้วย (หน้าสรุปบนจอไม่แสดง)
