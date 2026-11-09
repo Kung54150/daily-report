@@ -347,14 +347,15 @@
   .a4 .ubgrid .ub { min-width: 0; }
   .a4 .opsplit { display: grid; grid-template-columns: 1fr 1fr; gap: 0 3mm; align-items: start; }
   .a4 .opsplit > div { min-width: 0; }
-  .a4 .evh { font-weight: 700; font-size: 9.5pt; background: #e6e6e6; color: #111; margin: 4px -4px 2px; padding: 1px 4px; }
-  .a4 .shlab { font-weight: 700; text-decoration: underline; }
-  .a4 .opsplit .opside { border-left: .5pt solid #bbb; padding-left: 3mm; }
+  .a4 .evh { font-weight: 700; font-size: 9.5pt; color: #111; margin: 6px 0 2px; }
+  .a4 .shlab { font-weight: 700; }
+  .a4 .opsplit .opside { padding-left: 0; }
   .a4 .shpair { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm; align-items: start; }
   .a4 .shpair .shb { margin-top: 2px; min-width: 0; }
   .a4 .shpair .shb .miss { padding: 2px 0; }
-  .a4 .shb { margin-top: 4px; border: .5pt solid #777; padding: 0 4px 2px; border-radius: 0; }
-  .a4 .shb .shl { font-weight: 700; font-size: 9.5pt; background: #e6e6e6; color: #111; margin: 0 -4px 2px; padding: 1px 4px; }
+  /* หน้าพิมพ์: หน่วยงานละกล่องเดียว ไม่มีกล่องย่อย แถบสี หรือเส้นคั่นภายใน (ป้ายเวรเป็นตัวหนาเฉยๆ) */
+  .a4 .shb { margin-top: 3px; border: 0; padding: 0; border-radius: 0; }
+  .a4 .shb .shl { font-weight: 700; font-size: 9.5pt; background: none; color: #111; margin: 0 0 1px; padding: 0; }
   .a4 .slines { columns: 1; }
   .a4 .ub .ln { text-align: left; color: #111; }
   .a4 .ub .ln.dt { padding-left: 8px; font-size: 9pt; }
