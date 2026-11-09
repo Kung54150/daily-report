@@ -620,6 +620,7 @@ setTimeout(function () {
       <span class="dlabel" id="d_label"></span>
     </div>
     <div id="view"></div>
+    <div class="noprint muted" id="buildtag" style="text-align:center;font-size:11px;padding:8px 0 4px">หน้าเว็บ build 2026-11-09 #76</div>
   </main>
   <div class="savebar" id="savebar" hidden><div class="wrap">
     <span class="msg" id="sb_msg"></span>
@@ -1428,7 +1429,7 @@ function mountForm() {
         }
       });
       if (s.fields.some(f => f.rooms)) pat += `<div style="margin-top:8px"><button type="button" class="btn ghost sm" data-roomedit>\u270e แก้ไขรายการห้อง (เลขห้อง / ชื่อ)</button></div><div id="room_editor"></div>`;
-      if (s.extra) pat += `<div data-extra="${esc(s.extra.key)}"></div>`;
+      if (s.extra) pat += `<div data-extra="${esc(s.extra.key)}"><button type="button" class="btn ghost sm" data-xadd style="margin-top:6px">+ ${esc(s.extra.addLabel || 'เพิ่ม')}</button></div>`;
       if (s.sum) pat += `<div class="sumline"><span>${esc(s.sum)}</span><span class="num" data-sum="${si}">0</span></div>`;
       if (s.sumEq) pat += `<div class="remwarn" data-sumwarn="${si}"></div>`;
       if (s.categories && allFields(u).some(f => f.key === 'remain' && f.calc)) pat += '<div class="remwarn" data-remwarn></div>';
@@ -1452,7 +1453,7 @@ function mountForm() {
 
   $('view').innerHTML = `<div id="fm_tabs"></div>
     <div data-panel="patient">${pat}</div><div data-panel="staff">${staff}</div><div data-panel="doctor">${isOpd ? docs : ''}</div><div data-panel="incident">${inc}</div>`;
-  renderStaffPicker(); renderDoctors(); renderIncidents(); renderCases(); renderRoomPickers(); renderLists(); renderDocs(); renderLots(); renderExtras(); S.overWarned = false; recalc(true); showSub();
+  renderStaffPicker(); renderDoctors(); renderIncidents(); renderCases(); renderRoomPickers(); renderLists(); renderDocs(); renderLots(); safeExtras(); S.overWarned = false; recalc(true); showSub();
   if (isOpd) loadDoctors(false);
   $('fm_addinc').onclick = () => {
     d.incidents.push({ type: S.cfg.problemTypes[0], severity: '-', patient: '', age: '', hn: '', time: '', doctor: '', bp: '', pr: '', rr: '', temp: '', spo2: '', o2mode: 'Room air', o2flow: '', detail: '', action: '' });
@@ -1567,6 +1568,14 @@ function renderLists() {
   });
 }
 // แถวที่กด "+ เพิ่ม" เอง (เช่น Complication อื่นๆ): พิมพ์ชื่อ (แนะนำชื่อที่เคยใช้) + จำนวน กด × ลบแถว ยอดรวมคำนวณให้
+// ถ้าสร้างแถวเพิ่มเองไม่ได้ ให้แสดงสาเหตุในกล่องนั้นแทนที่จะเงียบ (ช่วยหาสาเหตุบนระบบจริง)
+function safeExtras() {
+  try { renderExtras(); }
+  catch (e) {
+    console.error('renderExtras', e);
+    document.querySelectorAll('[data-extra]').forEach(b => { b.insertAdjacentHTML('beforeend', `<div class="muted" style="font-size:12px;color:var(--bad)">แสดงปุ่มเพิ่มไม่สมบูรณ์: ${esc(e && e.message ? e.message : e)}</div>`); });
+  }
+}
 function renderExtras() {
   const v = S.draft.values;
   document.querySelectorAll('[data-extra]').forEach(box => {
