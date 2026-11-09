@@ -335,6 +335,17 @@ function saveReport(token, rep) {
     if (rows.length) values[s.key] = rows;
     values[s.totalKey] = rows.reduce((a, r) => a + r.n, 0);
   });
+  // รอบที่เพิ่มเอง (ไตเทียม รอบ 3 ขึ้นไป): HD / HDF เป็นจำนวนเต็ม ตัดรอบว่าง แล้วคำนวณยอดรวมเอง
+  form.sections.filter(s => s.rounds).forEach(s => {
+    const rd = s.rounds, rows = [];
+    ((rep.values || {})[rd.key] || []).slice(0, 10).forEach(x => {
+      const hd = Math.max(0, Math.floor(Number(x && x.hd)) || 0), hdf = Math.max(0, Math.floor(Number(x && x.hdf)) || 0);
+      if (hd || hdf) rows.push({ hd, hdf });
+    });
+    if (rows.length) values[rd.key] = rows;
+    values[rd.hdKey] = rows.reduce((a, r) => a + r.hd, 0);
+    values[rd.hdfKey] = rows.reduce((a, r) => a + r.hdf, 0);
+  });
   // แถวที่ผู้ใช้เพิ่มเอง (เช่น Complication อื่นๆ ของไตเทียม): ชื่อ + จำนวนเต็ม แล้วคำนวณยอดรวมเอง
   form.sections.filter(s => s.extra).forEach(s => {
     const ex = s.extra, rows = [];
@@ -487,6 +498,7 @@ function statRows_(u, rep) {
     (d.rows || []).forEach(r => { const it = s.items.find(i => i.k === r.k); rows.push(row('หัตถการ', (it && it.custom ? r.name : it ? it.label : r.k) + ' \u00b7 ' + (d.name || ''), r.n)); });
   }));
   u.form.sections.filter(s => s.extra).forEach(s => ((rep.values || {})[s.extra.key] || []).forEach(r => { if (r.n) rows.push(row(s.title, r.name, r.n)); }));
+  u.form.sections.filter(s => s.rounds).forEach(s => ((rep.values || {})[s.rounds.key] || []).forEach((r, i) => { if (r.hd) rows.push(row('รอบ ' + (s.rounds.startAt + i), 'HD', r.hd)); if (r.hdf) rows.push(row('รอบ ' + (s.rounds.startAt + i), 'HDF', r.hdf)); }));
   u.form.sections.filter(s => s.type === 'lots').forEach(s => s.pots.forEach(p => (((rep.values || {})[s.key] || {})[p.k] || []).forEach((n, i) => {
     if (n !== null && n !== '' && n !== undefined) rows.push(row('ปราศจากเชื้อ (Lot)', s.prefix + ' ' + p.label + ' Lot' + (i + 1), n));
   })));

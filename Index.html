@@ -484,6 +484,7 @@
   .a4 .foot { font-size: 8pt; color: #555; margin-top: 3px; }
   /* แถบตั้งค่าหน้าพิมพ์: ทุกตัวควบคุมสูงเท่ากัน (32px) ป้ายชื่ออยู่ซ้ายแนวเดียวกัน เพื่อให้เล็ก ชิด ตรงบรรทัด บนมือถือ */
   .xrow { grid-template-columns: 1fr 84px 32px; }
+  .rrow { grid-template-columns: 1fr 72px 72px 32px; }
   .xdel { border: 0; background: transparent; color: var(--muted); font-size: 20px; line-height: 1; cursor: pointer; padding: 4px; }
   .pbar { margin-bottom: 2px; }
   .prow { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; flex-wrap: wrap; }
@@ -1325,6 +1326,7 @@ function renderReportView(u, r) {
         return `<div class="card"><h3>${esc(s.title)}</h3><div class="grid-scroll"><table class="g"><tr><th></th>${s.cols.map(c => `<th>${esc(c[1])}</th>`).join('')}<th>รวม</th></tr>
           ${s.rows.map(rw => { const vals = s.cols.map(c => v[rw[0] + '_' + c[0]]); return `<tr><td>${esc(rw[1])}</td>${vals.map(x => `<td class="num">${show(x)}</td>`).join('')}<td class="num"><b>${vals.reduce((a, x) => a + num(x), 0)}</b></td></tr>`; }).join('')}</table></div></div>`;
       }
+      if (s.rounds) return (v[s.rounds.key] || []).length ? `<div class="card"><h3>${esc(s.title)}</h3><div class="kv">${(v[s.rounds.key] || []).map((r, i) => `<div>รอบ ${s.rounds.startAt + i}</div><div class="v">HD ${num(r.hd)} \u00b7 HDF ${num(r.hdf)}</div>`).join('')}</div></div>` : '';
       const rows = s.fields.map(f => {
         const val = fieldValue(u, v, f);
         if (f.type === 'text') return `<div class="full"><span class="muted">${esc(f.label)}</span><br><span class="pre">${show(val)}</span></div>`;
@@ -1429,6 +1431,7 @@ function mountForm() {
         }
       });
       if (s.fields.some(f => f.rooms)) pat += `<div style="margin-top:8px"><button type="button" class="btn ghost sm" data-roomedit>\u270e แก้ไขรายการห้อง (เลขห้อง / ชื่อ)</button></div><div id="room_editor"></div>`;
+      if (s.rounds) pat += `<div data-rounds="${esc(s.rounds.key)}"><button type="button" class="btn ghost sm" data-radd style="margin-top:6px">+ ${esc(s.rounds.addLabel || 'เพิ่ม')}</button></div>`;
       if (s.extra) pat += `<div data-extra="${esc(s.extra.key)}"><button type="button" class="btn ghost sm" data-xadd style="margin-top:6px">+ ${esc(s.extra.addLabel || 'เพิ่ม')}</button></div>`;
       if (s.sum) pat += `<div class="sumline"><span>${esc(s.sum)}</span><span class="num" data-sum="${si}">0</span></div>`;
       if (s.sumEq) pat += `<div class="remwarn" data-sumwarn="${si}"></div>`;
@@ -1453,7 +1456,7 @@ function mountForm() {
 
   $('view').innerHTML = `<div id="fm_tabs"></div>
     <div data-panel="patient">${pat}</div><div data-panel="staff">${staff}</div><div data-panel="doctor">${isOpd ? docs : ''}</div><div data-panel="incident">${inc}</div>`;
-  renderStaffPicker(); renderDoctors(); renderIncidents(); renderCases(); renderRoomPickers(); renderLists(); renderDocs(); renderLots(); safeExtras(); S.overWarned = false; recalc(true); showSub();
+  renderStaffPicker(); renderDoctors(); renderIncidents(); renderCases(); renderRoomPickers(); renderLists(); renderDocs(); renderLots(); safeExtras(); safeRounds(); S.overWarned = false; recalc(true); showSub();
   if (isOpd) loadDoctors(false);
   $('fm_addinc').onclick = () => {
     d.incidents.push({ type: S.cfg.problemTypes[0], severity: '-', patient: '', age: '', hn: '', time: '', doctor: '', bp: '', pr: '', rr: '', temp: '', spo2: '', o2mode: 'Room air', o2flow: '', detail: '', action: '' });
@@ -1568,6 +1571,29 @@ function renderLists() {
   });
 }
 // แถวที่กด "+ เพิ่ม" เอง (เช่น Complication อื่นๆ): พิมพ์ชื่อ (แนะนำชื่อที่เคยใช้) + จำนวน กด × ลบแถว ยอดรวมคำนวณให้
+// รอบที่ 3 ขึ้นไป (ไตเทียม): กด "+ เพิ่มรอบ" ได้เอง แต่ละรอบกรอก HD / HDF กด × ลบรอบ ยอดรวมของวันคำนวณให้
+function safeRounds() {
+  try { renderRounds(); }
+  catch (e) { console.error('renderRounds', e); document.querySelectorAll('[data-rounds]').forEach(b => b.insertAdjacentHTML('beforeend', `<div class="muted" style="font-size:12px;color:var(--bad)">แสดงปุ่มเพิ่มรอบไม่สมบูรณ์: ${esc(e && e.message ? e.message : e)}</div>`)); }
+}
+function renderRounds() {
+  const v = S.draft.values;
+  document.querySelectorAll('[data-rounds]').forEach(box => {
+    const s = unitCfg(euUnit()).form.sections.find(x => x.rounds && x.rounds.key === box.dataset.rounds), rd = s.rounds;
+    const rows = v[rd.key] = v[rd.key] || [], sum = k => rows.reduce((a, r) => a + num(r[k]), 0);
+    const upd = () => { v[rd.hdKey] = sum('hd'); v[rd.hdfKey] = sum('hdf'); };
+    upd();
+    const sync = () => { upd(); S.dirty = true; recalc(true); box.querySelectorAll('[data-rtot]').forEach(el => { const r = rows[+el.dataset.rtot]; if (r) el.textContent = num(r.hd) + num(r.hdf); }); };
+    box.innerHTML = rows.map((r, i) => `<div class="frow rrow"><span class="lab">รอบ ${rd.startAt + i} <small>รวม <b data-rtot="${i}">${num(r.hd) + num(r.hdf)}</b> คน</small></span>
+        <input type="number" inputmode="numeric" min="0" step="1" data-rhd="${i}" value="${esc(r.hd ?? '')}" placeholder="HD" aria-label="HD รอบ ${rd.startAt + i}">
+        <input type="number" inputmode="numeric" min="0" step="1" data-rhdf="${i}" value="${esc(r.hdf ?? '')}" placeholder="HDF" aria-label="HDF รอบ ${rd.startAt + i}"><button type="button" class="xdel" data-rdel="${i}" aria-label="ลบรอบ">\u00d7</button></div>`).join('')
+      + `<button type="button" class="btn ghost sm" data-radd style="margin-top:6px">+ ${esc(rd.addLabel || 'เพิ่ม')}</button>`;
+    box.querySelectorAll('[data-rhd]').forEach(inp => inp.oninput = () => { rows[+inp.dataset.rhd].hd = inp.value === '' ? '' : Math.max(0, Math.floor(num(inp.value))); sync(); });
+    box.querySelectorAll('[data-rhdf]').forEach(inp => inp.oninput = () => { rows[+inp.dataset.rhdf].hdf = inp.value === '' ? '' : Math.max(0, Math.floor(num(inp.value))); sync(); });
+    box.querySelectorAll('[data-rdel]').forEach(b => b.onclick = () => { rows.splice(+b.dataset.rdel, 1); sync(); renderRounds(); });
+    box.querySelector('[data-radd]').onclick = () => { rows.push({ hd: '', hdf: '' }); S.dirty = true; renderRounds(); const el = box.querySelector(`[data-rhd="${rows.length - 1}"]`); if (el) el.focus(); };
+  });
+}
 // ถ้าสร้างแถวเพิ่มเองไม่ได้ ให้แสดงสาเหตุในกล่องนั้นแทนที่จะเงียบ (ช่วยหาสาเหตุบนระบบจริง)
 function safeExtras() {
   try { renderExtras(); }
@@ -2785,6 +2811,9 @@ function printMonthly(u, month, reps) {
     const lines = [];
     if (s.type === 'docs') {
       reps.forEach(r => (( r.values || {})[s.key] || []).forEach(d => { const nm = d.name || '(ไม่ระบุชื่อ)'; lines.push([nm + ' (เคส)', num(d.n)]); (d.rows || []).forEach(x => lines.push([listLabel(s.items.find(i => i.k === x.k), x) + ' \u00b7 ' + nm, num(x.n)])); }));
+    } else if (s.rounds) {
+      const hd = reps.reduce((a, r) => a + num((r.values || {})[s.rounds.hdKey]), 0), hdf = reps.reduce((a, r) => a + num((r.values || {})[s.rounds.hdfKey]), 0);
+      if (hd) lines.push(['รอบเพิ่มเติม HD', hd]); if (hdf) lines.push(['รอบเพิ่มเติม HDF', hdf]);
     } else if (s.extra && s.fields.length) {
       s.fields.forEach(f => { if (f.type || f.calc || stdKeys.has(f.key)) return; const n = reps.reduce((a, r) => a + num((r.values || {})[f.key]), 0); if (n) lines.push([f.label, n]); });
       const agg = {}; reps.forEach(r => ((r.values || {})[s.extra.key] || []).forEach(x => { agg[x.name] = (agg[x.name] || 0) + num(x.n); }));
@@ -2981,7 +3010,6 @@ const SUMMARY_VIEW = {
     'ยอดรวม': { title: 'Total', lead: 'total' },
     'รอบ 1': { lead: 'r1', units: true },
     'รอบ 2': { lead: 'r2', units: true },
-    'รอบ 3': { lead: 'r3', units: true, skipEmpty: true },
     'แยกตามสิทธิ์': { units: true, skipEmpty: true },
     'Complication during HD': { lead: 'comp_total', units: true }
   },
@@ -3020,6 +3048,7 @@ function printLines(u, r, withInc, forPrint, split) {
       s.rows.forEach(rw => { const parts = s.cols.map(c => [c[1], num(v[rw[0] + '_' + c[0]])]).filter(x => x[1]); const t = parts.reduce((a, x) => a + x[1], 0); if (split && !t) return; grp(`<b>${esc(rw[1])} ${t}</b>`, [parts.map(x => esc(x[0]) + ' ' + x[1]).join(', ')]); });
       return;
     }
+    if (s.rounds) { (v[s.rounds.key] || []).forEach((r, i) => { const t = num(r.hd) + num(r.hdf); if (t) grp(`<b>รอบ ${s.rounds.startAt + i} ${t} คน</b>`, [num(r.hd) ? `HD ${num(r.hd)} คน` : '', num(r.hdf) ? `HDF ${num(r.hdf)} คน` : '']); }); return; }
     const calcs = [], vw = (SUMMARY_VIEW[u.code] || {})[s.title] || {}, btxt = ballList(ballTotals(u, v), false, unitBalls(u));
     const items = s.fields.filter(f => f.type !== 'text').map(f => {
       if (f.key === vw.lead) return '';
