@@ -905,6 +905,7 @@ function countsReported(u, r) {
   return u.form.sections.some(s => {
     if (s.type === 'list') return (v[s.key] || []).length > 0;
     if (s.type === 'docs') return (v[s.key] || []).some(d => num(d.n) > 0 || (d.rows || []).length > 0);
+    if (s.type === 'lots') return s.pots.some(p => lotArr(s, v, p).some(x => x !== '' && x != null));
     if (s.type === 'grid') return s.rows.some(rw => s.cols.some(c => has(rw[0] + '_' + c[0])));
     return (s.fields || []).some(f => !f.type && !f.calc && !f.carryFrom && (has(f.key) || (s.categories && ['g', 'y', 'o', 'r'].some(b => has(f.key + '_' + b)))));
   });
@@ -1173,6 +1174,13 @@ const o2Text = i => i.o2mode ? (i.o2mode === 'Room air' ? 'Room air' : `${i.o2mo
 const listRows = (s, v) => (v[s.key] || []).map(r => Object.assign({ it: s.items.find(i => i.k === r.k) }, r));
 const listLabel = (it, r) => (it && it.custom ? (r.name || it.label) : (it ? it.label : r.k) + (r.name ? ' \u00b7 ' + r.name : ''));
 const listUnit = s => s.unit || 'ราย';
+// เครื่องนึ่ง/อบ (CSSD): หม้อละหลาย Lot
+const lotArr = (s, v, p) => ((v[s.key] || {})[p.k]) || [];
+const lotCount = (s, v, p) => Math.max(s.minLots || 3, lotArr(s, v, p).length);
+const potTotal = (s, v, p) => lotArr(s, v, p).reduce((a, x) => a + num(x), 0);
+const lotsTotal = (s, v) => s.pots.reduce((a, p) => a + potTotal(s, v, p), 0);
+const lotLabel = (s, p, i) => `${s.prefix} ${p.label} Lot${i + 1}`;
+const lotShow = x => (x === '' || x == null) ? '\u2013' : num(x);
 const listTotal = (s, v) => (v[s.key] || []).reduce((a, r) => a + num(r.n), 0);
 /* ===== ลูกบอลสีของผู้ป่วยคงพยาบาลแต่ละประเภท (เขียว เหลือง ส้ม แดง) ===== */
 const ballSum = (v, key) => S.cfg.balls.reduce((a, b) => a + num(v[key + '_' + b[0]]), 0);
@@ -1206,6 +1214,11 @@ function docsCard(s, v) {
   return `<div class="card"><h3>${esc(s.title)}</h3>${docs.map(d => `<div style="margin-bottom:8px"><b>${esc(d.name || '(ไม่ระบุชื่อ)')}</b> <span class="muted">${num(d.n)} ${esc(s.unit)}</span>
     <div class="kv">${(d.rows || []).map(r => `<div>${esc(listLabel(s.items.find(x => x.k === r.k), r))}</div><div class="v">${r.n}</div>`).join('') || '<div class="full muted">\u2013</div>'}</div></div>`).join('') || '<div class="muted">ยังไม่มีรายการ</div>'}
     <div class="kv"><div class="total">${esc(s.totalLabel)}</div><div class="total v">${num(v[s.totalKey])}</div></div></div>`;
+}
+function lotsCard(s, v) {
+  return `<div class="card"><h3>${esc(s.title)}</h3>${s.pots.map(p => `<div class="kv" style="margin-bottom:8px"><div><b>${esc(s.prefix)} ${esc(p.label)}</b></div><div class="v"><b>${potTotal(s, v, p)}</b> ${esc(s.unit)}</div>
+    ${Array.from({ length: lotCount(s, v, p) }, (_, i) => `<div>Lot${i + 1}</div><div class="v">${lotShow(lotArr(s, v, p)[i])}</div>`).join('')}</div>`).join('')}
+    <div class="kv"><div class="total">${esc(s.totalLabel)}</div><div class="total v">${lotsTotal(s, v)} ${esc(s.unit)}</div></div></div>`;
 }
 function listCard(s, v) {
   const rows = listRows(s, v);
@@ -1280,6 +1293,7 @@ function renderReportView(u, r) {
     const cards = u.form.sections.map(s => {
       if (s.type === 'list') return listCard(s, v);
       if (s.type === 'docs') return docsCard(s, v);
+      if (s.type === 'lots') return lotsCard(s, v);
       if (s.categories) return catCard(s, v);
       if (s.type === 'grid') {
         return `<div class="card"><h3>${esc(s.title)}</h3><div class="grid-scroll"><table class="g"><tr><th></th>${s.cols.map(c => `<th>${esc(c[1])}</th>`).join('')}<th>รวม</th></tr>
@@ -1369,6 +1383,7 @@ function mountForm() {
     pat += `<div class="card"><h3>${esc(s.title)}</h3>${s.hint ? `<div class="hint" style="margin-bottom:8px">${esc(s.hint)}</div>` : ''}`;
     if (s.type === 'list') pat += `<div data-list="${esc(s.key)}"></div>`;
     else if (s.type === 'docs') pat += `<div data-docs="${esc(s.key)}"></div>`;
+    else if (s.type === 'lots') pat += `<div data-lots="${esc(s.key)}"></div>`;
     else if (s.type === 'grid') {
       pat += `<div class="grid-scroll"><table class="g"><tr><th></th>${s.cols.map(c => `<th>${esc(c[1])}</th>`).join('')}<th>รวม</th></tr>
         ${s.rows.map(rw => `<tr><td>${esc(rw[1])}</td>${s.cols.map(c => `<td>${numInput(rw[0] + '_' + c[0])}</td>`).join('')}<td class="num"><b data-rowsum="${si}:${esc(rw[0])}">0</b></td></tr>`).join('')}</table></div>`;
@@ -1410,7 +1425,7 @@ function mountForm() {
 
   $('view').innerHTML = `<div id="fm_tabs"></div>
     <div data-panel="patient">${pat}</div><div data-panel="staff">${staff}</div><div data-panel="doctor">${isOpd ? docs : ''}</div><div data-panel="incident">${inc}</div>`;
-  renderStaffPicker(); renderDoctors(); renderIncidents(); renderCases(); renderRoomPickers(); renderLists(); renderDocs(); S.overWarned = false; recalc(true); showSub();
+  renderStaffPicker(); renderDoctors(); renderIncidents(); renderCases(); renderRoomPickers(); renderLists(); renderDocs(); renderLots(); S.overWarned = false; recalc(true); showSub();
   if (isOpd) loadDoctors(false);
   $('fm_addinc').onclick = () => {
     d.incidents.push({ type: S.cfg.problemTypes[0], severity: '-', patient: '', age: '', hn: '', time: '', doctor: '', bp: '', pr: '', rr: '', temp: '', spo2: '', o2mode: 'Room air', o2flow: '', detail: '', action: '' });
@@ -1521,6 +1536,36 @@ function renderLists() {
     const rows = v[s.key] = v[s.key] || [];
     mountList(box, { items: s.items, rows, unit: listUnit(s), totalLabel: s.totalLabel, memKey: s.key, rerender: renderLists,
       onChange: () => { v[s.totalKey] = listTotal(s, v); S.dirty = true; } });
+  });
+}
+// CSSD: หม้อนึ่ง/อบ แต่ละหม้อเริ่มที่ 3 Lot กด "เพิ่ม Lot" ได้เอง ยอดรวมของหม้อ/ชนิด/ทั้งหมดคำนวณให้
+function renderLots() {
+  const v = S.draft.values;
+  document.querySelectorAll('[data-lots]').forEach(box => {
+    const s = unitCfg(euUnit()).form.sections.find(x => x.key === box.dataset.lots);
+    const store = v[s.key] = v[s.key] || {};
+    const sync = () => {
+      v[s.totalKey] = lotsTotal(s, v); S.dirty = true;
+      s.pots.forEach(p => { const el = box.querySelector(`[data-ptot="${p.k}"]`); if (el) el.textContent = potTotal(s, v, p); });
+      const t = box.querySelector('[data-ltotal]'); if (t) t.textContent = v[s.totalKey];
+      recalc(true);
+    };
+    box.innerHTML = s.pots.map(p => `<div style="margin-bottom:10px"><div class="frow"><span class="lab"><b>${esc(s.prefix)} ${esc(p.label)}</b></span><div class="calc num"><span data-ptot="${esc(p.k)}">${potTotal(s, v, p)}</span> <small>${esc(s.unit)}</small></div></div>
+      ${Array.from({ length: lotCount(s, v, p) }, (_, i) => `<div class="frow"><label class="lab" for="lot_${esc(s.key)}_${esc(p.k)}_${i}">${esc(lotLabel(s, p, i))} <small>${esc(s.unit)}</small></label><input id="lot_${esc(s.key)}_${esc(p.k)}_${i}" type="number" inputmode="numeric" min="0" step="1" data-lot="${esc(p.k)}:${i}" value="${esc(lotArr(s, v, p)[i] ?? '')}" placeholder="\u2013"></div>`).join('')}
+      <button type="button" class="btn ghost sm" data-ladd="${esc(p.k)}" style="margin-top:6px">+ เพิ่ม Lot (${esc(s.prefix)} ${esc(p.label)})</button></div>`).join('')
+      + `<div class="sumline"><span>${esc(s.totalLabel)}</span><span class="num"><span data-ltotal>${lotsTotal(s, v)}</span> ${esc(s.unit)}</span></div>`;
+    box.querySelectorAll('[data-lot]').forEach(inp => inp.oninput = () => {
+      const [pk, i] = inp.dataset.lot.split(':'), arr = store[pk] = store[pk] || [];
+      while (arr.length <= +i) arr.push('');
+      arr[+i] = inp.value === '' ? '' : Math.max(0, Math.floor(num(inp.value)));
+      sync();
+    });
+    box.querySelectorAll('[data-ladd]').forEach(b => b.onclick = () => {
+      const p = s.pots.find(x => x.k === b.dataset.ladd), arr = store[p.k] = store[p.k] || [], n = lotCount(s, v, p);
+      while (arr.length < n) arr.push('');
+      arr.push(''); S.dirty = true; renderLots();
+      const el = document.getElementById(`lot_${s.key}_${p.k}_${n}`); if (el) el.focus();
+    });
   });
 }
 // ทันตกรรม: แพทย์หลายท่าน (พิมพ์ชื่อเอง / กดชื่อที่เคยใช้) แต่ละท่านมีจำนวนเคสและหัตถการ ยอดรวมแผนกรวมจากเคสของแพทย์ทุกท่าน
@@ -2334,7 +2379,7 @@ function mapRole(raw) { return (S.titleMap || {})[normTitle(raw)] || builtinRole
 const SUGGEST = [
   [/อุบัติเหตุ/, 'ER'], [/อายุรกรรม/, 'OPD1'], [/ศัลยกรรม/, 'OPD3'], [/สูตินรีเวช|สูติ/, 'OBG-IVF'],
   [/กุมารเวช|เด็กสุขภาพดี|พัฒนาการเด็ก/, 'PC'], [/ตา\s*หู\s*คอ/, 'EENT'], [/ทันตกรรม/, 'Dent'],
-  [/ห้องผ่าตัด/, 'OR'], [/ห้องคลอด/, 'LR'], [/ทารกแรกเกิด/, 'NB'], [/ผู้ป่วยวิกฤต/, 'ICU'], [/ส่งเสริมสุขภาพ/, 'HPC'], [/CCC/i, 'CCC']
+  [/ห้องผ่าตัด/, 'OR'], [/จ่ายกลาง|CSSD/i, 'CSSD'], [/ห้องคลอด/, 'LR'], [/ทารกแรกเกิด/, 'NB'], [/ผู้ป่วยวิกฤต/, 'ICU'], [/ส่งเสริมสุขภาพ/, 'HPC'], [/CCC/i, 'CCC']
 ];
 function suggestUnit(raw) {
   const hit = SUGGEST.find(x => x[0].test(raw));
@@ -2510,6 +2555,8 @@ function printMonthly(u, month, reps) {
     const lines = [];
     if (s.type === 'docs') {
       reps.forEach(r => (( r.values || {})[s.key] || []).forEach(d => { const nm = d.name || '(ไม่ระบุชื่อ)'; lines.push([nm + ' (เคส)', num(d.n)]); (d.rows || []).forEach(x => lines.push([listLabel(s.items.find(i => i.k === x.k), x) + ' \u00b7 ' + nm, num(x.n)])); }));
+    } else if (s.type === 'lots') {
+      s.pots.forEach(p => { const n = reps.reduce((a, r) => a + potTotal(s, r.values || {}, p), 0); if (n) lines.push([s.prefix + ' ' + p.label + ' (ชิ้น)', n]); });
     } else if (s.type === 'list') {
       const agg = {};
       reps.forEach(r => listRows(s, r.values || {}).forEach(x => { const k = listLabel(x.it, x); agg[k] = (agg[k] || 0) + num(x.n); }));
@@ -2653,6 +2700,8 @@ function printSingle(u, shift) {
     h += `<div class="ub"><b>${esc(s.title)}</b>`;
     if (s.type === 'docs') {
       h += '<table class="stat">' + (v[s.key] || []).map(d => `<tr><td><b>${esc(d.name || '(ไม่ระบุชื่อ)')}</b></td><td class="n">${num(d.n)}</td></tr>` + (d.rows || []).map(r => `<tr><td>&nbsp;&nbsp;${esc(listLabel(s.items.find(x => x.k === r.k), r))}</td><td class="n">${r.n}</td></tr>`).join('')).join('') + `<tr class="tot"><td>${esc(s.totalLabel)}</td><td class="n">${num(v[s.totalKey])}</td></tr></table>`;
+    } else if (s.type === 'lots') {
+      h += '<table class="stat">' + s.pots.map(p => `<tr><td><b>${esc(s.prefix)} ${esc(p.label)}</b></td><td class="n">${potTotal(s, v, p)}</td></tr>` + Array.from({ length: lotCount(s, v, p) }, (_, i) => `<tr><td>&nbsp;&nbsp;Lot${i + 1}</td><td class="n">${lotShow(lotArr(s, v, p)[i])}</td></tr>`).join('')).join('') + `<tr class="tot"><td>${esc(s.totalLabel)}</td><td class="n">${lotsTotal(s, v)}</td></tr></table>`;
     } else if (s.type === 'list') {
       h += '<table class="stat">' + (listRows(s, v).map(r => `<tr><td>${esc(listLabel(r.it, r))}</td><td class="n">${r.n}</td></tr>`).join('') || '<tr><td colspan="2">\u2013</td></tr>') + `<tr class="tot"><td>${esc(s.totalLabel)}</td><td class="n">${listTotal(s, v)}</td></tr></table>`;
     } else if (s.type === 'grid') {
@@ -2702,6 +2751,11 @@ function printLines(u, r, withInc) {
     if (s.type === 'docs') {
       grp(`<b>${esc(s.title)} ${num(v[s.totalKey])} ${esc(s.unit)}</b>`, []);
       (v[s.key] || []).forEach(d => grp(`<b>${esc(d.name || '(ไม่ระบุชื่อ)')} ${num(d.n)} ${esc(s.unit)}</b>`, (d.rows || []).map(r => `${esc(listLabel(s.items.find(x => x.k === r.k), r))} ${r.n}`)));
+      return;
+    }
+    if (s.type === 'lots') {
+      grp(`<b>${esc(s.title)} ${lotsTotal(s, v)} ${esc(s.unit)}</b>`, []);
+      s.pots.forEach(p => grp('', Array.from({ length: lotCount(s, v, p) }, (_, i) => `${esc(lotLabel(s, p, i))} ${lotShow(lotArr(s, v, p)[i])} ${esc(s.unit)}`)));
       return;
     }
     if (s.type === 'list') { const rows = listRows(s, v); if (rows.length) grp(`<b>${esc(s.totalLabel)} ${listTotal(s, v)} ${esc(listUnit(s))}</b>`, rows.map(r => `${esc(listLabel(r.it, r))} ${r.n}`)); return; }
