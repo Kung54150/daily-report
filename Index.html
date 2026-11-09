@@ -1262,14 +1262,14 @@ function subTabs(r) {
   const incN = r ? (r.incidents || []).length : 0;
   const docN = r ? (r.doctors || []).filter(x => !x.off).length : 0;
   const badge = { staff: staffN, doctor: docN ? String(docN) : '', incident: incN ? String(incN) : '' };
-  const opd = !!(r && r.unit && isOpdUnit(r.unit));
+  const opd = !!(r && r.unit && hasDoctors(r.unit));
   return `<div class="seg" role="tablist">${SUBS.filter(([k]) => !(others && k === 'incident') && !(k === 'doctor' && !opd)).map(([k, t0]) => { const t = k === 'patient' && itemsUnit(r && r.unit) ? 'รายงานยอดชิ้นงาน' : t0; return `<button type="button" role="tab" data-sub="${k}" class="${S.sub === k ? 'on' : ''}${k === 'incident' && incN ? ' alert' : ''}">${t}${badge[k] ? `<small>${esc(badge[k])}</small>` : ''}</button>`; }).join('')}</div>`;
 }
 
 // รายงานผู้ป่วยนอก: แยกตำแหน่งชัดเจน แพทย์ / พยาบาล (RN) / PN / NA / นศ. / ไม่ระบุ  (นับไม่รวมคนที่ออกหน่วย)
 const OPD_STAFF_GROUPS = [['พยาบาล (RN)', ['RN', 'หัวหน้า']], ['PN/NA', ['PN', 'NA']], ['เจ้าหน้าที่', ['เจ้าหน้าที่']], ['EMT', ['EMT']], ['นศ.', ['นศ.']]];
 function opdGroups(r, nameFn) {
-  const staff = r.staff || [], docs = r.doctors || [], out = [];
+  const staff = r.staff || [], docs = hasDoctors(r.unit) ? (r.doctors || []) : [], out = [];
   if (docs.length) out.push({ label: 'แพทย์', n: docs.filter(x => !x.off).length, unit: 'ท่าน', items: docs.map(x => ({ text: esc(x.name) + (x.time ? ' ' + esc(x.time) : '') + (x.off ? ' (งด)' : ''), off: !!x.off })) });
   const known = OPD_STAFF_GROUPS.flatMap(g => g[1]);
   const subsCfg = ((unitCfg(r.unit) || {}).form || {}).staffSubs;
@@ -1313,7 +1313,7 @@ const doctorsViewHtml = r => `<div class="card"><h3>แพทย์ออกต�
 /* ===== มุมมองอ่านอย่างเดียว ===== */
 function renderReportView(u, r) {
   if (S.me.role === 'unit' && r.unit && !sameZone(r.unit) && S.sub === 'incident') S.sub = 'patient';
-  if (S.sub === 'doctor' && !isOpdUnit(r.unit || u.code)) S.sub = 'staff';
+  if (S.sub === 'doctor' && !hasDoctors(r.unit || u.code)) S.sub = 'staff';
   const v = r.values || {};
   let body = '';
   if (S.sub === 'patient') {
@@ -1455,9 +1455,9 @@ function mountForm() {
   const inc = `<div id="fm_incs"></div><button type="button" class="addinc" id="fm_addinc">+ เพิ่มเหตุการณ์ผิดปกติ</button>`;
 
   $('view').innerHTML = `<div id="fm_tabs"></div>
-    <div data-panel="patient">${pat}</div><div data-panel="staff">${staff}</div><div data-panel="doctor">${isOpd ? docs : ''}</div><div data-panel="incident">${inc}</div>`;
+    <div data-panel="patient">${pat}</div><div data-panel="staff">${staff}</div><div data-panel="doctor">${hasDoctors(euUnit()) ? docs : ''}</div><div data-panel="incident">${inc}</div>`;
   renderStaffPicker(); renderDoctors(); renderIncidents(); renderCases(); renderRoomPickers(); renderLists(); renderDocs(); renderLots(); safeExtras(); safeRounds(); S.overWarned = false; recalc(true); showSub();
-  if (isOpd) loadDoctors(false);
+  if (hasDoctors(euUnit())) loadDoctors(false);
   $('fm_addinc').onclick = () => {
     d.incidents.push({ type: S.cfg.problemTypes[0], severity: '-', patient: '', age: '', hn: '', time: '', doctor: '', bp: '', pr: '', rr: '', temp: '', spo2: '', o2mode: 'Room air', o2flow: '', detail: '', action: '' });
     S.dirty = true; renderIncidents(); showSub();
@@ -1936,6 +1936,8 @@ const dutyPos = (s, unit) => posU(unit, s.pos || (() => { const r = S.staff.find
 const posU = (unit, p) => ((unitCfg(unit) || {}).group === 'OPD' && (p === 'PN' || p === 'NA') ? 'PN/NA' : p);
 // ผู้ป่วยนอก: เวลาทำงานของแต่ละคน (เริ่ม-เลิก 24 ชม.) และจำนวนชั่วโมง
 const isOpdUnit = code => (unitCfg(code) || {}).group === 'OPD';
+// แท็บ/รายการแพทย์ออกตรวจ: ผู้ป่วยนอกเท่านั้น และไม่รวมหน่วยที่ตั้ง noDoctors (เช่น CCC)
+const hasDoctors = code => isOpdUnit(code) && !((unitCfg(code) || {}).form || {}).noDoctors;
 const toMin = t => { const m = /^(\d\d):(\d\d)$/.exec(t || ''); return m ? +m[1] * 60 + +m[2] : null; };
 const spanHours = (f, t) => { const a = toMin(f), b = toMin(t); return a === null || b === null ? 0 : ((b - a + 1440) % 1440 || 1440) / 60; };
 const workHours = s => (s.slots && s.slots.length ? s.slots.reduce((a, x) => a + spanHours(x.from, x.to), 0) : spanHours(s.from, s.to));
@@ -2008,7 +2010,7 @@ const docKey = n => String(n || '').replace(/^(?:ทพญ|ทพ|ทญ|นพ|
 const docFromSched = e => ({ name: e.name, time: e.time, sheet: e.sheet, text: e.text, off: !!e.off });
 async function loadDoctors(merge) {
   const d = S.draft, unit = euUnit();
-  if (!isOpdUnit(unit)) return;
+  if (!hasDoctors(unit)) return;
   let r;
   try { r = await (merge ? api : apiRaw)('getDocSchedule', S.token, unit, S.date); } catch (e) { if (merge) handleErr(e); return; }
   if (!S.editing || S.draft !== d) return;

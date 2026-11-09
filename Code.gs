@@ -397,7 +397,7 @@ function saveReport(token, rep) {
     shift: rep.shift,
     staff: (rep.staff || []).filter(s => s && s.name).map(s => cleanStaff_(s, form)),
     // ผู้ป่วยนอก: แพทย์ที่ออกตรวจวันนั้น (ดึงจากตารางเวรแพทย์แล้วหน่วยงานแก้ เพิ่ม ลบ ปรับเวลาเองได้) off = งด/ไม่มา
-    doctors: myUnit.group === 'OPD' ? (rep.doctors || []).filter(x => x && String(x.name || '').trim()).slice(0, 60).map(x => ({
+    doctors: myUnit.group === 'OPD' && !(form && form.noDoctors) ? (rep.doctors || []).filter(x => x && String(x.name || '').trim()).slice(0, 60).map(x => ({
       name: String(x.name).replace(/\s+/g, ' ').trim().slice(0, 60), time: String(x.time || '').trim().slice(0, 60),
       sheet: String(x.sheet || '').slice(0, 40), text: String(x.text || '').slice(0, 200), off: !!x.off })) : undefined,
     reduce: rep.reduce || {},
