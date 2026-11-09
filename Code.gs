@@ -401,7 +401,7 @@ function saveReport(token, rep) {
       name: String(x.name).replace(/\s+/g, ' ').trim().slice(0, 60), time: String(x.time || '').trim().slice(0, 60),
       sheet: String(x.sheet || '').slice(0, 40), text: String(x.text || '').slice(0, 200), off: !!x.off })) : undefined,
     reduce: rep.reduce || {},
-    notes: String(rep.notes || ''),
+    notes: (Array.isArray(rep.notes) ? rep.notes : [rep.notes]).map(x => String(x == null ? '' : x).trim().slice(0, 2000)).filter(Boolean).slice(0, 20), // เรื่องแจ้งหลายเรื่อง (รายงานเก่าเป็นข้อความเดียว)
     incidents: cleanCases_(rep.incidents, INC_FIELDS),
     cases: cleanCases_(rep.cases, CASE_FIELDS, true)
   };

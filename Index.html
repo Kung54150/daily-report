@@ -485,6 +485,8 @@
   /* แถบตั้งค่าหน้าพิมพ์: ทุกตัวควบคุมสูงเท่ากัน (32px) ป้ายชื่ออยู่ซ้ายแนวเดียวกัน เพื่อให้เล็ก ชิด ตรงบรรทัด บนมือถือ */
   .xrow { grid-template-columns: 1fr 84px 32px; }
   .rrow { grid-template-columns: 1fr 72px 72px 32px; }
+  .noterow { display: grid; grid-template-columns: 26px 1fr 30px; gap: 4px 6px; align-items: start; margin-bottom: 8px; }
+  .noteno { padding-top: 9px; text-align: right; }
   .xdel { border: 0; background: transparent; color: var(--muted); font-size: 20px; line-height: 1; cursor: pointer; padding: 4px; }
   .pbar { margin-bottom: 2px; }
   .prow { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; flex-wrap: wrap; }
@@ -1168,6 +1170,9 @@ function fieldValue(u, vals, f) {
   return vals[f.key];
 }
 const sectionSum = (s, vals) => s.fields.filter(f => !f.type && !f.calc && !f.noSum).reduce((a, f) => a + num(vals[f.key]), 0);
+// เรื่องแจ้ง: รายการหลายเรื่อง (เก็บเป็นอาร์เรย์) · รายงานเก่าเก็บเป็นข้อความเดียว จึงรองรับทั้งสองแบบ
+const noteItems = r => (Array.isArray(r && r.notes) ? r.notes : (r && r.notes ? [r.notes] : [])).map(x => String(x == null ? '' : x).trim()).filter(Boolean);
+const noteHtml = t => esc(t).replace(/\n/g, '<br>');
 const roleOpts = cur => (S.cfg.roles.indexOf(cur) < 0 ? `<option value="" selected>\u2014 เลือก \u2014</option>` : '') + S.cfg.roles.map(r => `<option${r === cur ? ' selected' : ''}>${esc(r)}</option>`).join('');
 // opd = ผู้ป่วยนอกไม่แยก PN กับ NA ใช้ PN/NA รวมกัน
 const roleCounts = (staff, opd) => (opd ? S.cfg.roles.filter(r => r !== 'NA').map(r => r === 'PN' ? ['PN/NA', staff.filter(s => (s.role === 'PN' || s.role === 'NA') && s.tag !== 'ออกหน่วย').length] : [r, staff.filter(s => s.role === r && s.tag !== 'ออกหน่วย').length]) : S.cfg.roles.map(r => [r, staff.filter(s => s.role === r && s.tag !== 'ออกหน่วย').length])).concat([['ไม่ระบุ', staff.filter(s => S.cfg.roles.indexOf(s.role) < 0 && s.tag !== 'ออกหน่วย').length]]).filter(x => x[1]);
@@ -1343,7 +1348,7 @@ function renderReportView(u, r) {
     });
     if (u.form.total) cards.push(`<div class="card"><div class="kv"><div><b>${esc(u.form.total)}</b></div><div class="v">${u.form.sections.filter(s => s.sum).reduce((a, s) => a + sectionSum(s, v), 0)}</div></div></div>`);
     { const rd0 = r.reduce || {}; if (u.group === 'OPD' && (num(rd0.RN) + num(rd0.PN) + num(rd0.NA) || rd0.detail)) cards.push(reduceViewHtml(rd0, true)); }
-    if (r.notes) cards.push(`<div class="card"><h3>เรื่องแจ้ง</h3><div class="pre">${esc(r.notes)}</div></div>`);
+    if (noteItems(r).length) cards.push(`<div class="card"><h3>เรื่องแจ้ง</h3>${noteItems(r).map((t, i) => `<div style="margin-bottom:6px"><b>${i + 1}.</b> ${noteHtml(t)}</div>`).join('')}</div>`);
     body = `<div class="view-grid">${cards.join('')}</div>`;
     if ((r.cases || []).length) body += `<h3 style="margin:14px 0 8px">รายงานเคส (${r.cases.length})</h3>` + r.cases.map((i, n) => caseCardHtml(i, n + 1)).join('');
   } else if (S.sub === 'staff') {
@@ -1380,7 +1385,7 @@ function startEdit(unit) {
     S.shift = unitHas(eu, S.vshift) ? S.vshift : eu.shifts[0]; S.tab = 'edit';
   }
   const rep = repOf(euUnit(), S.shift);
-  S.draft = rep ? JSON.parse(JSON.stringify(rep)) : { date: S.date, unit: euUnit(), values: {}, staff: [], reduce: {}, notes: '', incidents: [], cases: [], reporter: store.get('reporter') || '' };
+  S.draft = rep ? JSON.parse(JSON.stringify(rep)) : { date: S.date, unit: euUnit(), values: {}, staff: [], reduce: {}, notes: [], incidents: [], cases: [], reporter: store.get('reporter') || '' };
   S.draft.date = S.date; S.draft.shift = S.shift; S.draft.cases = S.draft.cases || []; S.docSched = null;
   S.editing = true; S.dirty = false; S.docSt = {};
   render(); window.scrollTo(0, 0);
@@ -1441,7 +1446,7 @@ function mountForm() {
   });
   if (u.form.total) pat += `<div class="card"><div class="sumline" style="border:0;margin:0;padding:0"><span>${esc(u.form.total)}</span><span class="num" id="fm_total">0</span></div></div>`;
   if (unitCfg(euUnit()).group === 'OPD') { const r0 = d.reduce = d.reduce || {}; if (num(r0.NA)) { r0.PN = num(r0.PN) + num(r0.NA); r0.NA = ''; } pat += reduceFormHtml(r0, true); }
-  pat += `<div class="card"><h3>เรื่องแจ้ง</h3><textarea id="fm_notes" rows="3" placeholder="เช่น พรุ่งนี้แพทย์งดออกตรวจ / ไม่มีเอกสารค้างส่ง">${esc(d.notes || '')}</textarea></div>
+  pat += `<div class="card"><h3>เรื่องแจ้ง</h3><div id="fm_notes_box"></div></div>
     <div class="card"><h3>รายงานเคส</h3><div id="fm_cases"></div>${(S.cfg.lineCaseUnits || []).indexOf(euUnit()) >= 0 ? '<button type="button" class="addinc" id="fm_linecase" style="margin-bottom:8px">\u21e9 ดึงเคสจาก LINE</button>' : ''}<button type="button" class="addinc" id="fm_addcase">+ เพิ่มเคส</button></div>`;
 
   const rd = d.reduce || {};
@@ -1456,7 +1461,7 @@ function mountForm() {
 
   $('view').innerHTML = `<div id="fm_tabs"></div>
     <div data-panel="patient">${pat}</div><div data-panel="staff">${staff}</div><div data-panel="doctor">${hasDoctors(euUnit()) ? docs : ''}</div><div data-panel="incident">${inc}</div>`;
-  renderStaffPicker(); renderDoctors(); renderIncidents(); renderCases(); renderRoomPickers(); renderLists(); renderDocs(); renderLots(); safeExtras(); safeRounds(); S.overWarned = false; recalc(true); showSub();
+  renderStaffPicker(); renderDoctors(); renderIncidents(); renderCases(); renderRoomPickers(); renderLists(); renderDocs(); renderLots(); safeExtras(); safeRounds(); renderNotes(); S.overWarned = false; recalc(true); showSub();
   if (hasDoctors(euUnit())) loadDoctors(false);
   $('fm_addinc').onclick = () => {
     d.incidents.push({ type: S.cfg.problemTypes[0], severity: '-', patient: '', age: '', hn: '', time: '', doctor: '', bp: '', pr: '', rr: '', temp: '', spo2: '', o2mode: 'Room air', o2flow: '', detail: '', action: '' });
@@ -1571,6 +1576,18 @@ function renderLists() {
   });
 }
 // แถวที่กด "+ เพิ่ม" เอง (เช่น Complication อื่นๆ): พิมพ์ชื่อ (แนะนำชื่อที่เคยใช้) + จำนวน กด × ลบแถว ยอดรวมคำนวณให้
+// เรื่องแจ้ง: กด "+ เพิ่มเรื่องแจ้ง" ได้หลายเรื่อง แต่ละเรื่องมีเลขลำดับ (1. 2. 3.) กด × ลบเรื่อง
+function renderNotes() {
+  const d = S.draft, box = $('fm_notes_box');
+  if (!box) return;
+  if (!Array.isArray(d.notes)) d.notes = String(d.notes || '').trim() ? [String(d.notes)] : [];
+  if (!d.notes.length) d.notes.push('');
+  box.innerHTML = d.notes.map((t, i) => `<div class="noterow"><b class="noteno">${i + 1}.</b><textarea rows="2" data-note="${i}" placeholder="${i ? 'เรื่องแจ้งเรื่องที่ ' + (i + 1) : 'เช่น พรุ่งนี้แพทย์งดออกตรวจ / ไม่มีเอกสารค้างส่ง'}" aria-label="เรื่องแจ้งที่ ${i + 1}">${esc(t)}</textarea>${d.notes.length > 1 ? `<button type="button" class="xdel" data-ndel="${i}" aria-label="ลบเรื่องที่ ${i + 1}">\u00d7</button>` : '<span></span>'}</div>`).join('')
+    + `<button type="button" class="btn ghost sm" data-nadd style="margin-top:2px">+ เพิ่มเรื่องแจ้ง</button>`;
+  box.querySelectorAll('[data-note]').forEach(t => t.oninput = () => { d.notes[+t.dataset.note] = t.value; S.dirty = true; });
+  box.querySelectorAll('[data-ndel]').forEach(b => b.onclick = () => { d.notes.splice(+b.dataset.ndel, 1); S.dirty = true; renderNotes(); });
+  box.querySelector('[data-nadd]').onclick = () => { d.notes.push(''); S.dirty = true; renderNotes(); const el = box.querySelector(`[data-note="${d.notes.length - 1}"]`); if (el) el.focus(); };
+}
 // รอบที่ 3 ขึ้นไป (ไตเทียม): กด "+ เพิ่มรอบ" ได้เอง แต่ละรอบกรอก HD / HDF กด × ลบรอบ ยอดรวมของวันคำนวณให้
 function safeRounds() {
   try { renderRounds(); }
@@ -1848,7 +1865,6 @@ function onFormInput(e) {
   }
   else if (t.id === 'fm_reporter') d.reporter = t.value;
   else if (t.id.startsWith('rd_')) { d.reduce = d.reduce || {}; d.reduce[t.id.slice(3)] = t.id === 'rd_detail' ? t.value : (t.value === '' ? '' : Number(t.value)); }
-  else if (t.id === 'fm_notes') d.notes = t.value;
   else if (t.dataset.inc) {
     const [i, k] = t.dataset.inc.split(':'); d.incidents[i][k] = t.value;
     if (k === 'o2mode') { const box = document.querySelector(`[data-o2flow="${i}"]`); box.hidden = t.value === 'Room air'; }
@@ -2989,7 +3005,7 @@ function printSingle(u, shift) {
   });
   if (u.form.total) h += `<div class="ub"><b>${esc(u.form.total)} ${u.form.sections.filter(s => s.sum).reduce((a, s) => a + sectionSum(s, v), 0)}</b></div>`;
   h += '</div>';
-  if (r.notes) h += `<div class="ln"><b>เรื่องแจ้ง:</b> ${esc(r.notes).replace(/\n/g, ' / ')}</div>`;
+  if (noteItems(r).length) h += `<div class="ln"><b>เรื่องแจ้ง</b></div>` + noteItems(r).map((t, i) => `<div class="ln"><b>${i + 1}.</b> ${noteHtml(t)}</div>`).join('');
   const staff = r.staff || [], rd = r.reduce || {};
   if (u.group === 'OPD') h += `<h2>อัตรากำลัง \u00b7 เวร ${esc(shiftName(r.shift))}</h2>` + opdGroups(Object.assign({ unit: u.code }, r)).map(g => (g.dept ? `<div class="deptrow"><span class="deptname">${esc(g.label)}</span> <span class="dcount">${g.n} ${g.unit}</span></div>` : `<div class="ln"><b>${esc(g.label)} ${g.n} ${g.unit}</b></div>`) + `<div class="${g.dept ? 'deptlist' : 'cols'}">${g.items.map(i => `<div class="ln"${i.sub ? ' style="padding-left:10px"' : ''}>${i.text}</div>`).join('')}</div>`).join('');
   else {
@@ -3032,8 +3048,8 @@ function printLines(u, r, withInc, forPrint, split) {
   const v = r.values || {}, out = [], side = [];
   let tgt = out;
   // แต่ละกลุ่มเก็บ html + ความสูงโดยประมาณ (w = จำนวนบรรทัด) เพื่อแบ่งสองคอลัมน์ให้สมดุลในหน้าพิมพ์
-  const grp = (head, details) => { const ds = details.filter(Boolean);
-    tgt.push({ html: `<div class="lg">${head ? `<div class="ln m">${head}</div>` : ''}${ds.map(d => `<div class="ln dt">- ${d}</div>`).join('')}</div>`,
+  const grp = (head, details, plain) => { const ds = details.filter(Boolean);
+    tgt.push({ html: `<div class="lg">${head ? `<div class="ln m">${head}</div>` : ''}${ds.map(d => `<div class="ln dt">${plain ? '' : '- '}${d}</div>`).join('')}</div>`,
       w: (head ? 1 : 0) + ds.reduce((a, d) => a + Math.max(1, Math.ceil(d.replace(/<[^>]*>/g, '').length / 34)), 0) + 0.3 }); };
   u.form.sections.forEach(s => {
     if (s.type === 'docs') {
@@ -3095,7 +3111,7 @@ function printLines(u, r, withInc, forPrint, split) {
     if (rdLine) grp(rdLine, []);
   }
   if (split) tgt = side;
-  if (r.notes) grp('<b>เรื่องแจ้ง</b>', [esc(r.notes).replace(/\n/g, ' / ')]);
+  if (noteItems(r).length) grp('<b>เรื่องแจ้ง</b>', noteItems(r).map((t, i) => `<b>${i + 1}.</b> ${noteHtml(t)}`), true);
   const one = t => esc(String(t || '').replace(/\s*\n\s*/g, ' / '));
   const caseText = (i, head) => {
     const pt = [i.patient, i.age ? 'อายุ ' + ageText(i.age) : '', i.hn ? 'HN ' + i.hn : ''].filter(Boolean).join(' ');
