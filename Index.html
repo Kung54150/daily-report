@@ -2835,7 +2835,7 @@ function printUnits() {
   // แบ่งกลุ่มเป็นสองคอลัมน์ให้สูงใกล้เคียงกัน (รักษาลำดับเดิม: ยอด -> อัตรากำลัง -> เรื่องแจ้ง -> เหตุการณ์ -> เคส)
   const twoCol = groups => {
     const tot = groups.reduce((a, g) => a + g.w, 0); let acc = 0, best = 0, bd = Infinity;
-    for (let i = 0; i <= groups.length; i++) { const d = Math.abs(acc - (tot - acc)); if (d < bd) { bd = d; best = i; } if (i < groups.length) acc += groups[i].w; }
+    for (let i = 0; i <= groups.length; i++) { const d = Math.abs(acc - (tot - acc)); if (d <= bd) { bd = d; best = i; } if (i < groups.length) acc += groups[i].w; }
     return `<div class="opsplit"><div class="slines">${gh(groups.slice(0, best))}</div><div class="slines opside">${gh(groups.slice(best))}</div></div>`;
   };
   // หน่วยงานเดียว 1 กล่อง: เวรเดียว = ทุกอย่างในพื้นที่ครึ่งหน้า แบ่งสองคอลัมน์ · สองเวร (Day/Night) = ยอดและอัตรากำลังซ้าย/ขวา แล้วสรุปเหตุการณ์ของวันอยู่ด้านล่าง
