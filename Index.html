@@ -347,6 +347,8 @@
   .a4 .ubgrid .ub { min-width: 0; }
   .a4 .opsplit { display: grid; grid-template-columns: 1fr 1fr; gap: 0 3mm; align-items: start; }
   .a4 .opsplit > div { min-width: 0; }
+  .a4 .evh { font-weight: 700; font-size: 9.5pt; background: #e6e6e6; color: #111; margin: 4px -4px 2px; padding: 1px 4px; }
+  .a4 .shlab { font-weight: 700; text-decoration: underline; }
   .a4 .opsplit .opside { border-left: .5pt solid #bbb; padding-left: 3mm; }
   .a4 .shpair { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm; align-items: start; }
   .a4 .shpair .shb { margin-top: 2px; min-width: 0; }
@@ -2598,7 +2600,7 @@ async function saveReportFile(fmt) {
   finally { Busy.end(); }
 }
 function buildDayPages(scope, sign) {
-  if (scope === 'all') return [{ html: printUnits(), printonly: true }, printOverview() + printIncidents() + sign];
+  if (scope === 'all') return [{ html: printUnits(), printonly: true }, printOverview() + sign];
   return shiftsOf(unitCfg(scope)).map(k => printSingle(unitCfg(scope), k) + sign);
 }
 const datesBetween = (from, to) => { const out = []; for (let d = from; d <= to && out.length < 40; d = shiftDate(d, 1)) out.push(d); return out; };
@@ -2661,7 +2663,7 @@ function renderPrint() {
     if (!pages.length) return bar + '<div class="card muted fit">ไม่มีรายงานในช่วงวันที่ที่เลือก</div>';
   }
   const note = scope === 'all' && kind === 'month' ? 'หน้านี้แสดงภาพรวมทั้งเดือน — เมื่อกดพิมพ์หรือบันทึกไฟล์ ระบบจะเพิ่มรายงานรายเดือนของแต่ละหน่วยงานที่มีรายงานต่อท้ายด้วย'
-    : scope === 'all' ? 'หน้านี้แสดงเฉพาะภาพรวมและเหตุการณ์ผิดปกติ — เมื่อกดพิมพ์ ระบบจะพิมพ์หน้ารายงานแยกรายหน่วยงานนำหน้าด้วย (ไม่ต้องแสดงซ้ำกับหน้าสรุป)' : '';
+    : scope === 'all' ? 'หน้านี้แสดงเฉพาะภาพรวมยอดและอัตรากำลัง \u2014 เมื่อกดพิมพ์ ระบบจะพิมพ์หน้ารายงานแยกรายหน่วยงาน (ยอด อัตรากำลัง และสรุปเหตุการณ์ของแต่ละแผนก) นำหน้าด้วย' : '';
   return bar + (note ? `<div class="note noprint">${note}</div>` : '') + `<div class="a4-scroll">${pages.map(p => typeof p === 'string' ? `<div class="a4">${p}</div>` : `<div class="a4${p.printonly ? ' printonly' : ''}">${p.html}</div>`).join('')}</div>`;
 }
 
@@ -2828,26 +2830,31 @@ function incTable(incs, first, cs) {
 // กลุ่ม 2 ทุกหน่วยงานมีเวร Day และ Night: เวร Day อยู่ซ้าย เวร Night อยู่ขวาเสมอ
 function printUnits() {
   const secs = S.cfg.sections;
-  const pair = u => `<div class="shpair">${shiftsOf(u).map(k => { const r = repAt(u, k);
-    return `<div class="shb"><div class="shl">เวร ${esc(k)}</div>${r ? `<div class="slines">${printLines(u, r, true, true)}</div>` : '<div class="miss">ยังไม่รายงาน</div>'}</div>`; }).join('')}</div>`;
-  let body = printHead('แยกหน่วยงาน \u00b7 ผู้ป่วยนอก');
-  // ผู้ป่วยนอก: OPD1 / OPD3 / PC อยู่หน้าเดียวกัน ตามด้วย ER (เวร Day ซ้าย Night ขวา เหมือนผู้ป่วยใน) แล้วจึงเป็นแผนกอื่น
-  // แต่ละแผนกเป็นกล่องเดียว ถ้าท้ายหน้าไม่พอจะยกไปทั้งกล่องขึ้นหน้าใหม่ ไม่ตัดกลางข้อความ
-  // ผู้ป่วยนอก: เรียงลงมาทีละแผนก ยอด/อัตรากำลังอยู่ซ้าย เรื่องแจ้ง เหตุการณ์ผิดปกติ และรายงานเคสอยู่ขวา (ER แยกเป็นแถวเวร Day / Night)
-  // แต่ละแผนกเป็นกล่องเดียว ถ้าท้ายหน้าไม่พอจะยกไปทั้งกล่องขึ้นหน้าใหม่ ไม่ตัดกลางข้อความ
-  const opdBlock = u => { const two = shiftsOf(u).length > 1;
-    return `<div class="ub"><b class="c">${esc(u.code)}</b>${shiftsOf(u).map(k => { const r = repAt(u, k);
-      if (!r) return `<div class="miss">${two ? 'เวร ' + esc(k) + ' ' : ''}ยังไม่รายงาน</div>`;
-      const x = printLines(u, r, true, true, true);
-      return `${two ? `<div class="shl" style="margin-top:3px">เวร ${esc(k)}</div>` : ''}<div class="opsplit"><div class="slines">${x.main}</div><div class="slines opside">${x.side || '<span class="muted">\u2013</span>'}</div></div>`; }).join('')}</div>`; };
-  secs.filter(sc => sc.group === 'OPD').forEach(sc => {
-    body += `<h2>${esc(sc.label)}</h2>${sc.units.map(unitCfg).map(opdBlock).join('')}`;
-  });
-  body += `<div class="pgbreak"><h1>รายงานยอดประจำวัน \u00b7 ผู้ป่วยใน / Special Unit</h1><div class="d">${esc(thaiDate(S.date, true))}</div>`;
-  secs.filter(sc => sc.group !== 'OPD').forEach(sc => {
-    body += `<h2>${esc(sc.label)}</h2>`;
-    sc.units.map(unitCfg).forEach(u => { body += `<div class="ub"><b class="c">${esc(u.code)}</b>${pair(u)}</div>`; });
-  });
+  const gh = a => a.map(x => x.html).join('');
+  // แบ่งกลุ่มเป็นสองคอลัมน์ให้สูงใกล้เคียงกัน (รักษาลำดับเดิม: ยอด -> อัตรากำลัง -> เรื่องแจ้ง -> เหตุการณ์ -> เคส)
+  const twoCol = groups => {
+    const tot = groups.reduce((a, g) => a + g.w, 0); let acc = 0, best = 0, bd = Infinity;
+    for (let i = 0; i <= groups.length; i++) { const d = Math.abs(acc - (tot - acc)); if (d < bd) { bd = d; best = i; } if (i < groups.length) acc += groups[i].w; }
+    return `<div class="opsplit"><div class="slines">${gh(groups.slice(0, best))}</div><div class="slines opside">${gh(groups.slice(best))}</div></div>`;
+  };
+  // หน่วยงานเดียว 1 กล่อง: เวรเดียว = ทุกอย่างในพื้นที่ครึ่งหน้า แบ่งสองคอลัมน์ · สองเวร (Day/Night) = ยอดและอัตรากำลังซ้าย/ขวา แล้วสรุปเหตุการณ์ของวันอยู่ด้านล่าง
+  // กล่องไม่ถูกตัดกลาง: ถ้าท้ายหน้าไม่พอจะยกทั้งกล่องขึ้นหน้าใหม่
+  const unitBlock = u => {
+    const sh = shiftsOf(u), two = sh.length > 1, rs = sh.map(k => repAt(u, k)), ls = rs.map(r => r ? printLines(u, r, true, true, true) : null);
+    let inner;
+    if (!two) inner = ls[0] ? twoCol(ls[0].main.concat(ls[0].side)) : '<div class="miss">ยังไม่รายงาน</div>';
+    else {
+      inner = `<div class="shpair">${sh.map((k, i) => `<div class="shb"><div class="shl">เวร ${esc(k)}</div>${ls[i] ? `<div class="slines">${gh(ls[i].main)}</div>` : '<div class="miss">ยังไม่รายงาน</div>'}</div>`).join('')}</div>`;
+      const ev = [];
+      sh.forEach((k, i) => (ls[i] ? ls[i].side : []).forEach((g, j) => ev.push(j === 0 ? Object.assign({}, g, { html: g.html.replace('<div class="lg">', `<div class="lg"><div class="ln shlab">เวร ${esc(k)}</div>`), w: g.w + 1 }) : g)));
+      if (ev.length) inner += `<div class="evh">สรุปเหตุการณ์ประจำวัน</div>${twoCol(ev)}`;
+    }
+    return `<div class="ub"><b class="c">${esc(u.code)}</b>${inner}</div>`;
+  };
+  let body = printHead('แยกหน่วยงาน · ผู้ป่วยนอก');
+  secs.filter(sc => sc.group === 'OPD').forEach(sc => { body += `<h2>${esc(sc.label)}</h2>${sc.units.map(unitCfg).map(unitBlock).join('')}`; });
+  body += `<div class="pgbreak"><h1>รายงานยอดประจำวัน · ผู้ป่วยใน / Special Unit</h1><div class="d">${esc(thaiDate(S.date, true))}</div>`;
+  secs.filter(sc => sc.group !== 'OPD').forEach(sc => { body += `<h2>${esc(sc.label)}</h2>${sc.units.map(unitCfg).map(unitBlock).join('')}`; });
   return body + '</div>';
 }
 
@@ -2911,7 +2918,10 @@ const SUMMARY_VIEW = {
 function printLines(u, r, withInc, forPrint, split) {
   const v = r.values || {}, out = [], side = [];
   let tgt = out;
-  const grp = (head, details) => tgt.push(`<div class="lg">${head ? `<div class="ln m">${head}</div>` : ''}${details.filter(Boolean).map(d => `<div class="ln dt">- ${d}</div>`).join('')}</div>`);
+  // แต่ละกลุ่มเก็บ html + ความสูงโดยประมาณ (w = จำนวนบรรทัด) เพื่อแบ่งสองคอลัมน์ให้สมดุลในหน้าพิมพ์
+  const grp = (head, details) => { const ds = details.filter(Boolean);
+    tgt.push({ html: `<div class="lg">${head ? `<div class="ln m">${head}</div>` : ''}${ds.map(d => `<div class="ln dt">- ${d}</div>`).join('')}</div>`,
+      w: (head ? 1 : 0) + ds.reduce((a, d) => a + Math.max(1, Math.ceil(d.replace(/<[^>]*>/g, '').length / 34)), 0) + 0.3 }); };
   u.form.sections.forEach(s => {
     if (s.type === 'docs') {
       grp(`<b>${esc(s.title)} ${num(v[s.totalKey])} ${esc(s.unit)}</b>`, []);
@@ -2925,7 +2935,7 @@ function printLines(u, r, withInc, forPrint, split) {
     }
     if (s.type === 'list') { const rows = listRows(s, v); if (rows.length) grp(`<b>${esc(s.totalLabel)} ${listTotal(s, v)} ${esc(listUnit(s))}</b>`, rows.map(r => `${esc(listLabel(r.it, r))} ${r.n}`)); return; }
     if (s.type === 'grid') {
-      s.rows.forEach(rw => { const parts = s.cols.map(c => [c[1], num(v[rw[0] + '_' + c[0]])]).filter(x => x[1]); const t = parts.reduce((a, x) => a + x[1], 0); grp(`<b>${esc(rw[1])} ${t}</b>`, [parts.map(x => esc(x[0]) + ' ' + x[1]).join(', ')]); });
+      s.rows.forEach(rw => { const parts = s.cols.map(c => [c[1], num(v[rw[0] + '_' + c[0]])]).filter(x => x[1]); const t = parts.reduce((a, x) => a + x[1], 0); if (split && !t) return; grp(`<b>${esc(rw[1])} ${t}</b>`, [parts.map(x => esc(x[0]) + ' ' + x[1]).join(', ')]); });
       return;
     }
     const calcs = [], vw = (SUMMARY_VIEW[u.code] || {})[s.title] || {}, btxt = ballList(ballTotals(u, v), false, unitBalls(u));
@@ -2939,19 +2949,20 @@ function printLines(u, r, withInc, forPrint, split) {
     }).filter(Boolean);
     const lf = vw.lead && s.fields.find(f => f.key === vw.lead), lv = lf ? fieldValue(u, v, lf) : '';
     const head = (u.form.sections.length > 1 || vw.title ? esc(vw.title || s.title) : '') + (lf && lv !== undefined && lv !== '' ? ` ${lv} ${esc(lf.unit || '')}` : '') + (s.sum && !vw.nosum ? ` ${esc(s.sum)} ${sectionSum(s, v)}` : '');
-    if (items.length || (head.trim() && !s.sum && !vw.skipEmpty)) grp(head.trim() ? `<b>${head.trim()}</b>` : '', items);
+    // หน้าพิมพ์ (split): ไม่พิมพ์หัวข้อเปล่าที่ไม่มียอดเลย เพื่อประหยัดกระดาษ
+    if (items.length || (head.trim() && !s.sum && !vw.skipEmpty && (!split || (lf && lv !== undefined && lv !== '')))) grp(head.trim() ? `<b>${head.trim()}</b>` : '', items);
     calcs.forEach(l => grp(l, []));
     s.fields.filter(f => f.type === 'text' && v[f.key]).forEach(f => grp('', [`${esc(f.label)}: ${esc(v[f.key])}`]));
   });
   if (u.form.total) {
     const tl = [`<b>${esc(u.form.total)} ${u.form.sections.filter(s => s.sum).reduce((a, s) => a + sectionSum(s, v), 0)}</b>`];
-    if (u.group === 'OPD') out.unshift(`<div class="lg"><div class="ln m">${tl[0]}</div></div>`); // ผู้ป่วยนอก: ยอดรวมทั้งหมดอยู่บรรทัดแรกเสมอ
+    if (u.group === 'OPD') out.unshift({ html: `<div class="lg"><div class="ln m">${tl[0]}</div></div>`, w: 1.3 }); // ผู้ป่วยนอก: ยอดรวมทั้งหมดอยู่บรรทัดแรกเสมอ
     else grp(tl[0], []);
   }
   const rc = roleCounts(r.staff || [], u.group === 'OPD');
   const rd = r.reduce || {}, rt = num(rd.RN) + num(rd.PN) + num(rd.NA);
   const rdLine = rt ? `<b>ลดอัตรากำลัง ${rt} ชม.</b> (${(u.group === 'OPD' ? [['RN', num(rd.RN)], ['PN/NA', num(rd.PN) + num(rd.NA)]] : ['RN', 'PN', 'NA'].map(k => [k, num(rd[k])])).filter(x => x[1]).map(x => `${x[0]} ${x[1]} ชม.`).join(', ')})` : '';
-  if (u.group !== 'OPD' && withInc) {
+  if (u.group !== 'OPD' && withInc && !split) {
     // ผู้ป่วยใน / Special Unit: แสดงชื่อ (เฉพาะชื่อต้น) ตามตำแหน่ง และการลดอัตรากำลังอยู่กลุ่มเดียวกับอัตรากำลัง
     const names = rl => (r.staff || []).filter(x => x.role === rl && x.tag !== 'ออกหน่วย').map(x => esc(firstName(x.name)));
     const lines = rc.map(([k, n]) => `${esc(k)} ${n}${k === 'ไม่ระบุ' ? '' : ' (' + names(k).join(', ') + ')'}`);
@@ -2969,11 +2980,14 @@ function printLines(u, r, withInc, forPrint, split) {
     const pt = [i.patient, i.age ? 'อายุ ' + ageText(i.age) : '', i.hn ? 'HN ' + i.hn : ''].filter(Boolean).join(' ');
     const vs = vitals(i).map(([k, x, unit]) => `${k} ${esc(x)}${unit === '%' ? '%' : unit === '\u00b0C' ? '\u00b0C' : ''}`).join(', ') + (i.o2mode ? (vitals(i).length ? ', ' : '') + 'O2: ' + esc(o2Text(i)) : '');
     const who = [i.time ? 'มา ' + esc(i.time) + ' น.' : '', i.doctor ? 'แพทย์ ' + esc(i.doctor) : ''].filter(Boolean).join(' \u00b7 ');
-    return head + (pt ? ' \u00b7 <b>' + esc(pt) + '</b>' : '') + (who ? '<br>' + who : '') + (vs ? '<br>' + vs : '') + (i.detail ? '<br>' + one(i.detail) : '') + (i.action ? `<br><i>แก้ไข: ${one(i.action)}</i>` : '');
+    return head + (pt ? ' \u00b7 <b>' + esc(pt) + '</b>' : '') + (who ? '<br>' + who : '') + (vs ? '<br>' + vs : '') + (i.detail ? '<br>' + one(i.detail) : '') + (i.action ? `<br><i>แก้ไข: ${one(i.action)}</i>` : '')
+      + (split && (i.files || []).length ? `<div class="attbox">${i.files.map(f => `<figure data-attfile="${esc(f.id)}"><figcaption>ไฟล์แนบ: ${esc(f.name)}</figcaption></figure>`).join('')}</div>` : '');
   };
-  if ((r.incidents || []).length) grp(`<b class="miss">เหตุการณ์ผิดปกติ ${r.incidents.length} เรื่อง</b>`, withInc ? r.incidents.map(i => caseText(i, `<b>${esc(i.type)}</b>${i.severity && i.severity !== '-' ? ` (ระดับ ${esc(i.severity)})` : ''}`)) : []);
-  if ((r.cases || []).length) grp(`<b>รายงานเคส ${r.cases.length} เรื่อง</b>`, withInc ? r.cases.map(i => caseText(i, '<b>เคส</b>')) : []);
-  return split ? { main: out.join(''), side: side.join('') } : out.join('');
+  // split (หน้าพิมพ์): แยกเป็นกลุ่มละ 1 เรื่องเพื่อให้แบ่งคอลัมน์ได้ ไฟล์แนบแสดงใต้เรื่องนั้น (ไม่มีรายการเหตุการณ์รวมท้ายเอกสารแล้ว)
+  const evs = (head, items) => { if (!split) grp(head, withInc ? items : []); else items.forEach((t, i) => grp(i === 0 ? head : '', [t])); };
+  if ((r.incidents || []).length) evs(`<b class="miss">เหตุการณ์ผิดปกติ ${r.incidents.length} เรื่อง</b>`, r.incidents.map(i => caseText(i, `<b>${esc(i.type)}</b>${i.severity && i.severity !== '-' ? ` (ระดับ ${esc(i.severity)})` : ''}`)));
+  if ((r.cases || []).length) evs(`<b>รายงานเคส ${r.cases.length} เรื่อง</b>`, r.cases.map(i => caseText(i, '<b>เคส</b>')));
+  return split ? { main: out, side } : out.map(x => x.html).join('');
 }
 
 /* ตรวจรายชื่อก่อนอัปโหลด: นำเข้าทุกคน ชื่อแผนกตามไฟล์เก็บไว้ ผูกกับหน่วยงานในระบบภายหลังได้ */
