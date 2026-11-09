@@ -160,6 +160,19 @@ const FORMS = {
     { title: 'ผู้ป่วย Surg', sum: 'รวม Surg', fields: [N_('surg_exam', 'ตรวจรักษา'), N_('surg_proc', 'หัตถการ'), N_('surg_dress', 'ทำแผล'), N_('surg_fu', 'F/U+ทำแผล')] },
     { title: 'อื่นๆ', fields: [N_('ccc', 'เจาะเลือดที่ CCC (ไม่รวมยอด OPD3)')] }
   ] },
+  // CCC ตามตารางสรุปของแผนก: ลูกค้าตรวจสุขภาพ (จำนวนคนไข้) · ลูกค้าตรวจก่อนเข้างาน (Total = จำนวนคนไข้, รายการย่อย = ยอดหัตถการ)
+  // · แผนกอื่นส่งตรวจ (ยอดหัตถการ) · โดนตาม ล่าม-OPD — ยอดหัตถการไม่นำมารวมเป็นจำนวนคนไข้ (คนไข้ 1 รายทำได้หลายหัตถการ)
+  CCC: { std: { total: ['atk', 'labor', 'ekg', 'annual', 'total'] }, sections: [
+    { title: 'ลูกค้าตรวจสุขภาพ', sum: 'รวม', fields: [N_('atk', 'ATK'), N_('labor', 'ตรวจแรงงาน'), N_('ekg', 'EKG'), N_('annual', 'ประจำปี')] },
+    { title: 'ลูกค้าตรวจก่อนเข้างาน', fields: [
+      N_('total', 'Total ตรวจก่อนเข้างาน'),
+      N_('blood', 'เจาะเลือด'), N_('ear', 'ตรวจหู'), N_('eye', 'ตรวจตา (VA/อาชีว)'), N_('lung', 'ตรวจปอด'), N_('hand', 'ตรวจมือ/หลัง')
+    ], hint: 'Total = จำนวนคนไข้ตรวจก่อนเข้างาน \u00b7 รายการย่อยเป็นยอดหัตถการ ไม่ใช่จำนวนคนไข้' },
+    { title: 'แผนกอื่นส่งตรวจ', fields: [
+      N_('ref_ear', 'ตรวจหู'), N_('ref_eye', 'ตรวจตา (VA/อาชีว)'), N_('ref_lung', 'ตรวจปอด'), N_('ref_hand', 'ตรวจมือ/หลัง')
+    ], hint: 'ยอดหัตถการ ไม่ใช่จำนวนคนไข้' },
+    { title: 'โดนตาม', fields: [N_('interp', 'ล่าม-OPD', 'ครั้ง')] }
+  ] },
   'OBG-IVF': { std: { total: ['obg', 'gyn', 'ivf', 'gyn_sp', 'eki', 'stim', 'consult', 'nhso'], admit: ['ad_cs', 'ad_or', 'ad_induce', 'ad_tocolysis', 'ad_obsgyn', 'ad_abort'] }, sections: [
     { title: 'ผู้รับบริการ', sum: 'รวม', fields: [
       N_('obg', 'OBG'), N_('gyn', 'GYN'), N_('ivf', 'IVF'), N_('gyn_sp', 'นรีเวชพิเศษ'), N_('eki', 'Consult EKI'),
@@ -201,8 +214,15 @@ const FORMS = {
   LR: { draft: true, std: { total: ['nl', 'cs'] }, sections: [{ title: 'การคลอด', fields: [N_('nl', 'คลอดปกติ'), N_('cs', 'ผ่าคลอด')] }] },
   NB: { draft: true, std: { total: 'nb' }, sections: [{ title: 'ทารกแรกเกิด', fields: [N_('nb', 'ทารกแรกเกิด'), N_('nb_adm', 'Admit ตึกเด็ก')] }] },
   'ไตเทียม': { draft: true, std: { total: 'hd' }, sections: [{ title: 'ไตเทียม', fields: [N_('hd', 'ฟอกเลือด (HD)'), N_('hd_new', 'ผู้ป่วยรายใหม่')] }] },
-  OR: { draft: true, std: { total: ['elective', 'emergency'] }, sections: [{ title: 'ห้องผ่าตัด', sum: 'รวม', fields: [N_('elective', 'Elective'), N_('emergency', 'Emergency')] }, { title: 'อื่นๆ', fields: [N_('cancel', 'งดผ่าตัด')] }] }
-};
+  // ห้องผ่าตัด ตามสถิติรายเดือนของหน่วย: ยอดรวม = Major + Minor · Emergency = เคสฉุกเฉิน · OPD/IPD = หน่วยที่ส่งมา · ที่เหลือ = สิทธิการรักษาของแต่ละเคส
+  OR: { std: { total: 'total' }, sections: [
+    { title: 'ยอดผ่าตัด', fields: [Object.assign(N_('total', 'ยอดรวม (Major + Minor)', 'เคส'), { calc: { plus: ['mj_obs', 'mj_gyn', 'mj_surg', 'mj_ortho', 'mj_scope', 'mj_ent', 'mj_cvt', 'mj_pla', 'mj_neuro', 'mj_uro', 'mj_eye', 'mj_ivf_opu', 'mj_tese', 'mj_med', 'mj_ane', 'mn_gyn', 'mn_surg', 'mn_ortho', 'mn_scope', 'mn_eent', 'mn_cvt', 'mn_pla', 'mn_uro', 'mn_eye', 'mn_ivf_fet', 'mn_xray', 'mn_ane'], minus: [] } })] },
+    { title: 'ผ่าตัดใหญ่ (Major)', sum: 'รวม Major', fields: [N_('mj_obs', 'OBS'), N_('mj_gyn', 'GYN'), N_('mj_surg', 'SURG'), N_('mj_ortho', 'ORTHO'), N_('mj_scope', 'SCOPE'), N_('mj_ent', 'ENT'), N_('mj_cvt', 'CVT'), N_('mj_pla', 'PLASTIC'), N_('mj_neuro', 'NEURO'), N_('mj_uro', 'URO'), N_('mj_eye', 'EYE'), N_('mj_ivf_opu', 'IVF OPU'), N_('mj_tese', 'TESE'), N_('mj_med', 'MED'), N_('mj_ane', 'ANE')] },
+    { title: 'ผ่าตัดเล็ก (Minor)', sum: 'รวม Minor', fields: [N_('mn_gyn', 'GYN'), N_('mn_surg', 'SURG'), N_('mn_ortho', 'ORTHO'), N_('mn_scope', 'SCOPE'), N_('mn_eent', 'EENT'), N_('mn_cvt', 'CVT'), N_('mn_pla', 'PLASTIC'), N_('mn_uro', 'URO'), N_('mn_eye', 'EYE'), N_('mn_ivf_fet', 'IVF FET'), N_('mn_xray', 'X-RAY'), N_('mn_ane', 'ANE')] },
+    { title: 'ส่งมาจากหน่วยงาน', fields: [N_('src_opd', 'ผู้ป่วยนอก (OPD)'), N_('src_ipd', 'ผู้ป่วยใน (IPD)')] },
+    { title: 'สิทธิการรักษา', sum: 'รวม', fields: [N_('r_self', 'ทั่วไป'), N_('r_ins', 'ประกันชีวิต'), N_('r_fund', 'กองทุน'), N_('r_contract', 'Contract'), N_('r_act', 'พรบ.'), N_('r_ucep', 'UCEP'), N_('r_welfare', 'สวัสดิการ')] },
+    { title: 'Emergency', fields: [N_('emergency', 'Emergency')] }
+  ] },};
 
 // ผู้ป่วยนอกที่ยังไม่มีแบบฟอร์มจริง
 const OPD_DRAFT = { draft: true, std: { total: 'total', admit: 'admit', refer: 'refer' }, sections: [{ title: 'ยอดผู้ป่วย', fields: [N_('total', 'ผู้ป่วยทั้งหมด'), N_('new', 'ผู้ป่วยใหม่'), N_('admit', 'Admit'), N_('refer', 'Refer out')] }] };
