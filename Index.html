@@ -1180,22 +1180,24 @@ const ballDot = c => `<i class="ball ${c}"></i>`;
 // "\u25cf เขียว 1, \u25cf ส้ม 3" (สีที่ไม่มีผู้ป่วยไม่แสดง) \u2014 มีคำบอกสีด้วยเผื่อพิมพ์ขาวดำ
 // always = แสดงคำ เขียว/เหลือง/ส้ม/แดง ตลอด (หน้าภาพรวม) ไม่งั้นแสดงเฉพาะตอนพิมพ์/ในแผ่น A4 (บนจอสรุปไม่ต้องมีคำ)
 const ballWord = (b, always) => always ? esc(b[1]) + ' ' : `<span class="bw">${esc(b[1])} </span>`;
-const ballList = (t, always) => S.cfg.balls.filter(b => num(t[b[0]])).map(b => `${ballDot(b[0])}${ballWord(b, always)}${num(t[b[0]])}`).join(', ');
-const ballStack = (t, always) => S.cfg.balls.some(b => num(t[b[0]])) ? `<div class="bst">${S.cfg.balls.filter(b => num(t[b[0]])).map(b => `<div>${ballDot(b[0])}${ballWord(b, always)}${num(t[b[0]])}</div>`).join('')}</div>` : '';
-const ballText = (v, key) => ballList(Object.fromEntries(S.cfg.balls.map(b => [b[0], v[key + '_' + b[0]]])));
+const ballList = (t, always, bl) => (bl || S.cfg.balls).filter(b => num(t[b[0]])).map(b => `${ballDot(b[0])}${ballWord(b, always)}${num(t[b[0]])}`).join(', ');
+const ballStack = (t, always, bl) => (bl || S.cfg.balls).some(b => num(t[b[0]])) ? `<div class="bst">${(bl || S.cfg.balls).filter(b => num(t[b[0]])).map(b => `<div>${ballDot(b[0])}${ballWord(b, always)}${num(t[b[0]])}</div>`).join('')}</div>` : '';
+const ballText = (v, key, bl) => ballList(Object.fromEntries(S.cfg.balls.map(b => [b[0], v[key + '_' + b[0]]])), false, bl);
+// ลูกบอลของหน่วยงาน: ใช้ของหมวดที่ระบุ balls ไว้ (ห้องผ่าตัด: Minor/Major) ไม่งั้นใช้ชุดมาตรฐาน
+const unitBalls = u => { const sec = u.form.sections.find(x => x.categories && x.balls); return sec ? sec.balls : S.cfg.balls; };
 function ballTotals(u, v) {
   const out = { g: 0, y: 0, o: 0, r: 0 };
   u.form.sections.filter(s => s.categories).forEach(s => s.fields.forEach(f => S.cfg.balls.forEach(b => { out[b[0]] += num(v[f.key + '_' + b[0]]); })));
   return out;
 }
 // ช่องกรอกลูกบอลสี อยู่แถวเดียวกับช่องจำนวนบนจอกว้าง และลงมาอยู่ด้านล่างบนมือถือ (แสดงเป็นลูกบอล ไม่มีคำบรรยาย)
-const ballGroups = (f, v) => S.cfg.balls.map(b => `<label class="bl"><span class="bd"><i class="ball ${b[0]}"></i><span>${esc(b[1])}</span></span><input type="number" inputmode="numeric" min="0" step="1" data-v="${esc(f.key)}_${b[0]}" value="${esc(v[f.key + '_' + b[0]] ?? '')}" placeholder="\u2013" aria-label="${esc(b[1])}"></label>`).join('');
+const ballGroups = (f, v, bl) => (bl || S.cfg.balls).map(b => `<label class="bl"><span class="bd"><i class="ball ${b[0]}"></i><span>${esc(b[1])}</span></span><input type="number" inputmode="numeric" min="0" step="1" data-v="${esc(f.key)}_${b[0]}" value="${esc(v[f.key + '_' + b[0]] ?? '')}" placeholder="\u2013" aria-label="${esc(b[1])}"></label>`).join('');
 
 // ประเภทผู้ป่วยคงพยาบาล: ตาราง ประเภท | จำนวนรวม | ลูกบอลสี (บนมือถือจัดเป็นบรรทัด: ประเภท จำนวน แล้วลูกบอลอยู่บรรทัดถัดไป)
 function catCard(s, v) {
   const tot = s.fields.reduce((a, f) => a + num(v[f.key]), 0);
   const rows = s.fields.map(f => { const n = num(v[f.key]);
-    return `<tr><td class="ct">${esc(f.label)}</td><td class="cn">${n || '\u2013'}</td><td class="cb">${n ? ballText(v, f.key) : ''}</td></tr>`; }).join('');
+    return `<tr><td class="ct">${esc(f.label)}</td><td class="cn">${n || '\u2013'}</td><td class="cb">${n ? ballText(v, f.key, s.balls) : ''}</td></tr>`; }).join('');
   return `<div class="card" style="grid-column:1/-1"><h3>${esc(s.title)}</h3><table class="cattab"><thead><tr><th>ประเภท</th><th>จำนวนรวม</th><th>ลูกบอลสี</th></tr></thead><tbody>${rows}</tbody>
     <tfoot><tr><td class="ct">${esc(s.sum || 'รวม')}</td><td class="cn">${tot}</td><td class="cb"></td></tr></tfoot></table></div>`;
 }
@@ -1377,7 +1379,7 @@ function mountForm() {
         else if (f.type === 'time') pat += `<div class="frow"><span class="lab">${esc(f.label)} <small>24 \u0e0a\u0e21. \u0e1e\u0e34\u0e21\u0e1e\u0e4c 2030</small></span><input class="tin" type="text" inputmode="numeric" maxlength="5" placeholder="20:30" autocomplete="off" data-v="${esc(f.key)}" value="${esc(v[f.key] ?? '')}"></div>`;
         else if (f.calc && !f.calc.manual) pat += `<div class="frow"><span class="lab"><b>${esc(f.label)}</b> <small>(คำนวณอัตโนมัติ)</small></span><div class="calc num" data-calc="${esc(f.key)}">0</div></div>${f.key === 'remain' && s.fields.length && u.form.sections.some(x => x.categories) ? '<div class="remwarn" data-remwarn></div>' : ''}`;
         else {
-          if (s.categories) pat += `<div class="frow ext cat"><span class="lab">${esc(f.label)} <small>${esc(f.unit)}</small></span><div class="calc cnt gray" data-catcnt="${esc(f.key)}" title="รวมจากลูกบอลสีอัตโนมัติ ไม่ต้องกรอก">${num(v[f.key])}</div><div class="ballin extra">${ballGroups(f, v)}</div></div>`;
+          if (s.categories) pat += `<div class="frow ext cat"><span class="lab">${esc(f.label)} <small>${esc(f.unit)}</small></span><div class="calc cnt gray" data-catcnt="${esc(f.key)}" title="รวมจากลูกบอลสีอัตโนมัติ ไม่ต้องกรอก">${num(v[f.key])}</div><div class="ballin extra">${ballGroups(f, v, s.balls)}</div></div>`;
           else {
             const extra = f.note ? `<input class="notein extra off" data-notefor="${esc(f.key)}" data-v="${esc(f.key)}_note" value="${esc(v[f.key + '_note'] ?? '')}" placeholder="${esc(f.note)} (พิมพ์เอง)" aria-label="${esc(f.note)}">` : '';
             pat += `<div class="frow${extra ? ' ext noted' : ''}"><span class="lab">${esc(f.label)} <small>${esc(f.unit)}${f.noSum ? ' \u00b7 ไม่นับในยอดรวม' : ''}</small>${f.pctOf ? ` <small data-pct="${esc(f.key)}"></small>` : ''}</span>${numInput(f.key, 'class="cnt"')}${extra}</div>${f.calc && f.calc.manual ? '<div class="remwarn" data-remwarn></div>' : ''}`;
@@ -1386,6 +1388,7 @@ function mountForm() {
       });
       if (s.fields.some(f => f.rooms)) pat += `<div style="margin-top:8px"><button type="button" class="btn ghost sm" data-roomedit>\u270e แก้ไขรายการห้อง (เลขห้อง / ชื่อ)</button></div><div id="room_editor"></div>`;
       if (s.sum) pat += `<div class="sumline"><span>${esc(s.sum)}</span><span class="num" data-sum="${si}">0</span></div>`;
+      if (s.sumEq) pat += `<div class="remwarn" data-sumwarn="${si}"></div>`;
       if (s.categories && allFields(u).some(f => f.key === 'remain' && f.calc)) pat += '<div class="remwarn" data-remwarn></div>';
     }
     pat += '</div>';
@@ -1764,6 +1767,15 @@ function recalc(quiet) {
         if (s.categories) { const el = document.querySelector(`[data-catcnt="${f.key}"]`); if (el) el.textContent = num(v[f.key]); }
       });
       if (s.sum) document.querySelector(`[data-sum="${si}"]`).textContent = sectionSum(s, v);
+      if (s.sumEq) { // ผลรวมของหมวดต้องเท่ากับอีกช่อง (เช่น Emergency + Elective = ยอดรวม) แค่เตือน ไม่บล็อกการส่ง
+        const tf = allFields(u).find(f => f.key === s.sumEq), el = document.querySelector(`[data-sumwarn="${si}"]`);
+        if (tf && el) {
+          const a = sectionSum(s, v), t = num(fieldValue(u, v, tf)); let msg = '', ok = false;
+          if (a !== t && (a > 0 || t > 0)) msg = `${s.sum} ${a} ไม่เท่ากับยอดรวม ${t} (${a < t ? 'ขาด ' + (t - a) : 'เกิน ' + (a - t)})`;
+          else if (a === t && a > 0) { msg = `${s.sum} ตรงกับยอดรวม (${t})`; ok = true; }
+          el.textContent = msg; el.classList.toggle('ok', ok);
+        }
+      }
     }
   });
   remCheck(u, v, quiet);
@@ -2472,7 +2484,8 @@ function renderPrint() {
 function printMonthly(u, month, reps) {
   const L = S.cfg.stdLabels, keys = Object.keys(u.form.std || {}), two = shiftsOf(u).length > 1;
   const staff3 = r => { const st = (r.staff || []).filter(x => x.tag !== 'ออกหน่วย'); return ['RN', 'PN', 'NA'].map(n => st.filter(x => asRN(x.role) === n).length); };
-  const rows = reps.map(r => ({ r, sv: stdValues(u, r.values), st: staff3(r) }));
+  const ex = (u.form.sections.find(x => x.categories && x.additive) || {}).balls || [];
+  const rows = reps.map(r => ({ r, sv: stdValues(u, r.values), st: staff3(r), bt: ballTotals(u, r.values || {}) }));
   const f1 = x => Number.isInteger(x) ? String(x) : x.toFixed(1);
   const head = t => `<h1>${t} \u00b7 ${esc(u.code)}</h1><div class="d">${esc(monthTitle(month))}</div>`;
   const days = new Set(reps.map(r => r.date)).size;
@@ -2482,10 +2495,10 @@ function printMonthly(u, month, reps) {
     const additive = k => k !== 'carried' && k !== 'remain';
     const cell = x => `<td class="n">${x}</td>`;
     const unitTxt = two ? 'เวร' : 'วัน';
-    p1 += `<h2>ยอดรายวัน</h2><table class="stat"><thead><tr><th>วันที่</th>${two ? '<th>เวร</th>' : ''}${keys.map(k => `<th>${esc(L[k])}</th>`).join('')}<th>RN</th><th>PN</th><th>NA</th></tr></thead>
-      ${rows.map(x => `<tr><td>${esc(fmtDMY(x.r.date))}</td>${two ? `<td>${esc(x.r.shift)}</td>` : ''}${keys.map(k => cell(x.sv[k] || '\u2013')).join('')}${x.st.map(n => cell(n || '\u2013')).join('')}</tr>`).join('')}
-      <tr class="tot"><td colspan="${two ? 2 : 1}">รวมทั้งเดือน</td>${keys.map(k => additive(k) ? cell(rows.reduce((a, x) => a + (x.sv[k] || 0), 0)) : cell('\u2013')).join('')}${[0, 1, 2].map(() => cell('\u2013')).join('')}</tr>
-      <tr class="sub"><td colspan="${two ? 2 : 1}">เฉลี่ยต่อ${unitTxt}</td>${keys.map(k => cell(f1(rows.reduce((a, x) => a + (x.sv[k] || 0), 0) / rows.length))).join('')}${[0, 1, 2].map(i => cell(f1(rows.reduce((a, x) => a + x.st[i], 0) / rows.length))).join('')}</tr></table>
+    p1 += `<h2>ยอดรายวัน</h2><table class="stat"><thead><tr><th>วันที่</th>${two ? '<th>เวร</th>' : ''}${keys.map(k => `<th>${esc(L[k])}</th>`).join('')}${ex.map(b => `<th>${ballDot(b[0])}${esc(b[1])}</th>`).join('')}<th>RN</th><th>PN</th><th>NA</th></tr></thead>
+      ${rows.map(x => `<tr><td>${esc(fmtDMY(x.r.date))}</td>${two ? `<td>${esc(x.r.shift)}</td>` : ''}${keys.map(k => cell(x.sv[k] || '\u2013')).join('')}${ex.map(b => cell(x.bt[b[0]] || '\u2013')).join('')}${x.st.map(n => cell(n || '\u2013')).join('')}</tr>`).join('')}
+      <tr class="tot"><td colspan="${two ? 2 : 1}">รวมทั้งเดือน</td>${keys.map(k => additive(k) ? cell(rows.reduce((a, x) => a + (x.sv[k] || 0), 0)) : cell('\u2013')).join('')}${ex.map(b => cell(rows.reduce((a, x) => a + (x.bt[b[0]] || 0), 0))).join('')}${[0, 1, 2].map(() => cell('\u2013')).join('')}</tr>
+      <tr class="sub"><td colspan="${two ? 2 : 1}">เฉลี่ยต่อ${unitTxt}</td>${keys.map(k => cell(f1(rows.reduce((a, x) => a + (x.sv[k] || 0), 0) / rows.length))).join('')}${ex.map(b => cell(f1(rows.reduce((a, x) => a + (x.bt[b[0]] || 0), 0) / rows.length))).join('')}${[0, 1, 2].map(i => cell(f1(rows.reduce((a, x) => a + x.st[i], 0) / rows.length))).join('')}</tr></table>
       <div class="foot">RN / PN / NA = จำนวนเจ้าหน้าที่ที่ปฏิบัติงานในแต่ละ${unitTxt}ตามรายงาน (ไม่นับผู้ที่ออกไปปฏิบัติงานหน่วยอื่น) \u00b7 ยอดยกมาและคงพยาบาลไม่รวมเป็นยอดสะสม</div>`;
     const red = ['RN', 'PN', 'NA'].map(k => reps.reduce((a, r) => a + num((r.reduce || {})[k]), 0));
     if (red.some(Boolean)) p1 += `<div class="ln" style="margin-top:4px"><b>ลดอัตรากำลังรวมทั้งเดือน ${red.reduce((a, x) => a + x, 0)} ชม.</b> (RN ${red[0]} ชม., PN ${red[1]} ชม., NA ${red[2]} ชม.)</div>`;
@@ -2503,6 +2516,8 @@ function printMonthly(u, month, reps) {
       Object.entries(agg).sort((a, b) => b[1] - a[1]).forEach(([k, n]) => lines.push([k, n]));
     } else if (s.type === 'grid') {
       s.rows.forEach(rw => { const n = reps.reduce((a, r) => a + s.cols.reduce((b, c) => b + num((r.values || {})[rw[0] + '_' + c[0]]), 0), 0); if (n) lines.push([rw[1], n]); });
+    } else if (s.categories && s.additive) {
+      s.fields.forEach(f => (s.balls || S.cfg.balls).forEach(b => { const n = reps.reduce((a, r) => a + num((r.values || {})[f.key + '_' + b[0]]), 0); if (n) lines.push([f.label + ' \u00b7 ' + b[1], n]); }));
     } else if (!s.categories) {
       s.fields.forEach(f => {
         if (f.type || f.calc || f.snap || stdKeys.has(f.key)) return;
@@ -2541,7 +2556,7 @@ function printOverview() {
   const staffSumTd = (list, k) => [0, 1, 2].map(i => `<td class="n">${ssum(list, i, k)}</td>`).join('');
   // ผู้ป่วยใน: คงพยาบาลมีลูกบอลสีเรียงลงมาข้างใต้ และอัตรากำลัง RN/PN/NA เรียงลงมาในช่องเดียว
   const ballsOf = (list, k) => { const t = { g: 0, y: 0, o: 0, r: 0 }; list.forEach(u => { const r = repAt(u, k); if (r) { const x = ballTotals(u, r.values || {}); S.cfg.balls.forEach(b => { t[b[0]] += x[b[0]]; }); } }); return t; };
-  const remCell = (n, t) => `<div class="rem"><span>${n}</span>${ballStack(t, true)}</div>`;
+  const remCell = (n, t, bl) => `<div class="rem"><span>${n}</span>${ballStack(t, true, bl)}</div>`;
   const stackStaff = c3 => c3.some(Boolean) ? `<div class="bstack">${['RN', 'PN', 'NA'].map((n, i) => c3[i] ? `<div>${n} ${c3[i]}</div>` : '').join('')}</div>` : '\u2013';
   const row = (u, k, keys, ipdMode) => { const s = sv(u, k);
     if (!s) return `<tr><td>${shiftLab(u, k)}</td><td colspan="${keys.length + (ipdMode ? 1 : 3)}" class="miss">ยังไม่รายงาน</td></tr>`;
@@ -2568,7 +2583,7 @@ function printOverview() {
   const tot = c => SH.reduce((a, k) => a + (c[1][k] || 0), 0), catList = Object.entries(cats).sort((a, b) => tot(b) - tot(a));
   h += `<div class="two"><div><h2>ประเภทผู้ป่วยคงพยาบาล (รวมทุกตึก)</h2>
     ${catList.length ? `<table class="stat"><tr><th></th>${SH.map(k => `<th>${esc(k)}</th>`).join('')}</tr>${catList.map(([c, o]) => `<tr><td>${esc(c)}</td>${SH.map(k => `<td class="n b">${o[k] || '\u2013'}</td>`).join('')}</tr>`).join('')}</table>` : '<div class="miss">ไม่มีข้อมูล</div>'}</div>
-    <div><h2>Special Unit</h2><table class="stat">${spu.flatMap(u => shiftsOf(u).map(k => { const s = sv(u, k); return `<tr><td>${shiftLab(u, k)}</td>${s ? `<td class="n b">${s.total}</td><td>${esc(u.form.sections[0].title)}</td>` : '<td colspan="2" class="miss">ยังไม่รายงาน</td>'}</tr>`; })).join('')}</table></div></div>`;
+    <div><h2>Special Unit</h2><table class="stat">${spu.flatMap(u => shiftsOf(u).map(k => { const s = sv(u, k); return `<tr><td>${shiftLab(u, k)}</td>${s ? `<td class="n b">${unitBalls(u) !== S.cfg.balls ? remCell(s.total, ballTotals(u, repAt(u, k).values || {}), unitBalls(u)) : s.total}</td><td>${esc(u.form.sections[0].title)}</td>` : '<td colspan="2" class="miss">ยังไม่รายงาน</td>'}</tr>`; })).join('')}</table></div></div>`;
 
   const grpRow = (label, k, list) => { const rs = list.map(u => repAt(u, k)).filter(Boolean), st = rs.flatMap(r => r.staff || []).filter(x => x.tag !== 'ออกหน่วย');
     const c = r => st.filter(x => asRN(x.role) === r).length, red = rs.reduce((a, r) => { const d = r.reduce || {}; return a + num(d.RN) + num(d.PN) + num(d.NA); }, 0);
@@ -2671,6 +2686,7 @@ const SUMMARY_VIEW = {
   ER: { 'ยอดผู้รับบริการ': { title: 'ยอดผู้รับบริการทั้งหมด', lead: 'total' }, 'OPD Case แบ่งตามประเภท (Triage)': { title: 'แยกตามประเภท Triage', nosum: true } },
   EENT: { 'ยอดผู้ป่วย': { title: 'จำนวนคนไข้ทั้งหมด', lead: 'total', nosum: true } },
   OPD1: { 'ยอดรวม': { title: 'ยอดรวม Med+Psy', lead: 'total' }, 'ผู้ป่วยอายุรกรรม': { lead: 'med' }, 'ผู้ป่วยจิตเวช': { lead: 'psy' } },
+  OR: { 'ยอดผ่าตัด': { ballTotal: 'total' }, 'ส่งมาจากหน่วยงาน': { skipEmpty: true } },
   CCC: {
     'ลูกค้าตรวจสุขภาพ': { units: true, skipEmpty: true },
     'ลูกค้าตรวจก่อนเข้างาน': { title: 'Total ตรวจก่อนเข้างาน', lead: 'total', units: true },
@@ -2693,14 +2709,14 @@ function printLines(u, r, withInc) {
       s.rows.forEach(rw => { const parts = s.cols.map(c => [c[1], num(v[rw[0] + '_' + c[0]])]).filter(x => x[1]); const t = parts.reduce((a, x) => a + x[1], 0); grp(`<b>${esc(rw[1])} ${t}</b>`, [parts.map(x => esc(x[0]) + ' ' + x[1]).join(', ')]); });
       return;
     }
-    const calcs = [], vw = (SUMMARY_VIEW[u.code] || {})[s.title] || {}, btxt = ballList(ballTotals(u, v));
+    const calcs = [], vw = (SUMMARY_VIEW[u.code] || {})[s.title] || {}, btxt = ballList(ballTotals(u, v), false, unitBalls(u));
     const items = s.fields.filter(f => f.type !== 'text').map(f => {
       if (f.key === vw.lead) return '';
       const val = fieldValue(u, v, f);
       if (f.type === 'time') return val ? `${esc(f.label)} ${esc(val)} น.` : '';
-      if (f.calc) { calcs.push(`<b>${esc(f.label)} ${val}</b>${f.key === 'remain' && btxt ? ' (' + btxt + ')' : ''}`); return ''; }
+      if (f.calc) { calcs.push(`<b>${esc(f.label)} ${val}</b>${(f.key === 'remain' || f.key === vw.ballTotal) && btxt ? ' (' + btxt + ')' : ''}`); return ''; }
       if (!num(val)) return '';
-      return `${esc(f.label)} ${val}${s.categories || (vw.units && f.unit) ? ' ' + esc(s.categories ? 'ราย' : f.unit) : ''}${s.categories && ballText(v, f.key) ? ' (' + ballText(v, f.key) + ')' : ''}${f.pctOf && num(v[f.pctOf]) ? ` (${(num(val) / num(v[f.pctOf]) * 100).toFixed(1)}%)` : ''}${f.note && v[f.key + '_note'] ? ' (' + esc(v[f.key + '_note']) + ')' : ''}`;
+      return `${esc(f.label)} ${val}${s.categories || (vw.units && f.unit) ? ' ' + esc(s.categories ? (s.catUnit || 'ราย') : f.unit) : ''}${s.categories && ballText(v, f.key, s.balls) ? ' (' + ballText(v, f.key, s.balls) + ')' : ''}${f.pctOf && num(v[f.pctOf]) ? ` (${(num(val) / num(v[f.pctOf]) * 100).toFixed(1)}%)` : ''}${f.note && v[f.key + '_note'] ? ' (' + esc(v[f.key + '_note']) + ')' : ''}`;
     }).filter(Boolean);
     const lf = vw.lead && s.fields.find(f => f.key === vw.lead), lv = lf ? fieldValue(u, v, lf) : '';
     const head = (u.form.sections.length > 1 || vw.title ? esc(vw.title || s.title) : '') + (lf && lv !== undefined && lv !== '' ? ` ${lv} ${esc(lf.unit || '')}` : '') + (s.sum && !vw.nosum ? ` ${esc(s.sum)} ${sectionSum(s, v)}` : '');

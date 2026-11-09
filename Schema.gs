@@ -31,6 +31,8 @@ const O2_MODES = ['Room air', 'Cannula', 'Mask', 'ET tube', 'HF'];
 
 // ลูกบอลสีของผู้ป่วยคงพยาบาลแต่ละประเภท (เขียว เหลือง ส้ม แดง) เก็บในช่อง <ประเภท>_g / _y / _o / _r
 const BALLS = [['g', 'เขียว'], ['y', 'เหลือง'], ['o', 'ส้ม'], ['r', 'แดง']];
+// ห้องผ่าตัดใช้ลูกบอลแค่ 2 สี (แสดง Major ก่อน Minor): แดง = ผ่าตัดใหญ่ (Major) · เขียว = ผ่าตัดเล็ก (Minor) (section.balls ใช้แทน BALLS ได้)
+const OR_BALLS = [['r', 'Major'], ['g', 'Minor']];
 
 const STD_LABELS = {
   total: 'ผู้ป่วยทั้งหมด', admit: 'Admit', refer: 'Refer',
@@ -214,14 +216,14 @@ const FORMS = {
   LR: { draft: true, std: { total: ['nl', 'cs'] }, sections: [{ title: 'การคลอด', fields: [N_('nl', 'คลอดปกติ'), N_('cs', 'ผ่าคลอด')] }] },
   NB: { draft: true, std: { total: 'nb' }, sections: [{ title: 'ทารกแรกเกิด', fields: [N_('nb', 'ทารกแรกเกิด'), N_('nb_adm', 'Admit ตึกเด็ก')] }] },
   'ไตเทียม': { draft: true, std: { total: 'hd' }, sections: [{ title: 'ไตเทียม', fields: [N_('hd', 'ฟอกเลือด (HD)'), N_('hd_new', 'ผู้ป่วยรายใหม่')] }] },
-  // ห้องผ่าตัด ตามสถิติรายเดือนของหน่วย: ยอดรวม = Major + Minor · Emergency = เคสฉุกเฉิน · OPD/IPD = หน่วยที่ส่งมา · ที่เหลือ = สิทธิการรักษาของแต่ละเคส
+  // ห้องผ่าตัด ตามสถิติรายเดือนของหน่วย: ยอดรวม = Major + Minor (ลูกบอลแดง = Major, เขียว = Minor ของแต่ละแผนก)
+  // Emergency + Elective ต้องเท่ากับยอดรวม · ส่งมาจาก OPD/IPD · สิทธิการรักษาของแต่ละเคส
   OR: { std: { total: 'total' }, sections: [
-    { title: 'ยอดผ่าตัด', fields: [Object.assign(N_('total', 'ยอดรวม (Major + Minor)', 'เคส'), { calc: { plus: ['mj_obs', 'mj_gyn', 'mj_surg', 'mj_ortho', 'mj_scope', 'mj_ent', 'mj_cvt', 'mj_pla', 'mj_neuro', 'mj_uro', 'mj_eye', 'mj_ivf_opu', 'mj_tese', 'mj_med', 'mj_ane', 'mn_gyn', 'mn_surg', 'mn_ortho', 'mn_scope', 'mn_eent', 'mn_cvt', 'mn_pla', 'mn_uro', 'mn_eye', 'mn_ivf_fet', 'mn_xray', 'mn_ane'], minus: [] } })] },
-    { title: 'ผ่าตัดใหญ่ (Major)', sum: 'รวม Major', fields: [N_('mj_obs', 'OBS'), N_('mj_gyn', 'GYN'), N_('mj_surg', 'SURG'), N_('mj_ortho', 'ORTHO'), N_('mj_scope', 'SCOPE'), N_('mj_ent', 'ENT'), N_('mj_cvt', 'CVT'), N_('mj_pla', 'PLASTIC'), N_('mj_neuro', 'NEURO'), N_('mj_uro', 'URO'), N_('mj_eye', 'EYE'), N_('mj_ivf_opu', 'IVF OPU'), N_('mj_tese', 'TESE'), N_('mj_med', 'MED'), N_('mj_ane', 'ANE')] },
-    { title: 'ผ่าตัดเล็ก (Minor)', sum: 'รวม Minor', fields: [N_('mn_gyn', 'GYN'), N_('mn_surg', 'SURG'), N_('mn_ortho', 'ORTHO'), N_('mn_scope', 'SCOPE'), N_('mn_eent', 'EENT'), N_('mn_cvt', 'CVT'), N_('mn_pla', 'PLASTIC'), N_('mn_uro', 'URO'), N_('mn_eye', 'EYE'), N_('mn_ivf_fet', 'IVF FET'), N_('mn_xray', 'X-RAY'), N_('mn_ane', 'ANE')] },
-    { title: 'ส่งมาจากหน่วยงาน', fields: [N_('src_opd', 'ผู้ป่วยนอก (OPD)'), N_('src_ipd', 'ผู้ป่วยใน (IPD)')] },
-    { title: 'สิทธิการรักษา', sum: 'รวม', fields: [N_('r_self', 'ทั่วไป'), N_('r_ins', 'ประกันชีวิต'), N_('r_fund', 'กองทุน'), N_('r_contract', 'Contract'), N_('r_act', 'พรบ.'), N_('r_ucep', 'UCEP'), N_('r_welfare', 'สวัสดิการ')] },
-    { title: 'Emergency', fields: [N_('emergency', 'Emergency')] }
+    { title: 'ยอดผ่าตัด', fields: [Object.assign(N_('total', 'ยอดรวม (Major + Minor)', 'เคส'), { calc: { plus: ['obs', 'gyn', 'surg', 'ortho', 'scope', 'ent', 'cvt', 'pla', 'neuro', 'uro', 'eye', 'ivf', 'tese', 'med', 'xray', 'ane'], minus: [] } })] },
+    { title: 'Emergency / Elective', sum: 'รวม', sumEq: 'total', fields: [N_('emergency', 'Emergency case', 'เคส'), N_('elective', 'Elective case', 'เคส')] },
+    { title: 'ผ่าตัดแยกตามแผนก', categories: true, additive: true, balls: OR_BALLS, catUnit: 'เคส', sum: 'รวม', fields: [N_('obs', 'OBS', 'เคส'), N_('gyn', 'GYN', 'เคส'), N_('surg', 'SURG', 'เคส'), N_('ortho', 'ORTHO', 'เคส'), N_('scope', 'SCOPE', 'เคส'), N_('ent', 'ENT', 'เคส'), N_('cvt', 'CVT', 'เคส'), N_('pla', 'PLASTIC', 'เคส'), N_('neuro', 'NEURO', 'เคส'), N_('uro', 'URO', 'เคส'), N_('eye', 'EYE', 'เคส'), N_('ivf', 'IVF (OPU / FET)', 'เคส'), N_('tese', 'TESE', 'เคส'), N_('med', 'MED', 'เคส'), N_('xray', 'X-RAY', 'เคส'), N_('ane', 'ANE', 'เคส')] },
+    { title: 'ส่งมาจากหน่วยงาน', fields: [N_('src_opd', 'ผู้ป่วยนอก (OPD)', 'เคส'), N_('src_ipd', 'ผู้ป่วยใน (IPD)', 'เคส')] },
+    { title: 'สิทธิการรักษา', sum: 'รวม', fields: [N_('r_self', 'ทั่วไป', 'เคส'), N_('r_ins', 'ประกันชีวิต', 'เคส'), N_('r_fund', 'กองทุน', 'เคส'), N_('r_contract', 'Contract', 'เคส'), N_('r_act', 'พรบ.', 'เคส'), N_('r_ucep', 'UCEP', 'เคส'), N_('r_welfare', 'สวัสดิการ', 'เคส')] }
   ] },};
 
 // ผู้ป่วยนอกที่ยังไม่มีแบบฟอร์มจริง
@@ -246,6 +248,11 @@ function stdValues_(form, vals) {
     out[k] = (Array.isArray(spec) ? spec : [spec]).reduce((a, key) => a + fieldNum_(form, vals || {}, key), 0);
   });
   return out;
+}
+// ลูกบอลสีของแบบฟอร์ม: ใช้ของหมวดที่ระบุ balls ไว้ ไม่งั้นใช้ BALLS มาตรฐาน
+function formBalls_(form) {
+  const sec = form.sections.find(x => x.categories && x.balls);
+  return sec ? sec.balls : BALLS;
 }
 function ballValues_(form, vals) {
   const out = { g: 0, y: 0, o: 0, r: 0 };
