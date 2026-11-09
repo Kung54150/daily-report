@@ -335,7 +335,6 @@
   td .rem > span { font-weight: 700; }
   .sumtabs { margin-bottom: 12px; }
   .seg.sumtabs { position: sticky; top: var(--stickTop, 98px); box-shadow: 0 2px 6px rgba(0,0,0,.12); }
-  .a4.printonly { display: none; }
   .lstadd { display: grid; gap: 8px; }
   .addn { display: flex; gap: 8px; }
   .addn input { width: 110px; flex: 0 0 auto; }
@@ -345,6 +344,9 @@
   @media (min-width: 720px) { .slines { columns: 2; column-gap: 24px; } }
   .a4 .ubgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 8mm; align-items: start; }
   .a4 .ubgrid .ub { min-width: 0; }
+  /* ตัวอย่างบนจอ: เส้นประแสดงจุดขึ้นหน้าใหม่ของหน้าพิมพ์ (ไม่ใช้ตอนพิมพ์/บันทึกไฟล์) */
+  @media screen { .a4:not(.saving) .pgbreak { border-top: 2px dashed #9aa; margin-top: 18px; padding-top: 14px; position: relative; }
+    .a4:not(.saving) .pgbreak::before { content: 'ขึ้นหน้าใหม่ ↓'; position: absolute; top: -9px; right: 0; background: #fff; color: #789; font-size: 8pt; padding: 0 4px; } }
   .a4 .opsplit { display: grid; grid-template-columns: 1fr 1fr; gap: 0 3mm; align-items: start; }
   .a4 .opsplit > div { min-width: 0; }
   .a4 .evh { font-weight: 700; font-size: 9.5pt; color: #111; margin: 6px 0 2px; }
@@ -429,7 +431,7 @@
 
   /* ===== A4 print ===== */
   .a4-scroll { overflow-x: auto; }
-  .a4 { width: 210mm; min-height: 297mm; margin: 0 auto; background: #fff; color: #111; padding: 12mm 12mm; font: 10pt/1.4 var(--print); box-shadow: 0 2px 12px rgba(0,0,0,.15); }
+  .a4 { width: 210mm; min-height: 297mm; margin: 0 auto; background: #fff; color: #111; padding: 25mm 10mm 15mm; font: 10pt/1.4 var(--print); box-shadow: 0 2px 12px rgba(0,0,0,.15); }
   .a4 h1 { font-size: 15pt; margin: 0; text-align: center; }
   .a4 .d { text-align: center; margin-bottom: 6px; }
   .a4 .st { font-size: 9.5pt; margin-bottom: 6px; }
@@ -2629,6 +2631,7 @@ async function reportCanvases() {
     if (document.fonts && document.fonts.ready) await document.fonts.ready;
     for (const p of pages) {
       const c = p.cloneNode(true);
+      c.classList.add('saving');
       c.style.cssText = 'display:block;width:190mm;min-height:0;margin:0;padding:0;box-shadow:none;background:#fff';
       box.appendChild(c);
       await Promise.all(Array.from(c.querySelectorAll('img')).map(i => i.decode ? i.decode().catch(() => {}) : 0));
@@ -2774,9 +2777,8 @@ function renderPrint() {
     } finally { S.date = saveDate; S.dayRaw = saveRaw; }
     if (!pages.length) return bar + '<div class="card muted fit">ไม่มีรายงานในช่วงวันที่ที่เลือก</div>';
   }
-  const note = scope === 'all' && kind === 'month' ? 'หน้านี้แสดงภาพรวมทั้งเดือน — เมื่อกดพิมพ์หรือบันทึกไฟล์ ระบบจะเพิ่มรายงานรายเดือนของแต่ละหน่วยงานที่มีรายงานต่อท้ายด้วย'
-    : scope === 'all' ? 'หน้านี้แสดงเฉพาะภาพรวมยอดและอัตรากำลัง \u2014 เมื่อกดพิมพ์ ระบบจะพิมพ์หน้ารายงานแยกรายหน่วยงาน (ยอด อัตรากำลัง และสรุปเหตุการณ์ของแต่ละแผนก) นำหน้าด้วย' : '';
-  return bar + (note ? `<div class="note noprint">${note}</div>` : '') + `<div class="a4-scroll">${pages.map(p => typeof p === 'string' ? `<div class="a4">${p}</div>` : `<div class="a4${p.printonly ? ' printonly' : ''}">${p.html}</div>`).join('')}</div>`;
+  const note = 'ตัวอย่างตรงกับที่พิมพ์/บันทึกไฟล์ (ขอบกระดาษเท่ากัน) \u00b7 จุดตัดหน้าจริงอาจต่างเล็กน้อยตามเบราว์เซอร์';
+  return bar + `<div class="muted noprint" style="font-size:12px;margin:0 0 6px">${note}</div>` + `<div class="a4-scroll">${pages.map(p => typeof p === 'string' ? `<div class="a4">${p}</div>` : `<div class="a4${p.printonly ? ' printonly' : ''}">${p.html}</div>`).join('')}</div>`;
 }
 
 // ภาพรวมรายเดือนทุกหน่วยงาน: ยอดรวมทั้งเดือนของแต่ละหน่วยงาน (ยอดยกมา/คงพยาบาลแสดงค่าเฉลี่ยต่อเวร)
