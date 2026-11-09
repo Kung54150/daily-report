@@ -247,6 +247,27 @@ function getDay(token, date) {
   return { reports }; // { หน่วยงาน: { Day: รายงาน, Night: รายงาน } }
 }
 
+// รายงานหลายวัน (from..to ไม่เกิน 31 วัน) สำหรับพิมพ์รายวันแบบเลือกช่วงวันที่ — รูปแบบเดียวกับ getDay แยกตามวัน
+function getRange(token, from, to) {
+  const me = auth_(token);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(from)) || !/^\d{4}-\d{2}-\d{2}$/.test(String(to))) throw new Error('วันที่ไม่ถูกต้อง');
+  if (to < from) throw new Error('วันที่สิ้นสุดต้องไม่ก่อนวันที่เริ่มต้น');
+  if ((Date.parse(to) - Date.parse(from)) / 864e5 > 30) throw new Error('เลือกได้ไม่เกิน 31 วัน');
+  const myZone = me.role === 'unit' ? (GROUPS.find(g => g.units.indexOf(me.unit) >= 0) || { units: [me.unit] }).units : [];
+  const days = {};
+  sheet_(SH_REPORTS).getDataRange().getValues().slice(1).forEach(r => {
+    const d = fmtDate_(r[0]);
+    if (d < from || d > to) return;
+    const code = String(r[1]);
+    if (me.role === 'unit' && code !== me.unit && myZone.indexOf(code) < 0) return;
+    const rep = JSON.parse(r[4]), sh = rowShift_(r[5], rep.shift);
+    rep.shift = sh;
+    if (me.role === 'unit' && myZone.indexOf(code) < 0) { rep.incidents = []; rep.cases = []; }
+    ((days[d] = days[d] || {})[code] = days[d][code] || {})[sh] = rep;
+  });
+  return { days };
+}
+
 // รายงานทั้งเดือนของหน่วยงานเดียว (month = yyyy-mm) — หน่วยงานดูได้เฉพาะของตนเอง
 function getMonth(token, month, unit) {
   const me = auth_(token);

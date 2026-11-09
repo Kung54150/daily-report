@@ -476,6 +476,14 @@
   .a4 table.stat tr.sub td { background: #f3f5f5; font-weight: 600; }
   .a4 tr.tot td { background: #e4e9e9; font-weight: 700; }
   .a4 .foot { font-size: 8pt; color: #555; margin-top: 3px; }
+  .pbar { margin-bottom: 4px; }
+  .pbar .seg button { white-space: nowrap; }
+  .prow { display: flex; gap: 10px; align-items: end; margin-bottom: 10px; flex-wrap: wrap; }
+  .prow.nowrap { flex-wrap: nowrap; }
+  .prow select { min-width: 0; }
+  .daterange { display: flex; gap: 8px; align-items: end; flex-wrap: nowrap; }
+  .daterange > div { flex: 1 1 150px; min-width: 0; }
+  .daterange .dash { padding-bottom: 12px; color: var(--muted); }
   .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
   .seg button { border: 0; background: var(--surface); padding: 8px 12px; cursor: pointer; color: var(--muted); }
   .seg button.on { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
@@ -2558,8 +2566,8 @@ async function saveReportFile(fmt) {
   if (S.pendingAtt > 0) return toast('กำลังโหลดไฟล์แนบ รอสักครู่แล้วกดบันทึกอีกครั้ง');
   if (!document.querySelector('.a4-scroll > .a4')) return toast('ยังไม่มีรายงานให้บันทึก รอให้ข้อมูลโหลดก่อน');
   const scope = S.me.role === 'unit' ? S.me.unit : (S.printScope || 'all');
-  const kind = S.printKind || 'day';
-  const base = 'daily-report_' + (/^[\w-]+$/.test(scope) ? scope : 'unit') + '_' + (kind === 'month' ? (S.printMonth || S.date.slice(0, 7)) : S.date);
+  const kind = S.printKind || 'day', rg = printRange();
+  const base = 'daily-report_' + (/^[\w-]+$/.test(scope) ? scope : 'unit') + '_' + (kind === 'month' ? (S.printMonth || S.date.slice(0, 7)) : rg.from === rg.to ? rg.from : rg.from + '_to_' + rg.to);
   Busy.start('กำลังสร้างไฟล์ ' + (fmt === 'jpg' ? 'JPG' : 'PDF') + '...', true);
   try {
     await loadLib('h2c', 'https:\/\/cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', () => window.html2canvas);
@@ -2582,23 +2590,45 @@ async function saveReportFile(fmt) {
   } catch (e) { toast('บันทึกไฟล์ไม่สำเร็จ: ' + (e && e.message ? e.message : e)); }
   finally { Busy.end(); }
 }
+function buildDayPages(scope, sign) {
+  if (scope === 'all') return [{ html: printUnits(), printonly: true }, printOverview() + printIncidents() + sign];
+  return shiftsOf(unitCfg(scope)).map(k => printSingle(unitCfg(scope), k) + sign);
+}
+const datesBetween = (from, to) => { const out = []; for (let d = from; d <= to && out.length < 40; d = shiftDate(d, 1)) out.push(d); return out; };
+async function loadRange(from, to) {
+  const key = from + '|' + to;
+  if (S.rangeLoading === key) return;
+  S.rangeLoading = key;
+  try { S.rangeData = { key, days: (await api('getRange', S.token, from, to)).days }; }
+  catch (e) { S.rangeData = { key, days: {} }; handleErr(e); }
+  S.rangeLoading = null;
+  if (S.tab === 'print') render();
+}
+// ช่วงวันที่ที่จะพิมพ์ (ตั้งต้น = วันที่บนแถบวันที่; เปลี่ยนวันที่บนแถบแล้วช่วงจะตามไป)
+function printRange() {
+  if (S.printBase !== S.date) { S.printFrom = S.printTo = null; S.printBase = S.date; }
+  const from = S.printFrom || S.date;
+  return { from, to: S.printTo && S.printTo >= from ? S.printTo : from };
+}
 function renderPrint() {
   const viewer = S.me.role !== 'unit';
   const scope = viewer ? (S.printScope || 'all') : S.me.unit;
-  const kind = S.printKind || 'day', month = S.printMonth || S.date.slice(0, 7);
+  const mode = scope === 'all' ? 'all' : 'unit';
+  const kind = S.printKind || 'day', month = S.printMonth || S.date.slice(0, 7), { from, to } = printRange();
   const inFrame = !(window.google && google.script);
   const sign = '<div class="sign">ลงชื่อ ........................................ ผู้สรุปรายงาน<br>(........................................)</div>';
-  const bar = `<div class="noprint" style="display:flex;gap:10px;align-items:end;margin-bottom:12px;flex-wrap:wrap">
-      ${viewer ? `<div style="flex:0 1 260px"><label class="f" for="p_scope">พิมพ์</label>
-        <select id="p_scope"><option value="all">รายงานทั้งหมด (แยกหน่วยงาน + ภาพรวม + เหตุการณ์ผิดปกติ)</option>
-        ${unitOptgroups(scope, 'เฉพาะหน่วยงาน \u00b7 ')}</select></div>` : ''}
-      <div style="flex:0 1 170px"><label class="f" for="p_kind">ประเภท</label><select id="p_kind">
-        <option value="day"${kind === 'day' ? ' selected' : ''}>รายวัน (${esc(fmtDMY(S.date))})</option><option value="month"${kind === 'month' ? ' selected' : ''}>รายเดือน</option></select></div>
-      ${kind === 'month' ? `<div style="flex:0 1 160px"><label class="f" for="p_month">เดือน</label><input type="month" id="p_month" value="${esc(month)}"></div>` : ''}
-      <button type="button" class="btn" data-act="print">พิมพ์</button>
-      <div style="flex:0 1 110px"><label class="f" for="p_fmt">ไฟล์</label><select id="p_fmt"><option value="pdf"${S.saveFmt !== 'jpg' ? ' selected' : ''}>PDF</option><option value="jpg"${S.saveFmt === 'jpg' ? ' selected' : ''}>JPG</option></select></div>
-      <button type="button" class="btn ghost" data-act="savefile">บันทึกเป็นไฟล์</button>
-      <span class="muted" style="font-size:13px">${inFrame ? 'ในหน้าตัวอย่างนี้ปุ่มพิมพ์ใช้ไม่ได้ ในแอปจริงจะเปิดหน้าต่างพิมพ์ของเครื่อง' : 'พิมพ์: กระดาษ A4 แนวตั้ง \u00b7 บันทึกไฟล์: PDF 1 ไฟล์ หรือ JPG แยกไฟล์ละหน้า'}</span></div>`;
+  const segBtn = (attr, val, on, text) => `<button type="button" ${attr}="${val}" class="${on ? 'on' : ''}">${text}</button>`;
+  const bar = `<div class="noprint pbar">
+    ${viewer ? `<div class="prow"><div><label class="f">พิมพ์</label><div class="seg">${segBtn('data-pmode', 'all', mode === 'all', 'ทุกแผนก')}${segBtn('data-pmode', 'unit', mode === 'unit', 'รายแผนก')}</div></div>
+      ${mode === 'unit' ? `<div style="flex:0 1 220px"><label class="f" for="p_scope">แผนก</label><select id="p_scope">${unitOptgroups(scope)}</select></div>` : ''}</div>` : ''}
+    <div class="prow"><div><label class="f">ประเภท</label><div class="seg">${segBtn('data-pkind', 'day', kind === 'day', 'รายวัน')}${segBtn('data-pkind', 'month', kind === 'month', 'รายเดือน')}</div></div></div>
+    <div class="prow">${kind === 'month'
+      ? `<div style="flex:0 1 170px"><label class="f" for="p_month">เดือน</label><input type="month" id="p_month" value="${esc(month)}"></div>`
+      : `<div class="daterange"><div><label class="f" for="p_from">วันที่</label><input type="date" id="p_from" value="${esc(from)}"></div><span class="dash">–</span><div><label class="f" for="p_to">ถึงวันที่</label><input type="date" id="p_to" value="${esc(to)}"></div></div>`}
+      <button type="button" class="btn" data-act="print">พิมพ์</button></div>
+    <div class="prow nowrap"><div><label class="f" for="p_fmt">บันทึกเป็นไฟล์</label><select id="p_fmt"><option value="pdf"${S.saveFmt !== 'jpg' ? ' selected' : ''}>PDF</option><option value="jpg"${S.saveFmt === 'jpg' ? ' selected' : ''}>JPG</option></select></div>
+      <button type="button" class="btn ghost" data-act="savefile">บันทึกเป็นไฟล์</button></div>
+    <div class="muted" style="font-size:13px;margin-bottom:8px">${inFrame ? 'ในหน้าตัวอย่างนี้ปุ่มพิมพ์ใช้ไม่ได้ ในแอปจริงจะเปิดหน้าต่างพิมพ์ของเครื่อง' : 'พิมพ์: กระดาษ A4 แนวตั้ง · บันทึกไฟล์: PDF 1 ไฟล์ หรือ JPG แยกไฟล์ละหน้า · รายวันเลือกได้สูงสุด 31 วัน'}</div></div>`;
   let pages;
   if (kind === 'month') {
     const key = scope + '|' + month;
@@ -2608,9 +2638,24 @@ function renderPrint() {
       const byU = {}; reps.forEach(r => (byU[r.unit] = byU[r.unit] || []).push(r));
       pages = [printMonthlyAll(month, reps) + sign].concat(S.cfg.units.filter(u => byU[u.code]).map(u => ({ html: printMonthly(u, month, byU[u.code]) + sign, printonly: true })));
     } else pages = [printMonthly(unitCfg(scope), month, reps) + sign];
-  } else if (scope === 'all') pages = [{ html: printUnits(), printonly: true }, printOverview() + printIncidents() + sign];
-  else pages = shiftsOf(unitCfg(scope)).map(k => printSingle(unitCfg(scope), k) + sign);
-  return bar + (scope === 'all' && kind === 'month' ? '<div class="note noprint">หน้านี้แสดงภาพรวมทั้งเดือน \u2014 เมื่อกดพิมพ์หรือบันทึกไฟล์ ระบบจะเพิ่มรายงานรายเดือนของแต่ละหน่วยงานที่มีรายงานต่อท้ายด้วย</div>' : '') + (scope === 'all' && kind === 'day' ? '<div class="note noprint">หน้านี้แสดงเฉพาะภาพรวมและเหตุการณ์ผิดปกติ \u2014 เมื่อกดพิมพ์ ระบบจะพิมพ์หน้ารายงานแยกรายหน่วยงานนำหน้าด้วย (ไม่ต้องแสดงซ้ำกับหน้าสรุป)</div>' : '') + `<div class="a4-scroll">${pages.map(p => typeof p === 'string' ? `<div class="a4">${p}</div>` : `<div class="a4${p.printonly ? ' printonly' : ''}">${p.html}</div>`).join('')}</div>`;
+  } else if (from === S.date && to === S.date) pages = buildDayPages(scope, sign);
+  else {
+    const key = from + '|' + to;
+    if (!S.rangeData || S.rangeData.key !== key) { loadRange(from, to); return bar + '<div class="card muted fit">กำลังโหลดรายงาน...</div>'; }
+    const saveDate = S.date, saveRaw = S.dayRaw;
+    pages = [];
+    try {
+      datesBetween(from, to).forEach(d => {
+        const raw = S.rangeData.days[d];
+        if (!raw || (to !== from && !Object.keys(raw).length)) return; // ข้ามวันที่ไม่มีรายงานเลย
+        S.date = d; S.dayRaw = raw; pages = pages.concat(buildDayPages(scope, sign));
+      });
+    } finally { S.date = saveDate; S.dayRaw = saveRaw; }
+    if (!pages.length) return bar + '<div class="card muted fit">ไม่มีรายงานในช่วงวันที่ที่เลือก</div>';
+  }
+  const note = scope === 'all' && kind === 'month' ? 'หน้านี้แสดงภาพรวมทั้งเดือน — เมื่อกดพิมพ์หรือบันทึกไฟล์ ระบบจะเพิ่มรายงานรายเดือนของแต่ละหน่วยงานที่มีรายงานต่อท้ายด้วย'
+    : scope === 'all' ? 'หน้านี้แสดงเฉพาะภาพรวมและเหตุการณ์ผิดปกติ — เมื่อกดพิมพ์ ระบบจะพิมพ์หน้ารายงานแยกรายหน่วยงานนำหน้าด้วย (ไม่ต้องแสดงซ้ำกับหน้าสรุป)' : '';
+  return bar + (note ? `<div class="note noprint">${note}</div>` : '') + `<div class="a4-scroll">${pages.map(p => typeof p === 'string' ? `<div class="a4">${p}</div>` : `<div class="a4${p.printonly ? ' printonly' : ''}">${p.html}</div>`).join('')}</div>`;
 }
 
 // ภาพรวมรายเดือนทุกหน่วยงาน: ยอดรวมทั้งเดือนของแต่ละหน่วยงาน (ยอดยกมา/คงพยาบาลแสดงค่าเฉลี่ยต่อเวร)
@@ -3031,9 +3076,22 @@ function bindView() {
   v.querySelectorAll('[data-vshift]').forEach(b => b.onclick = () => { S.vshift = b.dataset.vshift; S.day = { reports: deriveReports(S.vshift) }; render(); });
   v.querySelectorAll('[data-mshift]').forEach(b => b.onclick = () => { S.shift = b.dataset.mshift; render(); });
   v.querySelectorAll('[data-sub]').forEach(b => { if (!S.editing) b.onclick = () => { S.sub = b.dataset.sub; render(); }; });
-  if ($('p_scope')) $('p_scope').onchange = () => { S.printScope = $('p_scope').value; render(); };
+  if ($('p_scope')) $('p_scope').onchange = () => { S.printScope = S.printLastUnit = $('p_scope').value; render(); };
+  v.querySelectorAll('[data-pmode]').forEach(b => b.onclick = () => { S.printScope = b.dataset.pmode === 'all' ? 'all' : (S.printLastUnit || S.cfg.units[0].code); render(); });
+  v.querySelectorAll('[data-pkind]').forEach(b => b.onclick = () => { S.printKind = b.dataset.pkind; render(); });
+  if ($('p_from')) $('p_from').onchange = () => {
+    if (!$('p_from').value) return;
+    S.printFrom = $('p_from').value; if (!S.printTo || S.printTo < S.printFrom) S.printTo = S.printFrom;
+    if (datesBetween(S.printFrom, S.printTo).length > 31) { S.printTo = shiftDate(S.printFrom, 30); toast('เลือกได้ไม่เกิน 31 วัน'); }
+    render();
+  };
+  if ($('p_to')) $('p_to').onchange = () => {
+    if (!$('p_to').value) return;
+    const f = printRange().from; S.printFrom = f; S.printTo = $('p_to').value < f ? f : $('p_to').value;
+    if (datesBetween(f, S.printTo).length > 31) { S.printTo = shiftDate(f, 30); toast('เลือกได้ไม่เกิน 31 วัน'); }
+    render();
+  };
   if ($('p_fmt')) $('p_fmt').onchange = () => { S.saveFmt = $('p_fmt').value; };
-  if ($('p_kind')) $('p_kind').onchange = () => { S.printKind = $('p_kind').value; render(); };
   if ($('p_month')) $('p_month').onchange = () => { if ($('p_month').value) { S.printMonth = $('p_month').value; render(); } };
   v.querySelectorAll('[data-unit].ucard').forEach(b => b.onclick = () => (b.dataset.unit === S.me.unit ? go('mine') : go('all', b.dataset.unit)));
   v.querySelectorAll('[data-sact]').forEach(b => b.onclick = () => staffAction(b.dataset.sact, b.dataset.id, b.dataset.unit));
