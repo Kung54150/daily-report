@@ -68,6 +68,9 @@ const HPC_ITEMS = [
   ['welfare', 'สวัสดิการรักษาพนักงานโรงพยาบาล'], ['est', 'ให้บริการตรวจ Exercise Stress Test'], ['ekg', 'ให้บริการตรวจ EKG'],
   ['free', 'ไม่มีค่าใช้จ่าย'], ['other', 'อื่นๆ', 'ระบุรายการ']
 ];
+// เครื่องนึ่ง/อบ แยกเป็นหม้อ แต่ละหม้อมี Lot (เริ่มต้น minLots Lot กดเพิ่ม Lot เองได้) ค่าเก็บเป็น { รหัสหม้อ: [จำนวนแต่ละ Lot] }
+const LOTS_ = (key, title, prefix, totalKey, pots, minLots) => ({ title, type: 'lots', key, prefix, totalKey, totalLabel: 'รวม ' + prefix, unit: 'ชิ้น', minLots: minLots || 3,
+  pots: pots.map(x => ({ k: x[0], label: x[1] })), fields: [] });
 const N_ = (key, label, unit) => ({ key, label, unit: unit || 'ราย' });
 const TX_ = (key, label) => ({ key, label, type: 'text' });
 const TM_ = (key, label) => ({ key, label, type: 'time' });
@@ -215,6 +218,12 @@ const FORMS = {
   ICU: { staffSlot: true, std: IPD_STD, sections: [ICU_CENSUS, { title: 'ประเภทผู้ป่วยคงพยาบาล', categories: true, fields: ADULT_MIX, sum: 'รวม' }, IPD_ROOMS] },
   LR: { draft: true, std: { total: ['nl', 'cs'] }, sections: [{ title: 'การคลอด', fields: [N_('nl', 'คลอดปกติ'), N_('cs', 'ผ่าคลอด')] }] },
   NB: { draft: true, std: { total: 'nb' }, sections: [{ title: 'ทารกแรกเกิด', fields: [N_('nb', 'ทารกแรกเกิด'), N_('nb_adm', 'Admit ตึกเด็ก')] }] },
+  // CSSD: ST = นึ่งด้วยไอน้ำ 4 หม้อ · EO = อบแก๊ส 1 หม้อ · ยอดรวม = ST + EO (ชิ้น)
+  CSSD: { std: { total: 'total' }, sections: [
+    { title: 'ยอดรวม', fields: [Object.assign(N_('total', 'ยอดรวม (ST + EO)', 'ชิ้น'), { calc: { plus: ['st_total', 'eo_total'], minus: [] } })] },
+    LOTS_('st', 'ST (ST/Pe vacuum) \u00b7 นึ่งด้วยไอน้ำ', 'ST', 'st_total', [['p1', 'หม้อ1'], ['p2', 'หม้อ2'], ['p3', 'หม้อ3'], ['p4', 'หม้อ4']]),
+    LOTS_('eo', 'EO (EO) \u00b7 อบแก๊ส', 'EO', 'eo_total', [['p1', 'หม้อ1']])
+  ] },
   'ไตเทียม': { draft: true, std: { total: 'hd' }, sections: [{ title: 'ไตเทียม', fields: [N_('hd', 'ฟอกเลือด (HD)'), N_('hd_new', 'ผู้ป่วยรายใหม่')] }] },
   // ห้องผ่าตัด ตามสถิติรายเดือนของหน่วย: ยอดรวม = Major + Minor (ลูกบอลแดง = Major, เขียว = Minor ของแต่ละแผนก)
   // Emergency + Elective ต้องเท่ากับยอดรวม · ส่งมาจาก OPD/IPD · สิทธิการรักษาของแต่ละเคส
@@ -232,7 +241,7 @@ const OPD_DRAFT = { draft: true, std: { total: 'total', admit: 'admit', refer: '
 const GROUPS = [
   { key: 'OPD', name: 'ผู้ป่วยนอก', units: ['OPD1', 'OPD3', 'ER', 'HPC', 'CCC', 'OBG-IVF', 'PC', 'EENT', 'Dent'] },
   { key: 'IPD', name: 'ผู้ป่วยใน', units: ['A4', 'A5', 'A6', 'B3', 'B4', 'B5', 'C3', 'C4', 'C5'] },
-  { key: 'SPU', name: 'Special Unit', units: ['ICU', 'LR', 'NB', 'ไตเทียม', 'OR'] }
+  { key: 'SPU', name: 'Special Unit', units: ['ICU', 'LR', 'NB', 'ไตเทียม', 'OR', 'CSSD'] }
 ];
 
 // ===== คำนวณยอด (ใช้ทั้งเซิร์ฟเวอร์และหน้าเว็บ — หน้าเว็บมีสำเนาใน Index.html) =====

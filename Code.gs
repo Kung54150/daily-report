@@ -301,6 +301,19 @@ function saveReport(token, rep) {
     if (rows.length) values[s.key] = rows;
     values[s.totalKey] = rows.reduce((a, r) => a + r.n, 0);
   });
+  // CSSD: หม้อนึ่ง/อบ แต่ละหม้อมีหลาย Lot; เก็บเป็นจำนวนเต็ม (ช่องว่าง = null) แล้วคำนวณยอดรวมเอง
+  form.sections.filter(s => s.type === 'lots').forEach(s => {
+    const src = (rep.values || {})[s.key] || {}, out = {};
+    let total = 0;
+    s.pots.forEach(p => {
+      const arr = (Array.isArray(src[p.k]) ? src[p.k] : []).slice(0, 40).map(x => (x == null || String(x).trim() === '' || isNaN(Number(x))) ? null : Math.max(0, Math.floor(Number(x))));
+      while (arr.length > s.minLots && arr[arr.length - 1] === null) arr.pop();
+      if (arr.some(x => x !== null) || arr.length > s.minLots) out[p.k] = arr;
+      total += arr.reduce((a, x) => a + (x || 0), 0);
+    });
+    if (Object.keys(out).length) values[s.key] = out;
+    values[s.totalKey] = total;
+  });
   // ทันตกรรม: รายชื่อแพทย์ + จำนวนเคส + หัตถการของแต่ละท่าน; ยอดรวมผู้รับบริการ = ผลรวมเคสของแพทย์ทุกท่าน
   form.sections.filter(s => s.type === 'docs').forEach(s => {
     const docs = [];
@@ -427,6 +440,9 @@ function statRows_(u, rep) {
     if (d.n) rows.push(row('ผู้รับบริการรายแพทย์', d.name || '(ไม่ระบุชื่อ)', d.n));
     (d.rows || []).forEach(r => { const it = s.items.find(i => i.k === r.k); rows.push(row('หัตถการ', (it && it.custom ? r.name : it ? it.label : r.k) + ' \u00b7 ' + (d.name || ''), r.n)); });
   }));
+  u.form.sections.filter(s => s.type === 'lots').forEach(s => s.pots.forEach(p => (((rep.values || {})[s.key] || {})[p.k] || []).forEach((n, i) => {
+    if (n !== null && n !== '' && n !== undefined) rows.push(row('ปราศจากเชื้อ (Lot)', s.prefix + ' ' + p.label + ' Lot' + (i + 1), n));
+  })));
   Object.entries(categoryValues_(u.form, rep.values)).forEach(([k, n]) => rows.push(row('ประเภทผู้ป่วย', k, n)));
   const bv = ballValues_(u.form, rep.values);
   const fb = formBalls_(u.form);
