@@ -13,12 +13,13 @@
  * CATEGORIES = จัดกลุ่มประเภทผู้ป่วยคงพยาบาลของทุกตึกให้นับรวมกันได้
  */
 
-const ROLES = ['หัวหน้า', 'RN', 'PN', 'NA', 'นศ.']; // ตำแหน่งในเวร (ไม่มี "อื่นๆ"); หัวหน้านับรวมเป็น RN ในตารางอัตรากำลัง
+const ROLES = ['หัวหน้า', 'RN', 'PN', 'NA', 'เจ้าหน้าที่', 'EMT', 'นศ.']; // ตำแหน่งในเวร (ไม่มี "อื่นๆ"); หัวหน้านับรวมเป็น RN ในตารางอัตรากำลัง
 const ROLE_ALIASES = {
   'พยาบาลวิชาชีพ': 'RN', 'rn': 'RN',
   'ผู้ช่วยพยาบาล': 'PN', 'pn': 'PN',
   'ผู้ช่วยเหลือผู้ป่วย': 'NA', 'na': 'NA',
-  'นักศึกษาพยาบาล': 'นศ.', 'นศ.ฝึกงานพยาบาล': 'นศ.'
+  'นักศึกษาพยาบาล': 'นศ.', 'นศ.ฝึกงานพยาบาล': 'นศ.',
+  'emt': 'EMT', 'เจ้าหน้าที่ฉุกเฉินการแพทย์': 'EMT'
 };
 const DUTY_TAGS = ['Inc.', 'POC', 'Clerk', 'Cc', 'ออกหน่วย'];
 const SHIFTS = ['Day', 'Night'];
@@ -226,13 +227,15 @@ const FORMS = {
   ] },
   // ไตเทียม (HEM): ยอดคนไข้ HD / HDF แยกรอบ 1-2 · ยอดรวม = HD + HDF = ผลรวมแยกตามสิทธิ์ · Complication during HD (รายการประจำ + พิมพ์เพิ่มได้) ระบบรวมให้
   'ไตเทียม': { std: { total: 'total' }, sections: [
-    { title: 'ยอดรวม', hint: 'Total = HD + HDF (รอบ 1 + รอบ 2)', fields: [
-      Object.assign(N_('total', 'Total', 'คน'), { calc: { plus: ['r1_hd', 'r1_hdf', 'r2_hd', 'r2_hdf'], minus: [] } }),
-      Object.assign(N_('hd', 'HD', 'คน'), { calc: { plus: ['r1_hd', 'r2_hd'], minus: [] } }),
-      Object.assign(N_('hdf', 'HDF', 'คน'), { calc: { plus: ['r1_hdf', 'r2_hdf'], minus: [] } })
+    { title: 'ยอดรวม', hint: 'Total = HD + HDF ของทุกรอบ (รอบ 1, 2 และรอบเพิ่มเติม)', fields: [
+      Object.assign(N_('total', 'Total', 'คน'), { calc: { plus: ['r1_hd', 'r1_hdf', 'r2_hd', 'r2_hdf', 'rx_hd', 'rx_hdf'], minus: [] } }),
+      Object.assign(N_('hd', 'HD', 'คน'), { calc: { plus: ['r1_hd', 'r2_hd', 'rx_hd'], minus: [] } }),
+      Object.assign(N_('hdf', 'HDF', 'คน'), { calc: { plus: ['r1_hdf', 'r2_hdf', 'rx_hdf'], minus: [] } })
     ] },
     { title: 'รอบ 1', fields: [N_('r1_hd', 'HD', 'คน'), N_('r1_hdf', 'HDF', 'คน'), Object.assign(N_('r1', 'รวมรอบ 1', 'คน'), { calc: { plus: ['r1_hd', 'r1_hdf'], minus: [] } })] },
     { title: 'รอบ 2', fields: [N_('r2_hd', 'HD', 'คน'), N_('r2_hdf', 'HDF', 'คน'), Object.assign(N_('r2', 'รวมรอบ 2', 'คน'), { calc: { plus: ['r2_hd', 'r2_hdf'], minus: [] } })] },
+    // rounds = รอบที่ 3 ขึ้นไป กด "+ เพิ่มรอบ" เอง (เก็บ [{ hd, hdf }] ยอดรวม HD/HDF ของรอบเหล่านี้อยู่ในช่อง hdKey / hdfKey)
+    { title: 'รอบเพิ่มเติม', hint: 'ถ้าวันนี้มีมากกว่า 2 รอบ กด + เพิ่มรอบ', rounds: { key: 'rx', startAt: 3, hdKey: 'rx_hd', hdfKey: 'rx_hdf', addLabel: 'เพิ่มรอบ' }, fields: [] },
     { title: 'แยกตามสิทธิ์', sum: 'รวม', sumEq: 'total', fields: [
       N_('r_cgd', 'กรมบัญชีกลาง (รูดบัตร)', 'คน'), N_('r_bkk', 'ข้าราชการ กทม.', 'คน'), N_('r_local', 'ข้าราชการ อปท.', 'คน'),
       N_('r_sso', 'ประกันสังคม', 'คน'), N_('r_uc', 'สปสช. (Authen ครบ)', 'คน'), N_('r_other', 'รัฐวิสาหกิจ / เงินสด', 'คน')

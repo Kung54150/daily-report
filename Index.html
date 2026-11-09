@@ -484,6 +484,7 @@
   .a4 .foot { font-size: 8pt; color: #555; margin-top: 3px; }
   /* แถบตั้งค่าหน้าพิมพ์: ทุกตัวควบคุมสูงเท่ากัน (32px) ป้ายชื่ออยู่ซ้ายแนวเดียวกัน เพื่อให้เล็ก ชิด ตรงบรรทัด บนมือถือ */
   .xrow { grid-template-columns: 1fr 84px 32px; }
+  .rrow { grid-template-columns: 1fr 72px 72px 32px; }
   .xdel { border: 0; background: transparent; color: var(--muted); font-size: 20px; line-height: 1; cursor: pointer; padding: 4px; }
   .pbar { margin-bottom: 2px; }
   .prow { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; flex-wrap: wrap; }
@@ -1261,14 +1262,14 @@ function subTabs(r) {
   const incN = r ? (r.incidents || []).length : 0;
   const docN = r ? (r.doctors || []).filter(x => !x.off).length : 0;
   const badge = { staff: staffN, doctor: docN ? String(docN) : '', incident: incN ? String(incN) : '' };
-  const opd = !!(r && r.unit && isOpdUnit(r.unit));
+  const opd = !!(r && r.unit && hasDoctors(r.unit));
   return `<div class="seg" role="tablist">${SUBS.filter(([k]) => !(others && k === 'incident') && !(k === 'doctor' && !opd)).map(([k, t0]) => { const t = k === 'patient' && itemsUnit(r && r.unit) ? 'รายงานยอดชิ้นงาน' : t0; return `<button type="button" role="tab" data-sub="${k}" class="${S.sub === k ? 'on' : ''}${k === 'incident' && incN ? ' alert' : ''}">${t}${badge[k] ? `<small>${esc(badge[k])}</small>` : ''}</button>`; }).join('')}</div>`;
 }
 
 // รายงานผู้ป่วยนอก: แยกตำแหน่งชัดเจน แพทย์ / พยาบาล (RN) / PN / NA / นศ. / ไม่ระบุ  (นับไม่รวมคนที่ออกหน่วย)
-const OPD_STAFF_GROUPS = [['พยาบาล (RN)', ['RN', 'หัวหน้า']], ['PN/NA', ['PN', 'NA']], ['นศ.', ['นศ.']]];
+const OPD_STAFF_GROUPS = [['พยาบาล (RN)', ['RN', 'หัวหน้า']], ['PN/NA', ['PN', 'NA']], ['เจ้าหน้าที่', ['เจ้าหน้าที่']], ['EMT', ['EMT']], ['นศ.', ['นศ.']]];
 function opdGroups(r, nameFn) {
-  const staff = r.staff || [], docs = r.doctors || [], out = [];
+  const staff = r.staff || [], docs = hasDoctors(r.unit) ? (r.doctors || []) : [], out = [];
   if (docs.length) out.push({ label: 'แพทย์', n: docs.filter(x => !x.off).length, unit: 'ท่าน', items: docs.map(x => ({ text: esc(x.name) + (x.time ? ' ' + esc(x.time) : '') + (x.off ? ' (งด)' : ''), off: !!x.off })) });
   const known = OPD_STAFF_GROUPS.flatMap(g => g[1]);
   const subsCfg = ((unitCfg(r.unit) || {}).form || {}).staffSubs;
@@ -1312,7 +1313,7 @@ const doctorsViewHtml = r => `<div class="card"><h3>แพทย์ออกต�
 /* ===== มุมมองอ่านอย่างเดียว ===== */
 function renderReportView(u, r) {
   if (S.me.role === 'unit' && r.unit && !sameZone(r.unit) && S.sub === 'incident') S.sub = 'patient';
-  if (S.sub === 'doctor' && !isOpdUnit(r.unit || u.code)) S.sub = 'staff';
+  if (S.sub === 'doctor' && !hasDoctors(r.unit || u.code)) S.sub = 'staff';
   const v = r.values || {};
   let body = '';
   if (S.sub === 'patient') {
@@ -1325,6 +1326,7 @@ function renderReportView(u, r) {
         return `<div class="card"><h3>${esc(s.title)}</h3><div class="grid-scroll"><table class="g"><tr><th></th>${s.cols.map(c => `<th>${esc(c[1])}</th>`).join('')}<th>รวม</th></tr>
           ${s.rows.map(rw => { const vals = s.cols.map(c => v[rw[0] + '_' + c[0]]); return `<tr><td>${esc(rw[1])}</td>${vals.map(x => `<td class="num">${show(x)}</td>`).join('')}<td class="num"><b>${vals.reduce((a, x) => a + num(x), 0)}</b></td></tr>`; }).join('')}</table></div></div>`;
       }
+      if (s.rounds) return (v[s.rounds.key] || []).length ? `<div class="card"><h3>${esc(s.title)}</h3><div class="kv">${(v[s.rounds.key] || []).map((r, i) => `<div>รอบ ${s.rounds.startAt + i}</div><div class="v">HD ${num(r.hd)} \u00b7 HDF ${num(r.hdf)}</div>`).join('')}</div></div>` : '';
       const rows = s.fields.map(f => {
         const val = fieldValue(u, v, f);
         if (f.type === 'text') return `<div class="full"><span class="muted">${esc(f.label)}</span><br><span class="pre">${show(val)}</span></div>`;
@@ -1429,6 +1431,7 @@ function mountForm() {
         }
       });
       if (s.fields.some(f => f.rooms)) pat += `<div style="margin-top:8px"><button type="button" class="btn ghost sm" data-roomedit>\u270e แก้ไขรายการห้อง (เลขห้อง / ชื่อ)</button></div><div id="room_editor"></div>`;
+      if (s.rounds) pat += `<div data-rounds="${esc(s.rounds.key)}"><button type="button" class="btn ghost sm" data-radd style="margin-top:6px">+ ${esc(s.rounds.addLabel || 'เพิ่ม')}</button></div>`;
       if (s.extra) pat += `<div data-extra="${esc(s.extra.key)}"><button type="button" class="btn ghost sm" data-xadd style="margin-top:6px">+ ${esc(s.extra.addLabel || 'เพิ่ม')}</button></div>`;
       if (s.sum) pat += `<div class="sumline"><span>${esc(s.sum)}</span><span class="num" data-sum="${si}">0</span></div>`;
       if (s.sumEq) pat += `<div class="remwarn" data-sumwarn="${si}"></div>`;
@@ -1452,9 +1455,9 @@ function mountForm() {
   const inc = `<div id="fm_incs"></div><button type="button" class="addinc" id="fm_addinc">+ เพิ่มเหตุการณ์ผิดปกติ</button>`;
 
   $('view').innerHTML = `<div id="fm_tabs"></div>
-    <div data-panel="patient">${pat}</div><div data-panel="staff">${staff}</div><div data-panel="doctor">${isOpd ? docs : ''}</div><div data-panel="incident">${inc}</div>`;
-  renderStaffPicker(); renderDoctors(); renderIncidents(); renderCases(); renderRoomPickers(); renderLists(); renderDocs(); renderLots(); safeExtras(); S.overWarned = false; recalc(true); showSub();
-  if (isOpd) loadDoctors(false);
+    <div data-panel="patient">${pat}</div><div data-panel="staff">${staff}</div><div data-panel="doctor">${hasDoctors(euUnit()) ? docs : ''}</div><div data-panel="incident">${inc}</div>`;
+  renderStaffPicker(); renderDoctors(); renderIncidents(); renderCases(); renderRoomPickers(); renderLists(); renderDocs(); renderLots(); safeExtras(); safeRounds(); S.overWarned = false; recalc(true); showSub();
+  if (hasDoctors(euUnit())) loadDoctors(false);
   $('fm_addinc').onclick = () => {
     d.incidents.push({ type: S.cfg.problemTypes[0], severity: '-', patient: '', age: '', hn: '', time: '', doctor: '', bp: '', pr: '', rr: '', temp: '', spo2: '', o2mode: 'Room air', o2flow: '', detail: '', action: '' });
     S.dirty = true; renderIncidents(); showSub();
@@ -1568,6 +1571,29 @@ function renderLists() {
   });
 }
 // แถวที่กด "+ เพิ่ม" เอง (เช่น Complication อื่นๆ): พิมพ์ชื่อ (แนะนำชื่อที่เคยใช้) + จำนวน กด × ลบแถว ยอดรวมคำนวณให้
+// รอบที่ 3 ขึ้นไป (ไตเทียม): กด "+ เพิ่มรอบ" ได้เอง แต่ละรอบกรอก HD / HDF กด × ลบรอบ ยอดรวมของวันคำนวณให้
+function safeRounds() {
+  try { renderRounds(); }
+  catch (e) { console.error('renderRounds', e); document.querySelectorAll('[data-rounds]').forEach(b => b.insertAdjacentHTML('beforeend', `<div class="muted" style="font-size:12px;color:var(--bad)">แสดงปุ่มเพิ่มรอบไม่สมบูรณ์: ${esc(e && e.message ? e.message : e)}</div>`)); }
+}
+function renderRounds() {
+  const v = S.draft.values;
+  document.querySelectorAll('[data-rounds]').forEach(box => {
+    const s = unitCfg(euUnit()).form.sections.find(x => x.rounds && x.rounds.key === box.dataset.rounds), rd = s.rounds;
+    const rows = v[rd.key] = v[rd.key] || [], sum = k => rows.reduce((a, r) => a + num(r[k]), 0);
+    const upd = () => { v[rd.hdKey] = sum('hd'); v[rd.hdfKey] = sum('hdf'); };
+    upd();
+    const sync = () => { upd(); S.dirty = true; recalc(true); box.querySelectorAll('[data-rtot]').forEach(el => { const r = rows[+el.dataset.rtot]; if (r) el.textContent = num(r.hd) + num(r.hdf); }); };
+    box.innerHTML = rows.map((r, i) => `<div class="frow rrow"><span class="lab">รอบ ${rd.startAt + i} <small>รวม <b data-rtot="${i}">${num(r.hd) + num(r.hdf)}</b> คน</small></span>
+        <input type="number" inputmode="numeric" min="0" step="1" data-rhd="${i}" value="${esc(r.hd ?? '')}" placeholder="HD" aria-label="HD รอบ ${rd.startAt + i}">
+        <input type="number" inputmode="numeric" min="0" step="1" data-rhdf="${i}" value="${esc(r.hdf ?? '')}" placeholder="HDF" aria-label="HDF รอบ ${rd.startAt + i}"><button type="button" class="xdel" data-rdel="${i}" aria-label="ลบรอบ">\u00d7</button></div>`).join('')
+      + `<button type="button" class="btn ghost sm" data-radd style="margin-top:6px">+ ${esc(rd.addLabel || 'เพิ่ม')}</button>`;
+    box.querySelectorAll('[data-rhd]').forEach(inp => inp.oninput = () => { rows[+inp.dataset.rhd].hd = inp.value === '' ? '' : Math.max(0, Math.floor(num(inp.value))); sync(); });
+    box.querySelectorAll('[data-rhdf]').forEach(inp => inp.oninput = () => { rows[+inp.dataset.rhdf].hdf = inp.value === '' ? '' : Math.max(0, Math.floor(num(inp.value))); sync(); });
+    box.querySelectorAll('[data-rdel]').forEach(b => b.onclick = () => { rows.splice(+b.dataset.rdel, 1); sync(); renderRounds(); });
+    box.querySelector('[data-radd]').onclick = () => { rows.push({ hd: '', hdf: '' }); S.dirty = true; renderRounds(); const el = box.querySelector(`[data-rhd="${rows.length - 1}"]`); if (el) el.focus(); };
+  });
+}
 // ถ้าสร้างแถวเพิ่มเองไม่ได้ ให้แสดงสาเหตุในกล่องนั้นแทนที่จะเงียบ (ช่วยหาสาเหตุบนระบบจริง)
 function safeExtras() {
   try { renderExtras(); }
@@ -1910,6 +1936,8 @@ const dutyPos = (s, unit) => posU(unit, s.pos || (() => { const r = S.staff.find
 const posU = (unit, p) => ((unitCfg(unit) || {}).group === 'OPD' && (p === 'PN' || p === 'NA') ? 'PN/NA' : p);
 // ผู้ป่วยนอก: เวลาทำงานของแต่ละคน (เริ่ม-เลิก 24 ชม.) และจำนวนชั่วโมง
 const isOpdUnit = code => (unitCfg(code) || {}).group === 'OPD';
+// แท็บ/รายการแพทย์ออกตรวจ: ผู้ป่วยนอกเท่านั้น และไม่รวมหน่วยที่ตั้ง noDoctors (เช่น CCC)
+const hasDoctors = code => isOpdUnit(code) && !((unitCfg(code) || {}).form || {}).noDoctors;
 const toMin = t => { const m = /^(\d\d):(\d\d)$/.exec(t || ''); return m ? +m[1] * 60 + +m[2] : null; };
 const spanHours = (f, t) => { const a = toMin(f), b = toMin(t); return a === null || b === null ? 0 : ((b - a + 1440) % 1440 || 1440) / 60; };
 const workHours = s => (s.slots && s.slots.length ? s.slots.reduce((a, x) => a + spanHours(x.from, x.to), 0) : spanHours(s.from, s.to));
@@ -1982,7 +2010,7 @@ const docKey = n => String(n || '').replace(/^(?:ทพญ|ทพ|ทญ|นพ|
 const docFromSched = e => ({ name: e.name, time: e.time, sheet: e.sheet, text: e.text, off: !!e.off });
 async function loadDoctors(merge) {
   const d = S.draft, unit = euUnit();
-  if (!isOpdUnit(unit)) return;
+  if (!hasDoctors(unit)) return;
   let r;
   try { r = await (merge ? api : apiRaw)('getDocSchedule', S.token, unit, S.date); } catch (e) { if (merge) handleErr(e); return; }
   if (!S.editing || S.draft !== d) return;
@@ -2785,6 +2813,9 @@ function printMonthly(u, month, reps) {
     const lines = [];
     if (s.type === 'docs') {
       reps.forEach(r => (( r.values || {})[s.key] || []).forEach(d => { const nm = d.name || '(ไม่ระบุชื่อ)'; lines.push([nm + ' (เคส)', num(d.n)]); (d.rows || []).forEach(x => lines.push([listLabel(s.items.find(i => i.k === x.k), x) + ' \u00b7 ' + nm, num(x.n)])); }));
+    } else if (s.rounds) {
+      const hd = reps.reduce((a, r) => a + num((r.values || {})[s.rounds.hdKey]), 0), hdf = reps.reduce((a, r) => a + num((r.values || {})[s.rounds.hdfKey]), 0);
+      if (hd) lines.push(['รอบเพิ่มเติม HD', hd]); if (hdf) lines.push(['รอบเพิ่มเติม HDF', hdf]);
     } else if (s.extra && s.fields.length) {
       s.fields.forEach(f => { if (f.type || f.calc || stdKeys.has(f.key)) return; const n = reps.reduce((a, r) => a + num((r.values || {})[f.key]), 0); if (n) lines.push([f.label, n]); });
       const agg = {}; reps.forEach(r => ((r.values || {})[s.extra.key] || []).forEach(x => { agg[x.name] = (agg[x.name] || 0) + num(x.n); }));
@@ -2978,9 +3009,10 @@ const SUMMARY_VIEW = {
   OPD1: { 'ยอดรวม': { title: 'ยอดรวม Med+Psy', lead: 'total' }, 'ผู้ป่วยอายุรกรรม': { lead: 'med' }, 'ผู้ป่วยจิตเวช': { lead: 'psy' } },
   OR: { 'ยอดผ่าตัด': { ballTotal: 'total' }, 'ส่งมาจากหน่วยงาน': { skipEmpty: true } },
   'ไตเทียม': {
-    'ยอดรวม': { title: 'Total', lead: 'total' },
-    'รอบ 1': { lead: 'r1', units: true },
-    'รอบ 2': { lead: 'r2', units: true },
+    // compact = บรรทัดเดียวแบบ "รอบ 1 = 11 คน (HD = 11, HDF = 0)" (ช่องแรก = ยอดรวม ที่เหลือ = รายละเอียดในวงเล็บ)
+    'ยอดรวม': { title: 'Total', compact: ['total', 'hd', 'hdf'] },
+    'รอบ 1': { title: 'รอบ 1', compact: ['r1', 'r1_hd', 'r1_hdf'], hideZero: true },
+    'รอบ 2': { title: 'รอบ 2', compact: ['r2', 'r2_hd', 'r2_hdf'], hideZero: true },
     'แยกตามสิทธิ์': { units: true, skipEmpty: true },
     'Complication during HD': { lead: 'comp_total', units: true }
   },
@@ -3019,7 +3051,14 @@ function printLines(u, r, withInc, forPrint, split) {
       s.rows.forEach(rw => { const parts = s.cols.map(c => [c[1], num(v[rw[0] + '_' + c[0]])]).filter(x => x[1]); const t = parts.reduce((a, x) => a + x[1], 0); if (split && !t) return; grp(`<b>${esc(rw[1])} ${t}</b>`, [parts.map(x => esc(x[0]) + ' ' + x[1]).join(', ')]); });
       return;
     }
+    if (s.rounds) { (v[s.rounds.key] || []).forEach((r, i) => { const t = num(r.hd) + num(r.hdf); if (t) grp(`<b>รอบ ${s.rounds.startAt + i} = ${t} คน</b> (HD = ${num(r.hd)}, HDF = ${num(r.hdf)})`, []); }); return; }
     const calcs = [], vw = (SUMMARY_VIEW[u.code] || {})[s.title] || {}, btxt = ballList(ballTotals(u, v), false, unitBalls(u));
+    if (vw.compact) {
+      const fs = vw.compact.map(k => s.fields.find(f => f.key === k)), val = f => num(fieldValue(u, v, f));
+      if (vw.hideZero && !val(fs[0])) return;
+      grp(`<b>${esc(vw.title || s.title)} = ${val(fs[0])} ${esc(fs[0].unit || '')}</b> (${fs.slice(1).map(f => `${esc(f.label)} = ${val(f)}`).join(', ')})`, []);
+      return;
+    }
     const items = s.fields.filter(f => f.type !== 'text').map(f => {
       if (f.key === vw.lead) return '';
       const val = fieldValue(u, v, f);
