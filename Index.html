@@ -1273,8 +1273,8 @@ function subTabs(r) {
   return `<div class="seg" role="tablist">${SUBS.filter(([k]) => !(others && k === 'incident') && !(k === 'doctor' && !opd)).map(([k, t0]) => { const t = k === 'patient' && itemsUnit(r && r.unit) ? 'รายงานยอดชิ้นงาน' : t0; return `<button type="button" role="tab" data-sub="${k}" class="${S.sub === k ? 'on' : ''}${k === 'incident' && incN ? ' alert' : ''}">${t}${badge[k] ? `<small>${esc(badge[k])}</small>` : ''}</button>`; }).join('')}</div>`;
 }
 
-// รายงานผู้ป่วยนอก: แยกตำแหน่งชัดเจน แพทย์ / พยาบาล (RN) / PN / NA / นศ. / ไม่ระบุ  (นับไม่รวมคนที่ออกหน่วย)
-const OPD_STAFF_GROUPS = [['พยาบาล (RN)', ['RN', 'หัวหน้า']], ['PN/NA', ['PN', 'NA']], ['เจ้าหน้าที่', ['เจ้าหน้าที่']], ['EMT', ['EMT']], ['นศ.', ['นศ.']]];
+// รายงานผู้ป่วยนอก: แยกตำแหน่งชัดเจน แพทย์ / พยาบาล (RN) / PN / NA / Part time / ไม่ระบุ  (นับไม่รวมคนที่ออกหน่วย)
+const OPD_STAFF_GROUPS = [['พยาบาล (RN)', ['RN', 'หัวหน้า']], ['PN/NA', ['PN', 'NA']], ['เจ้าหน้าที่', ['เจ้าหน้าที่']], ['EMT', ['EMT']], ['Part time', ['Part time']]];
 function opdGroups(r, nameFn) {
   const staff = r.staff || [], docs = hasDoctors(r.unit) ? (r.doctors || []) : [], out = [];
   if (docs.length) out.push({ label: 'แพทย์', n: docs.filter(x => !x.off).length, unit: 'ท่าน', items: docs.map(x => ({ text: esc(x.name) + (x.time ? ' ' + esc(x.time) : '') + (x.off ? ' (งด)' : ''), off: !!x.off })) });
@@ -2449,7 +2449,7 @@ function builtinRole(raw) {
   if (up === 'RN' || up === 'PN' || up === 'NA') return up;
   if (/ผู้ช่วยพยาบาล|ผู้ช่วยการพยาบาล|ช่วยการพยาบาล/.test(t)) return 'PN';
   if (/ผู้ช่วยเหลือ|ช่วยเหลือคนไข้|ช่วยเหลือผู้ป่วย/.test(t)) return 'NA';
-  if (/นักศึกษา|^นศ/.test(t)) return '\u0e19\u0e28.';
+  if (/part\s*-?\s*time|พาร์ท\s*ไทม์/i.test(t)) return 'Part time';
   if (/^(รักษาการ)?\s*หัวหน้า/.test(t)) return 'หัวหน้า';
   if (/ผู้ช่วยหัวหน้า|ผู้ช่วยผู้จัดการ|ผู้จัดการ/.test(t)) return 'RN';
   if (/^พยาบาล|^พว\.?$/.test(t)) return 'RN';
@@ -3178,7 +3178,7 @@ function renderTitleCard() {
   if (!gs.length && !noTitle) return '';
   S.titleSel = S.titleSel || {};
   return `<div class="card"><h3>จับคู่ตำแหน่งงานกับบทบาท <span class="sub">ตำแหน่งที่ระบบไม่รู้จัก ${gs.filter(o => !(normTitle(o.title) in S.titleMap)).length} ตำแหน่ง</span></h3>
-    <p class="muted" style="margin:0 0 8px;font-size:14px">เลือกบทบาท (หัวหน้า / RN / PN / NA / นศ.) ให้แต่ละตำแหน่งในไฟล์ แล้วกด "บันทึกการจับคู่" รายชื่อที่มีตำแหน่งนี้จะเปลี่ยนทันที และการอัปโหลดครั้งต่อไปใช้ตามที่เลือก (หัวหน้า/ผู้ช่วยหัวหน้าแผนกถูกจัดเป็น RN ให้อัตโนมัติอยู่แล้ว)</p>
+    <p class="muted" style="margin:0 0 8px;font-size:14px">เลือกบทบาท (หัวหน้า / RN / PN / NA / เจ้าหน้าที่ / EMT / Part time) ให้แต่ละตำแหน่งในไฟล์ แล้วกด "บันทึกการจับคู่" รายชื่อที่มีตำแหน่งนี้จะเปลี่ยนทันที และการอัปโหลดครั้งต่อไปใช้ตามที่เลือก (หัวหน้า/ผู้ช่วยหัวหน้าแผนกถูกจัดเป็น RN ให้อัตโนมัติอยู่แล้ว)</p>
     ${noTitle ? `<div class="note">มี ${noTitle} คนที่อัปโหลดไว้ก่อนระบบเก็บตำแหน่ง \u2014 อัปโหลดไฟล์รายชื่อซ้ำอีก 1 ครั้งเพื่อให้จับคู่ตำแหน่งได้ครบ</div>` : ''}
     <div class="binding">${gs.map(o => {
       const bound = normTitle(o.title) in S.titleMap, sel = o.title in S.titleSel ? S.titleSel[o.title] : o.cur;
