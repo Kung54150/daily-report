@@ -652,7 +652,7 @@ setTimeout(function () {
       <span class="dlabel" id="d_label"></span>
     </div>
     <div id="view"></div>
-    <div class="noprint muted" id="buildtag" style="text-align:center;font-size:11px;padding:8px 0 4px">หน้าเว็บ build 2026-11-10 #86</div>
+    <div class="noprint muted" id="buildtag" style="text-align:center;font-size:11px;padding:8px 0 4px">หน้าเว็บ build 2026-11-10 #87</div>
   </main>
   <div class="savebar" id="savebar" hidden><div class="wrap">
     <span class="msg" id="sb_msg"></span>
@@ -2128,6 +2128,38 @@ async function prepAttachment(file) {
 }
 async function getAtt(id) { if (!S.att[id]) S.att[id] = await api('getAttachment', S.token, id); return S.att[id]; }
 const attChip = (f, editable, i, k, cs) => `<span class="att"><button type="button" class="open" data-attview="${esc(f.id)}" data-attname="${esc(f.name)}" data-attmime="${esc(f.mime)}">${f.mime === 'application/pdf' ? 'PDF' : 'รูป'} ${esc(f.name)}</button><small>${fmtSize(f.size || 0)}</small>${editable ? `<button type="button" class="x" data-attdel${cs ? 'c' : ''}="${i}:${k}" aria-label="เอาไฟล์ออก">\u00d7</button>` : ''}</span>`;
+
+/* ===== กดลูกศร ขึ้น/ลง เพื่อย้ายไปช่องกรอกก่อนหน้า/ถัดไป (ใช้กับทุกหน้าที่มีช่องกรอก) =====
+   ไม่แย่งหน้าที่ของ: ช่องเลือก (select) ช่องที่มีรายการแนะนำ (datalist) ช่องวันที่/เวลา และ textarea (เลื่อนบรรทัด) ยกเว้นเคอร์เซอร์อยู่ต้น/ท้ายข้อความ */
+const NAV_TYPES = ['text', 'number', 'tel', 'search', 'email', 'password', 'url'];
+function navFields(scope) {
+  return Array.from(scope.querySelectorAll('input, textarea, select')).filter(el => {
+    if (el.disabled || el.readOnly || el.hidden || el.tabIndex < 0) return false;
+    if (el.tagName === 'INPUT' && NAV_TYPES.indexOf(el.type) < 0) return false;
+    return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+  });
+}
+document.addEventListener('keydown', e => {
+  if ((e.key !== 'ArrowDown' && e.key !== 'ArrowUp') || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || e.isComposing || e.defaultPrevented) return;
+  const el = e.target; if (!el || !el.tagName) return;
+  const tag = el.tagName;
+  if (tag === 'SELECT' || (tag !== 'INPUT' && tag !== 'TEXTAREA')) return;
+  if (tag === 'INPUT' && (NAV_TYPES.indexOf(el.type) < 0 || el.getAttribute('list'))) return;
+  const down = e.key === 'ArrowDown';
+  if (tag === 'TEXTAREA') {
+    const v = el.value, s = el.selectionStart, en = el.selectionEnd;
+    if (down ? (en !== v.length) : (s !== 0)) return;
+  }
+  const scope = el.closest('#labdlg, #settings, #login') || document.getElementById('view') || document;
+  const list = navFields(scope), i = list.indexOf(el);
+  if (i < 0) return;
+  const next = list[i + (down ? 1 : -1)];
+  e.preventDefault();
+  if (!next) return;
+  next.focus();
+  try { if (next.tagName === 'TEXTAREA' || (next.tagName === 'INPUT' && next.type !== 'number')) { const n = next.value.length; next.setSelectionRange(down ? 0 : n, down ? 0 : n); } else next.select && next.select(); } catch (err) {}
+  if (next.scrollIntoView) next.scrollIntoView({ block: 'center', behavior: 'smooth' });
+});
 
 /* ===== ตัวช่วยพิมพ์ Lab ในรายละเอียดเหตุการณ์/เคส ===== */
 const labUnit = u => u ? ' ' + u : '';
