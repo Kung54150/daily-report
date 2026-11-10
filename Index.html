@@ -653,7 +653,7 @@ setTimeout(function () {
       <span class="dlabel" id="d_label"></span>
     </div>
     <div id="view"></div>
-    <div class="noprint muted" id="buildtag" style="text-align:center;font-size:11px;padding:8px 0 4px">หน้าเว็บ build 2026-11-10 #82</div>
+    <div class="noprint muted" id="buildtag" style="text-align:center;font-size:11px;padding:8px 0 4px">หน้าเว็บ build 2026-11-10 #83</div>
   </main>
   <div class="savebar" id="savebar" hidden><div class="wrap">
     <span class="msg" id="sb_msg"></span>
@@ -2145,7 +2145,7 @@ function labForm(k) {
   const rows = l.subs.length ? l.subs : [{ name: l.name, unit: l.unit }];
   $('lab_box').innerHTML = `<div class="lhead"><b>${esc(l.name)}</b><button type="button" class="btn ghost sm" data-labx aria-label="ปิด">\u00d7</button></div>
     ${rows.map((r, j) => `<div class="lrow"><label for="labv${j}">${esc(r.name)}</label><input id="labv${j}" data-labv="${j}" type="text" inputmode="decimal" autocomplete="off">${r.unit ? `<button type="button" class="lu" data-labu="${j}" aria-pressed="false" title="แตะเพื่อใส่หน่วยในข้อความ">${esc(r.unit)}</button>` : '<span></span>'}</div>`).join('')}
-    <div class="muted" style="font-size:12px;margin-top:6px">แตะหน่วยที่ต้องการให้แสดง (ไฮไลต์ = ใส่หน่วย) ถ้าไม่แตะ จะไม่ใส่หน่วยในข้อความ</div>
+    <div class="muted" style="font-size:12px;margin-top:6px">แตะหน่วยถ้าต้องการแสดงหน่วย</div>
     <div class="lact"><button type="button" class="btn" data-labadd>Add</button><button type="button" class="btn ghost" data-labback>\u2039 กลับ</button></div>`;
   const f = $('lab_box').querySelector('input'); if (f) f.focus();
 }
