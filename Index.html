@@ -652,7 +652,7 @@ setTimeout(function () {
       <span class="dlabel" id="d_label"></span>
     </div>
     <div id="view"></div>
-    <div class="noprint muted" id="buildtag" style="text-align:center;font-size:11px;padding:8px 0 4px">หน้าเว็บ build 2026-11-10 #84</div>
+    <div class="noprint muted" id="buildtag" style="text-align:center;font-size:11px;padding:8px 0 4px">หน้าเว็บ build 2026-11-10 #86</div>
   </main>
   <div class="savebar" id="savebar" hidden><div class="wrap">
     <span class="msg" id="sb_msg"></span>
@@ -2131,6 +2131,13 @@ const attChip = (f, editable, i, k, cs) => `<span class="att"><button type="butt
 
 /* ===== ตัวช่วยพิมพ์ Lab ในรายละเอียดเหตุการณ์/เคส ===== */
 const labUnit = u => u ? ' ' + u : '';
+// พิมพ์ต่อท้ายข้อความเดิมในบรรทัดเดียวกัน: เว้นวรรค 2 ช่อง + ครอบด้วย [ ] ให้เห็นขอบเขตชัดเจน แล้ววางเคอร์เซอร์ไว้ท้ายสุดให้พิมพ์ต่อได้
+function labAppend(ta, text) {
+  const cur = ta.value;
+  ta.value = cur + (!cur || /\s$/.test(cur) ? '' : '  ') + '[' + text + '] ';
+  ta.dispatchEvent(new Event('input', { bubbles: true }));
+  try { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } catch (e) {}
+}
 function labOpen(textarea) { S.labTa = textarea; $('labdlg').hidden = false; labList(); }
 function labClose() { $('labdlg').hidden = true; S.labTa = null; }
 function labList() {
@@ -2154,13 +2161,34 @@ function labAdd() {
   const parts = rows.map((r, j) => vals[j] ? (l.subs.length ? r.name + ' ' : '') + vals[j] + labUnit(r.unit) : '').filter(Boolean);
   if (!parts.length) { toast('กรอกตัวเลขอย่างน้อย 1 ช่อง'); return; }
   const text = l.subs.length ? l.name + ': ' + parts.join(', ') : l.name + ' ' + parts[0];
-  const cur = ta.value;
-  ta.value = cur ? cur + (/\s$/.test(cur) ? '' : '\n') + text : text;
-  ta.dispatchEvent(new Event('input', { bubbles: true }));
+  labAppend(ta, text);
   toast('เพิ่ม ' + l.name + ' แล้ว'); labList();
 }
+const VS_FIELDS = [['bp', 'BP', 'mmHg', 'text', '120/80'], ['pr', 'PR', 'ครั้ง/min', 'numeric'], ['rr', 'RR', 'ครั้ง/min', 'numeric'], ['temp', 'T', '\u00b0C', 'decimal'], ['spo2', 'O2 sat', '%', 'numeric'], ['o2', 'O2 ที่ให้', '', 'text', 'เช่น 3 LPM']];
+function vsOpen(textarea) {
+  S.labTa = textarea; $('labdlg').hidden = false;
+  const d = new Date(), now = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  $('lab_box').innerHTML = `<div class="lhead"><b>ช่วยพิมพ์ V/S</b><button type="button" class="btn ghost sm" data-labx aria-label="ปิด">\u00d7</button></div>
+    <div class="lrow"><label for="vst">เวลา</label><input id="vst" data-vst type="text" inputmode="numeric" maxlength="5" autocomplete="off" value="${now}"><span class="u">น.</span></div>
+    ${VS_FIELDS.map(([k, n, u, mode, ph]) => `<div class="lrow"><label for="vs_${k}">${n}</label><input id="vs_${k}" data-vsv="${k}" type="text" inputmode="${mode}" autocomplete="off"${ph ? ` placeholder="${ph}"` : ''}><span class="u">${esc(u)}</span></div>`).join('')}
+    <div class="lact"><button type="button" class="btn" data-vsadd>Add</button></div>`;
+  const f = $('lab_box').querySelector('[data-vsv]'); if (f) f.focus();
+}
+function vsAdd() {
+  const ta = S.labTa; if (!ta) return;
+  const tm = finishTime($('lab_box').querySelector('[data-vst]').value.trim());
+  if (!validTime(tm)) { toast('เวลาไม่ถูกต้อง ใช้ 24 ชม. เช่น 2030'); return; }
+  const parts = VS_FIELDS.map(([k, n, u]) => { const v = $('lab_box').querySelector(`[data-vsv="${k}"]`).value.trim(); return v ? n + ' ' + v + (u ? ' ' + u : '') : ''; }).filter(Boolean);
+  if (!parts.length) { toast('กรอกค่า V/S อย่างน้อย 1 ช่อง'); return; }
+  const text = 'V/S' + (tm ? ' ' + tm + ' น.' : '') + ': ' + parts.join(', ');
+  labAppend(ta, text);
+  toast('เพิ่ม V/S แล้ว'); labClose();
+}
+document.addEventListener('input', e => { const t = e.target; if (t.dataset && t.dataset.vst !== undefined) t.value = typingTime(t.value); });
 document.addEventListener('click', e => {
   const t = e.target.closest ? e.target : null; if (!t) return;
+  const vb = t.closest('[data-vsbtn]');
+  if (vb) { const cs = !!vb.dataset.labcs, ta = document.querySelector(`[${cs ? 'data-cs' : 'data-inc'}="${vb.dataset.vsbtn}:detail"]`); if (ta) vsOpen(ta); return; }
   const bt = t.closest('[data-labbtn]');
   if (bt) { const cs = !!bt.dataset.labcs, ta = document.querySelector(`[${cs ? 'data-cs' : 'data-inc'}="${bt.dataset.labbtn}:detail"]`); if (ta) labOpen(ta); return; }
   if ($('labdlg').hidden) return;
@@ -2168,8 +2196,9 @@ document.addEventListener('click', e => {
   else if (t.closest('[data-labpick]')) labForm(+t.closest('[data-labpick]').dataset.labpick);
   else if (t.closest('[data-labback]')) labList();
   else if (t.closest('[data-labadd]')) labAdd();
+  else if (t.closest('[data-vsadd]')) vsAdd();
 });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('labdlg').hidden) labClose(); if (e.key === 'Enter' && !$('labdlg').hidden && e.target.dataset && e.target.dataset.labv !== undefined) { e.preventDefault(); labAdd(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('labdlg').hidden) labClose(); if (e.key === 'Enter' && !$('labdlg').hidden && e.target.dataset && (e.target.dataset.labv !== undefined || e.target.dataset.vsv !== undefined)) { e.preventDefault(); e.target.dataset.vsv !== undefined ? vsAdd() : labAdd(); } });
 
 /* ADMIN: จัดการรายการ Lab (เพิ่ม/ลบรายการหลักและรายการย่อย) */
 function labAdminHtml() {
@@ -2337,7 +2366,7 @@ function incFormHtml(list, cs) {
       </div>
     </fieldset>
     <label class="f">${cs ? 'รายละเอียดเคส' : 'รายละเอียดเหตุการณ์'}</label><textarea ${at}="${i}:detail" rows="3">${esc(x.detail)}</textarea>
-    <div class="labbar"><button type="button" class="btn ghost sm" data-labbtn="${i}" data-labcs="${cs ? 1 : ''}">\u{1F9EA} ช่วยพิมพ์ Lab</button><span class="labnote">กดปุ่มเลือกรายการ Lab ที่ต้องการ จากนั้นกด Add จะพิมพ์ต่อจากที่ค้างไว้</span></div>
+    <div class="labbar"><button type="button" class="btn ghost sm" data-labbtn="${i}" data-labcs="${cs ? 1 : ''}">\u{1F9EA} ช่วยพิมพ์ Lab</button><button type="button" class="btn ghost sm" data-vsbtn="${i}" data-labcs="${cs ? 1 : ''}">\u{1FA7A} ช่วยพิมพ์ V/S</button><span class="labnote">กดปุ่มช่วยพิมพ์ Lab/Vital sign เลือกรายการที่ต้องการ จากนั้นกด Add จะพิมพ์ต่อจากที่ค้างไว้</span></div>
     <label class="f">การแก้ไขเบื้องต้น</label><textarea ${at}="${i}:action" rows="2">${esc(x.action)}</textarea>
     <fieldset><legend>ไฟล์แนบ (JPG / PNG / PDF)</legend>
       <div class="atts">${(x.files || []).map((f, k) => attChip(f, true, i, k, cs)).join('') || '<span class="muted" style="font-size:13px">ยังไม่มีไฟล์แนบ</span>'}</div>
