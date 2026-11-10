@@ -13,12 +13,12 @@
  * CATEGORIES = จัดกลุ่มประเภทผู้ป่วยคงพยาบาลของทุกตึกให้นับรวมกันได้
  */
 
-const ROLES = ['หัวหน้า', 'RN', 'PN', 'NA', 'เจ้าหน้าที่', 'EMT', 'Part time']; // ตำแหน่งในเวร (ไม่มี "อื่นๆ"); หัวหน้านับรวมเป็น RN ในตารางอัตรากำลัง
+const ROLES = ['หัวหน้า', 'RN', 'PN', 'NA', 'เจ้าหน้าที่', 'EMT', 'Part-time']; // ตำแหน่งในเวร (ไม่มี "อื่นๆ"); หัวหน้านับรวมเป็น RN ในตารางอัตรากำลัง
 const ROLE_ALIASES = {
   'พยาบาลวิชาชีพ': 'RN', 'rn': 'RN',
   'ผู้ช่วยพยาบาล': 'PN', 'pn': 'PN',
   'ผู้ช่วยเหลือผู้ป่วย': 'NA', 'na': 'NA',
-  'part time': 'Part time', 'parttime': 'Part time', 'พาร์ทไทม์': 'Part time',
+  'part-time': 'Part-time', 'part time': 'Part-time', 'parttime': 'Part-time', 'พาร์ทไทม์': 'Part-time',
   'emt': 'EMT', 'เจ้าหน้าที่ฉุกเฉินการแพทย์': 'EMT'
 };
 const DUTY_TAGS = ['Inc.', 'POC', 'Clerk', 'Cc', 'ออกหน่วย'];
