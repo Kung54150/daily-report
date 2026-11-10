@@ -2198,7 +2198,7 @@ function labAdd() {
   labAppend(ta, text);
   toast('เพิ่ม ' + l.name + ' แล้ว'); labList();
 }
-const VS_FIELDS = [['bp', 'BP', 'mmHg', 'text', '120/80'], ['pr', 'PR', 'ครั้ง/min', 'numeric'], ['rr', 'RR', 'ครั้ง/min', 'numeric'], ['temp', 'T', '\u00b0C', 'decimal'], ['spo2', 'O2 sat', '%', 'numeric'], ['o2', 'O2 ที่ให้', '', 'text', 'เช่น Room air']];
+const VS_FIELDS = [['bp', 'BP', 'mmHg', 'text', '120/80'], ['pr', 'PR', 'ครั้ง/min', 'numeric'], ['rr', 'RR', 'ครั้ง/min', 'numeric'], ['temp', 'T', '\u00b0C', 'decimal'], ['spo2', 'O2 sat', '%', 'numeric'], ['o2', 'O2 ที่ให้', '', 'text', 'เช่น Cannula 3LPM']];
 function vsOpen(textarea) {
   S.labTa = textarea; $('labdlg').hidden = false;
   const d = new Date(), now = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
