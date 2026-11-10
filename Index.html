@@ -254,14 +254,19 @@
   .labbar .labnote { color: #c62828; font-size: 12px; flex: 1; min-width: 180px; }
   .labdlg { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.5); display: grid; place-items: center; padding: 14px; }
   .labdlg[hidden] { display: none; }
-  .labdlg .lbox { background: var(--card, #fff); color: var(--fg); border-radius: 14px; width: min(460px, 100%); max-height: 88vh; overflow: auto; padding: 14px; box-shadow: 0 10px 40px rgba(0,0,0,.35); }
-  .labdlg .lhead { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-  .labdlg .lhead b { flex: 1; font-size: 17px; }
+  .labdlg .lbox { background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 14px; width: min(340px, 100%); max-height: 86vh; overflow: auto; padding: 10px 12px; box-shadow: 0 10px 40px rgba(0,0,0,.35); }
+  .labdlg .lhead { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .labdlg .lhead b { flex: 1; font-size: 16px; }
+  .labdlg .lhead .btn { padding: 2px 10px; min-height: 0; line-height: 1.3; }
   .labdlg .lgrid { display: flex; flex-wrap: wrap; gap: 8px; }
-  .labdlg .lgrid button { border: 1px solid var(--line); background: var(--sunk); color: var(--accent-strong); border-radius: 10px; padding: 9px 14px; font: inherit; font-weight: 600; cursor: pointer; }
+  .labdlg .lgrid button { border: 1px solid var(--line); background: var(--sunk); color: var(--accent-strong); border-radius: 8px; padding: 6px 12px; font-size: 15px; font: inherit; font-weight: 600; cursor: pointer; }
   .labdlg .lgrid button small { color: var(--muted); font-weight: 400; margin-left: 4px; }
-  .labdlg .lrow { display: grid; grid-template-columns: 1fr minmax(90px, 140px) 70px; gap: 8px; align-items: center; margin: 6px 0; }
-  .labdlg .lrow span.u { color: var(--muted); font-size: 13px; }
+  .labdlg .lrow { display: grid; grid-template-columns: 1fr 92px 64px; gap: 6px; align-items: center; margin: 3px 0; }
+  .labdlg .lrow label { font-size: 15px; font-weight: 600; color: var(--fg); margin: 0; }
+  .labdlg .lrow input { padding: 4px 8px; font-size: 16px; color: var(--fg); }
+  .labdlg .lrow span.u { color: var(--muted); font-size: 12px; }
+  .labdlg .lact { display: flex; gap: 8px; margin-top: 8px; }
+  .labdlg .lact .btn { padding: 5px 14px; min-height: 0; }
   .labadm .lcard { border: 1px solid var(--line); border-radius: 10px; padding: 8px; margin: 8px 0; background: var(--sunk); }
   .labadm .lr { display: flex; gap: 6px; align-items: center; margin: 4px 0; flex-wrap: wrap; }
   .labadm .lr input { flex: 1; min-width: 90px; }
@@ -647,7 +652,7 @@ setTimeout(function () {
       <span class="dlabel" id="d_label"></span>
     </div>
     <div id="view"></div>
-    <div class="noprint muted" id="buildtag" style="text-align:center;font-size:11px;padding:8px 0 4px">หน้าเว็บ build 2026-11-10 #79</div>
+    <div class="noprint muted" id="buildtag" style="text-align:center;font-size:11px;padding:8px 0 4px">หน้าเว็บ build 2026-11-10 #81</div>
   </main>
   <div class="savebar" id="savebar" hidden><div class="wrap">
     <span class="msg" id="sb_msg"></span>
@@ -2139,7 +2144,7 @@ function labForm(k) {
   const rows = l.subs.length ? l.subs : [{ name: l.name, unit: l.unit }];
   $('lab_box').innerHTML = `<div class="lhead"><b>${esc(l.name)}</b><button type="button" class="btn ghost sm" data-labx aria-label="ปิด">\u00d7</button></div>
     ${rows.map((r, j) => `<div class="lrow"><label for="labv${j}">${esc(r.name)}</label><input id="labv${j}" data-labv="${j}" type="text" inputmode="decimal" autocomplete="off"><span class="u">${esc(r.unit)}</span></div>`).join('')}
-    <div style="display:flex;gap:8px;margin-top:12px"><button type="button" class="btn" data-labadd>Add</button><button type="button" class="btn ghost" data-labback>\u2039 กลับ</button></div>`;
+    <div class="lact"><button type="button" class="btn" data-labadd>Add</button><button type="button" class="btn ghost" data-labback>\u2039 กลับ</button></div>`;
   const f = $('lab_box').querySelector('input'); if (f) f.focus();
 }
 function labAdd() {
@@ -2170,9 +2175,9 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('labdlg
 function labAdminHtml() {
   const L = S.labEdit; if (!L) return '';
   return `<div class="card labadm" id="labadm"><h3>รายการ Lab (ตัวช่วยพิมพ์ Lab) <span class="sub">เฉพาะผู้ดูแลระบบ</span></h3>
-    <div class="muted" style="font-size:13px">รายการหลักที่ไม่มีรายการย่อย = ตัวเดี่ยว (ใส่หน่วย) · กด "+ เพิ่มรายการย่อย" ใต้รายการหลักใดก็ได้ ให้เป็นฟังก์ชัน (เช่น CBC → Hb, Hct) เจ้าหน้าที่กรอกแค่ตัวเลข</div>
-    ${L.map((l, k) => `<div class="lcard"><div class="lr"><b>${l.subs.length ? 'ฟังก์ชัน' : 'ตัวเดี่ยว'}</b><input data-ln="${k}" value="${esc(l.name)}" placeholder="ชื่อรายการหลัก">${l.subs.length ? '' : `<input class="un" data-lu="${k}" value="${esc(l.unit)}" placeholder="หน่วย">`}<button type="button" class="btn ghost sm" data-ldel="${k}">ลบ</button></div>
-      ${l.subs.map((x, j) => `<div class="lr" style="margin-left:14px"><input data-lsn="${k}:${j}" value="${esc(x.name)}" placeholder="รายการย่อย"><input class="un" data-lsu="${k}:${j}" value="${esc(x.unit)}" placeholder="หน่วย"><button type="button" class="btn ghost sm" data-lsdel="${k}:${j}">ลบ</button></div>`).join('')}
+    <div class="muted" style="font-size:13px">รายการหลักที่ไม่มีรายการย่อย = ตัวเดี่ยว (ใส่หน่วย) · กด "+ เพิ่มรายการย่อย" ใต้รายการหลักใดก็ได้ ให้เป็นฟังก์ชัน (เช่น CBC → Hb, Hct) เจ้าหน้าที่กรอกแค่ตัวเลข · ปุ่ม \u25B2\u25BC เลื่อนลำดับ (ลำดับนี้คือลำดับที่เจ้าหน้าที่เห็น) แล้วกดบันทึก</div>
+    ${L.map((l, k) => `<div class="lcard"><div class="lr"><b>${l.subs.length ? 'ฟังก์ชัน' : 'ตัวเดี่ยว'}</b><input data-ln="${k}" value="${esc(l.name)}" placeholder="ชื่อรายการหลัก">${l.subs.length ? '' : `<input class="un" data-lu="${k}" value="${esc(l.unit)}" placeholder="หน่วย">`}<button type="button" class="btn ghost sm" data-lmv="${k}:-1" aria-label="เลื่อนขึ้น"${k === 0 ? ' disabled' : ''}>\u25B2</button><button type="button" class="btn ghost sm" data-lmv="${k}:1" aria-label="เลื่อนลง"${k === L.length - 1 ? ' disabled' : ''}>\u25BC</button><button type="button" class="btn ghost sm" data-ldel="${k}">ลบ</button></div>
+      ${l.subs.map((x, j) => `<div class="lr" style="margin-left:14px"><input data-lsn="${k}:${j}" value="${esc(x.name)}" placeholder="รายการย่อย"><input class="un" data-lsu="${k}:${j}" value="${esc(x.unit)}" placeholder="หน่วย"><button type="button" class="btn ghost sm" data-lsmv="${k}:${j}:-1" aria-label="เลื่อนขึ้น"${j === 0 ? ' disabled' : ''}>\u25B2</button><button type="button" class="btn ghost sm" data-lsmv="${k}:${j}:1" aria-label="เลื่อนลง"${j === l.subs.length - 1 ? ' disabled' : ''}>\u25BC</button><button type="button" class="btn ghost sm" data-lsdel="${k}:${j}">ลบ</button></div>`).join('')}
       <div style="margin-left:14px"><button type="button" class="btn ghost sm" data-lsadd="${k}">+ เพิ่มรายการย่อย</button></div></div>`).join('')}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button type="button" class="btn ghost sm" data-ladd="1">+ เพิ่มรายการหลัก</button><button type="button" class="btn sm" data-lsave>บันทึกรายการ Lab</button></div></div>`;
 }
@@ -2191,7 +2196,11 @@ document.addEventListener('input', e => {
 document.addEventListener('click', async e => {
   const t = e.target.closest ? e.target.closest('#labadm button') : null, L = S.labEdit; if (!t || !L) return;
   const d = t.dataset;
-  if (d.ldel !== undefined) L.splice(+d.ldel, 1);
+  const mv = (a, i, dir) => { const n = i + dir; if (n < 0 || n >= a.length) return; const x = a[i]; a[i] = a[n]; a[n] = x; };
+  if (t.disabled) return;
+  if (d.lmv !== undefined) { const [k, dir] = d.lmv.split(':').map(Number); mv(L, k, dir); }
+  else if (d.lsmv !== undefined) { const [k, j, dir] = d.lsmv.split(':').map(Number); mv(L[k].subs, j, dir); }
+  else if (d.ldel !== undefined) L.splice(+d.ldel, 1);
   else if (d.lsdel !== undefined) { const [k, j] = d.lsdel.split(':').map(Number); L[k].subs.splice(j, 1); }
   else if (d.lsadd !== undefined) L[+d.lsadd].subs.push({ name: '', unit: '' });
   else if (d.ladd !== undefined) L.push({ name: '', unit: '', subs: [] });
