@@ -647,7 +647,7 @@ setTimeout(function () {
       <span class="dlabel" id="d_label"></span>
     </div>
     <div id="view"></div>
-    <div class="noprint muted" id="buildtag" style="text-align:center;font-size:11px;padding:8px 0 4px">หน้าเว็บ build 2026-11-10 #78</div>
+    <div class="noprint muted" id="buildtag" style="text-align:center;font-size:11px;padding:8px 0 4px">หน้าเว็บ build 2026-11-10 #79</div>
   </main>
   <div class="savebar" id="savebar" hidden><div class="wrap">
     <span class="msg" id="sb_msg"></span>
@@ -2170,14 +2170,15 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('labdlg
 function labAdminHtml() {
   const L = S.labEdit; if (!L) return '';
   return `<div class="card labadm" id="labadm"><h3>รายการ Lab (ตัวช่วยพิมพ์ Lab) <span class="sub">เฉพาะผู้ดูแลระบบ</span></h3>
-    <div class="muted" style="font-size:13px">ตัวเดี่ยว = ชื่อ + หน่วย · ฟังก์ชัน = ชื่อหลักที่มีรายการย่อย (เช่น CBC → Hb, Hct) เจ้าหน้าที่กรอกแค่ตัวเลข</div>
-    ${L.map((l, k) => `<div class="lcard"><div class="lr"><b>${l.fn ? 'ฟังก์ชัน' : 'ตัวเดี่ยว'}</b><input data-ln="${k}" value="${esc(l.name)}" placeholder="ชื่อรายการหลัก">${l.fn ? '' : `<input class="un" data-lu="${k}" value="${esc(l.unit)}" placeholder="หน่วย">`}<button type="button" class="btn ghost sm" data-ldel="${k}">ลบ</button></div>
-      ${l.fn ? `${l.subs.map((x, j) => `<div class="lr" style="margin-left:14px"><input data-lsn="${k}:${j}" value="${esc(x.name)}" placeholder="รายการย่อย"><input class="un" data-lsu="${k}:${j}" value="${esc(x.unit)}" placeholder="หน่วย"><button type="button" class="btn ghost sm" data-lsdel="${k}:${j}">ลบ</button></div>`).join('')}<div style="margin-left:14px"><button type="button" class="btn ghost sm" data-lsadd="${k}">+ เพิ่มรายการย่อย</button></div>` : ''}</div>`).join('')}
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button type="button" class="btn ghost sm" data-ladd="0">+ เพิ่มตัวเดี่ยว</button><button type="button" class="btn ghost sm" data-ladd="1">+ เพิ่มฟังก์ชัน (มีรายการย่อย)</button><button type="button" class="btn sm" data-lsave>บันทึกรายการ Lab</button></div></div>`;
+    <div class="muted" style="font-size:13px">รายการหลักที่ไม่มีรายการย่อย = ตัวเดี่ยว (ใส่หน่วย) · กด "+ เพิ่มรายการย่อย" ใต้รายการหลักใดก็ได้ ให้เป็นฟังก์ชัน (เช่น CBC → Hb, Hct) เจ้าหน้าที่กรอกแค่ตัวเลข</div>
+    ${L.map((l, k) => `<div class="lcard"><div class="lr"><b>${l.subs.length ? 'ฟังก์ชัน' : 'ตัวเดี่ยว'}</b><input data-ln="${k}" value="${esc(l.name)}" placeholder="ชื่อรายการหลัก">${l.subs.length ? '' : `<input class="un" data-lu="${k}" value="${esc(l.unit)}" placeholder="หน่วย">`}<button type="button" class="btn ghost sm" data-ldel="${k}">ลบ</button></div>
+      ${l.subs.map((x, j) => `<div class="lr" style="margin-left:14px"><input data-lsn="${k}:${j}" value="${esc(x.name)}" placeholder="รายการย่อย"><input class="un" data-lsu="${k}:${j}" value="${esc(x.unit)}" placeholder="หน่วย"><button type="button" class="btn ghost sm" data-lsdel="${k}:${j}">ลบ</button></div>`).join('')}
+      <div style="margin-left:14px"><button type="button" class="btn ghost sm" data-lsadd="${k}">+ เพิ่มรายการย่อย</button></div></div>`).join('')}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button type="button" class="btn ghost sm" data-ladd="1">+ เพิ่มรายการหลัก</button><button type="button" class="btn sm" data-lsave>บันทึกรายการ Lab</button></div></div>`;
 }
 function labAdminMount() {
   const host = $('labadmin'); if (!host) return;
-  if (!S.labEdit) S.labEdit = (S.cfg.labs || []).map(l => ({ name: l.name, unit: l.unit || '', fn: l.subs.length > 0, subs: l.subs.map(x => ({ name: x.name, unit: x.unit || '' })) }));
+  if (!S.labEdit) S.labEdit = (S.cfg.labs || []).map(l => ({ name: l.name, unit: l.unit || '', subs: l.subs.map(x => ({ name: x.name, unit: x.unit || '' })) }));
   host.innerHTML = labAdminHtml();
 }
 document.addEventListener('input', e => {
@@ -2193,9 +2194,9 @@ document.addEventListener('click', async e => {
   if (d.ldel !== undefined) L.splice(+d.ldel, 1);
   else if (d.lsdel !== undefined) { const [k, j] = d.lsdel.split(':').map(Number); L[k].subs.splice(j, 1); }
   else if (d.lsadd !== undefined) L[+d.lsadd].subs.push({ name: '', unit: '' });
-  else if (d.ladd !== undefined) L.push(d.ladd === '1' ? { name: '', unit: '', fn: true, subs: [{ name: '', unit: '' }] } : { name: '', unit: '', fn: false, subs: [] });
+  else if (d.ladd !== undefined) L.push({ name: '', unit: '', subs: [] });
   else if (d.lsave !== undefined) {
-    try { S.cfg.labs = await api('saveLabs', S.token, L); S.labEdit = null; toast('บันทึกรายการ Lab แล้ว'); labAdminMount(); } catch (err) { handleErr(err); }
+    try { S.cfg.labs = await api('saveLabs', S.token, L.map(l => ({ name: l.name, unit: l.unit, fn: l.subs.some(x => String(x.name).trim()), subs: l.subs }))); S.labEdit = null; toast('บันทึกรายการ Lab แล้ว'); labAdminMount(); } catch (err) { handleErr(err); }
     return;
   } else return;
   $('labadmin').innerHTML = labAdminHtml();
