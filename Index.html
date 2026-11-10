@@ -631,7 +631,7 @@ setTimeout(function () {
       <span class="dlabel" id="d_label"></span>
     </div>
     <div id="view"></div>
-    <div class="noprint muted" id="buildtag" style="text-align:center;font-size:11px;padding:8px 0 4px">หน้าเว็บ build 2026-11-09 #76</div>
+    <div class="noprint muted" id="buildtag" style="text-align:center;font-size:11px;padding:8px 0 4px">หน้าเว็บ build 2026-11-10 #77</div>
   </main>
   <div class="savebar" id="savebar" hidden><div class="wrap">
     <span class="msg" id="sb_msg"></span>
@@ -3143,6 +3143,7 @@ function printLines(u, r, withInc, forPrint, split) {
     const vs = vitals(i).map(([k, x, unit]) => `${k} ${esc(x)}${unit === '%' ? '%' : unit === '\u00b0C' ? '\u00b0C' : ''}`).join(', ') + (i.o2mode ? (vitals(i).length ? ', ' : '') + 'O2: ' + esc(o2Text(i)) : '');
     const who = [i.time ? 'มา ' + esc(i.time) + ' น.' : '', i.doctor ? 'แพทย์ ' + esc(i.doctor) : ''].filter(Boolean).join(' \u00b7 ');
     return head + (pt ? ' \u00b7 <b>' + esc(pt) + '</b>' : '') + (who ? '<br>' + who : '') + (vs ? '<br>' + vs : '') + (i.detail ? '<br>' + one(i.detail) : '') + (i.action ? `<br><i>แก้ไข: ${one(i.action)}</i>` : '')
+      + (!split && !forPrint ? attGallery(i.files) : '')
       + (split && (i.files || []).length ? `<div class="attbox">${i.files.map(f => `<figure data-attfile="${esc(f.id)}"><figcaption>ไฟล์แนบ: ${esc(f.name)}</figcaption></figure>`).join('')}</div>` : '');
   };
   // split (หน้าพิมพ์): แยกเป็นกลุ่มละ 1 เรื่องเพื่อให้แบ่งคอลัมน์ได้ ไฟล์แนบแสดงใต้เรื่องนั้น (ไม่มีรายการเหตุการณ์รวมท้ายเอกสารแล้ว)
