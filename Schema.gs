@@ -13,12 +13,12 @@
  * CATEGORIES = จัดกลุ่มประเภทผู้ป่วยคงพยาบาลของทุกตึกให้นับรวมกันได้
  */
 
-const ROLES = ['หัวหน้า', 'RN', 'PN', 'NA', 'เจ้าหน้าที่', 'EMT', 'นศ.']; // ตำแหน่งในเวร (ไม่มี "อื่นๆ"); หัวหน้านับรวมเป็น RN ในตารางอัตรากำลัง
+const ROLES = ['หัวหน้า', 'RN', 'PN', 'NA', 'เจ้าหน้าที่', 'EMT', 'Part-time']; // ตำแหน่งในเวร (ไม่มี "อื่นๆ"); หัวหน้านับรวมเป็น RN ในตารางอัตรากำลัง
 const ROLE_ALIASES = {
   'พยาบาลวิชาชีพ': 'RN', 'rn': 'RN',
   'ผู้ช่วยพยาบาล': 'PN', 'pn': 'PN',
   'ผู้ช่วยเหลือผู้ป่วย': 'NA', 'na': 'NA',
-  'นักศึกษาพยาบาล': 'นศ.', 'นศ.ฝึกงานพยาบาล': 'นศ.',
+  'part-time': 'Part-time', 'part time': 'Part-time', 'parttime': 'Part-time', 'พาร์ทไทม์': 'Part-time',
   'emt': 'EMT', 'เจ้าหน้าที่ฉุกเฉินการแพทย์': 'EMT'
 };
 const DUTY_TAGS = ['Inc.', 'POC', 'Clerk', 'Cc', 'ออกหน่วย'];
@@ -250,9 +250,9 @@ const FORMS = {
   // ห้องผ่าตัด ตามสถิติรายเดือนของหน่วย: ยอดรวม = Major + Minor (ลูกบอลแดง = Major, เขียว = Minor ของแต่ละแผนก)
   // Emergency + Elective ต้องเท่ากับยอดรวม · ส่งมาจาก OPD/IPD · สิทธิการรักษาของแต่ละเคส
   OR: { std: { total: 'total' }, sections: [
-    { title: 'ยอดผ่าตัด', fields: [Object.assign(N_('total', 'ยอดรวม (Major + Minor)', 'เคส'), { calc: { plus: ['obs', 'gyn', 'surg', 'ortho', 'scope', 'ent', 'cvt', 'pla', 'neuro', 'uro', 'eye', 'ivf', 'tese', 'med', 'xray', 'ane'], minus: [] } })] },
+    { title: 'ยอดผ่าตัด', fields: [Object.assign(N_('total', 'ยอดรวม (Major + Minor)', 'เคส'), { calc: { plus: ['obs', 'gyn', 'surg', 'ortho', 'scope', 'ent', 'cvt', 'pla', 'neuro', 'uro', 'eye', 'ivf_opu', 'ivf_fet', 'tese', 'ane'], minus: [] } })] },
     { title: 'Emergency / Elective', sum: 'รวม', sumEq: 'total', fields: [N_('emergency', 'Emergency case', 'เคส'), N_('elective', 'Elective case', 'เคส')] },
-    { title: 'ผ่าตัดแยกตามแผนก', categories: true, additive: true, balls: OR_BALLS, catUnit: 'เคส', sum: 'รวม', fields: [N_('obs', 'OBS', 'เคส'), N_('gyn', 'GYN', 'เคส'), N_('surg', 'SURG', 'เคส'), N_('ortho', 'ORTHO', 'เคส'), N_('scope', 'SCOPE', 'เคส'), N_('ent', 'ENT', 'เคส'), N_('cvt', 'CVT', 'เคส'), N_('pla', 'PLASTIC', 'เคส'), N_('neuro', 'NEURO', 'เคส'), N_('uro', 'URO', 'เคส'), N_('eye', 'EYE', 'เคส'), N_('ivf', 'IVF (OPU / FET)', 'เคส'), N_('tese', 'TESE', 'เคส'), N_('med', 'MED', 'เคส'), N_('xray', 'X-RAY', 'เคส'), N_('ane', 'ANE', 'เคส')] },
+    { title: 'ผ่าตัดแยกตามแผนก', categories: true, additive: true, balls: OR_BALLS, catUnit: 'เคส', sum: 'รวม', fields: [N_('obs', 'OBS', 'เคส'), N_('gyn', 'GYN', 'เคส'), N_('surg', 'SURG', 'เคส'), N_('ortho', 'ORTHO', 'เคส'), N_('scope', 'SCOPE', 'เคส'), N_('ent', 'ENT', 'เคส'), N_('cvt', 'CVT', 'เคส'), N_('pla', 'PLASTIC', 'เคส'), N_('neuro', 'NEURO', 'เคส'), N_('uro', 'URO', 'เคส'), N_('eye', 'EYE', 'เคส'), N_('ivf_opu', 'IVF OPU', 'เคส'), N_('ivf_fet', 'IVF FET', 'เคส'), N_('tese', 'TESE', 'เคส'), N_('ane', 'ANE', 'เคส')] },
     { title: 'ส่งมาจากหน่วยงาน', fields: [N_('src_opd', 'ผู้ป่วยนอก (OPD)', 'เคส'), N_('src_ipd', 'ผู้ป่วยใน (IPD)', 'เคส')] },
     { title: 'สิทธิการรักษา', sum: 'รวม', fields: [N_('r_self', 'ทั่วไป', 'เคส'), N_('r_ins', 'ประกันชีวิต', 'เคส'), N_('r_fund', 'กองทุน', 'เคส'), N_('r_contract', 'Contract', 'เคส'), N_('r_act', 'พรบ.', 'เคส'), N_('r_ucep', 'UCEP', 'เคส'), N_('r_welfare', 'สวัสดิการ', 'เคส')] }
   ] },};
