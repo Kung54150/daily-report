@@ -250,6 +250,22 @@
   .athumb .tp img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .athumb .tn { font-size: 11px; max-width: 88px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .athumb .tz { font-size: 11px; font-weight: 600; }
+  .labbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 6px 0 2px; }
+  .labbar .labnote { color: #c62828; font-size: 12px; flex: 1; min-width: 180px; }
+  .labdlg { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.5); display: grid; place-items: center; padding: 14px; }
+  .labdlg[hidden] { display: none; }
+  .labdlg .lbox { background: var(--card, #fff); color: var(--fg); border-radius: 14px; width: min(460px, 100%); max-height: 88vh; overflow: auto; padding: 14px; box-shadow: 0 10px 40px rgba(0,0,0,.35); }
+  .labdlg .lhead { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .labdlg .lhead b { flex: 1; font-size: 17px; }
+  .labdlg .lgrid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .labdlg .lgrid button { border: 1px solid var(--line); background: var(--sunk); color: var(--accent-strong); border-radius: 10px; padding: 9px 14px; font: inherit; font-weight: 600; cursor: pointer; }
+  .labdlg .lgrid button small { color: var(--muted); font-weight: 400; margin-left: 4px; }
+  .labdlg .lrow { display: grid; grid-template-columns: 1fr minmax(90px, 140px) 70px; gap: 8px; align-items: center; margin: 6px 0; }
+  .labdlg .lrow span.u { color: var(--muted); font-size: 13px; }
+  .labadm .lcard { border: 1px solid var(--line); border-radius: 10px; padding: 8px; margin: 8px 0; background: var(--sunk); }
+  .labadm .lr { display: flex; gap: 6px; align-items: center; margin: 4px 0; flex-wrap: wrap; }
+  .labadm .lr input { flex: 1; min-width: 90px; }
+  .labadm .lr input.un { flex: 0 0 90px; min-width: 70px; }
   .att small { color: var(--muted); padding-right: 4px; white-space: nowrap; }
   .att .x { width: 28px; height: 28px; margin-right: 3px; }
   .viewer { position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,.82); display: flex; flex-direction: column; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
@@ -631,7 +647,7 @@ setTimeout(function () {
       <span class="dlabel" id="d_label"></span>
     </div>
     <div id="view"></div>
-    <div class="noprint muted" id="buildtag" style="text-align:center;font-size:11px;padding:8px 0 4px">หน้าเว็บ build 2026-11-10 #77</div>
+    <div class="noprint muted" id="buildtag" style="text-align:center;font-size:11px;padding:8px 0 4px">หน้าเว็บ build 2026-11-10 #78</div>
   </main>
   <div class="savebar" id="savebar" hidden><div class="wrap">
     <span class="msg" id="sb_msg"></span>
@@ -639,6 +655,7 @@ setTimeout(function () {
     <button class="btn" id="sb_save" type="button">บันทึกรายงาน</button>
   </div></div>
 </div>
+<div class="labdlg" id="labdlg" hidden><div class="lbox" id="lab_box"></div></div>
 <div class="viewer" id="viewer" hidden>
   <div class="vbar"><b id="v_title"></b><a id="v_dl" href="#" download>ดาวน์โหลด</a><button type="button" id="v_close" aria-label="ปิดรูป" title="ปิด" style="font-size:20px;line-height:1;padding:4px 12px">&times;</button></div>
   <div class="vbody" id="v_body"></div>
@@ -1096,6 +1113,7 @@ function render() {
   else if (S.tab === 'print') v.innerHTML = renderPrint();
   else if (S.tab === 'staff') {
     v.innerHTML = renderStaff();
+    labAdminMount();
     if (S.me.role === 'admin' && !S.docInfo) api('getDocInfo', S.token).then(i => { S.docInfo = i; if (S.tab === 'staff' && !S.docUp) render(); }).catch(() => {});
   }
   else if (S.tab === 'edit') v.innerHTML = '';
@@ -2106,6 +2124,83 @@ async function prepAttachment(file) {
 async function getAtt(id) { if (!S.att[id]) S.att[id] = await api('getAttachment', S.token, id); return S.att[id]; }
 const attChip = (f, editable, i, k, cs) => `<span class="att"><button type="button" class="open" data-attview="${esc(f.id)}" data-attname="${esc(f.name)}" data-attmime="${esc(f.mime)}">${f.mime === 'application/pdf' ? 'PDF' : 'รูป'} ${esc(f.name)}</button><small>${fmtSize(f.size || 0)}</small>${editable ? `<button type="button" class="x" data-attdel${cs ? 'c' : ''}="${i}:${k}" aria-label="เอาไฟล์ออก">\u00d7</button>` : ''}</span>`;
 
+/* ===== ตัวช่วยพิมพ์ Lab ในรายละเอียดเหตุการณ์/เคส ===== */
+const labUnit = u => u ? ' ' + u : '';
+function labOpen(textarea) { S.labTa = textarea; $('labdlg').hidden = false; labList(); }
+function labClose() { $('labdlg').hidden = true; S.labTa = null; }
+function labList() {
+  const labs = S.cfg.labs || [];
+  $('lab_box').innerHTML = `<div class="lhead"><b>เลือกรายการ Lab</b><button type="button" class="btn ghost sm" data-labx aria-label="ปิด">\u00d7</button></div>
+    <div class="lgrid">${labs.map((l, k) => `<button type="button" data-labpick="${k}">${esc(l.name)}${l.subs.length ? '<small>\u25B8</small>' : ''}</button>`).join('') || '<span class="muted">ยังไม่มีรายการ Lab (ผู้ดูแลระบบเพิ่มได้ที่แท็บรายชื่อเจ้าหน้าที่)</span>'}</div>
+    <div class="muted" style="font-size:12px;margin-top:10px">ใส่แค่ตัวเลข ระบบใส่ชื่อและหน่วยให้</div>`;
+}
+function labForm(k) {
+  const l = (S.cfg.labs || [])[k]; if (!l) return; S.labK = k;
+  const rows = l.subs.length ? l.subs : [{ name: l.name, unit: l.unit }];
+  $('lab_box').innerHTML = `<div class="lhead"><b>${esc(l.name)}</b><button type="button" class="btn ghost sm" data-labx aria-label="ปิด">\u00d7</button></div>
+    ${rows.map((r, j) => `<div class="lrow"><label for="labv${j}">${esc(r.name)}</label><input id="labv${j}" data-labv="${j}" type="text" inputmode="decimal" autocomplete="off"><span class="u">${esc(r.unit)}</span></div>`).join('')}
+    <div style="display:flex;gap:8px;margin-top:12px"><button type="button" class="btn" data-labadd>Add</button><button type="button" class="btn ghost" data-labback>\u2039 กลับ</button></div>`;
+  const f = $('lab_box').querySelector('input'); if (f) f.focus();
+}
+function labAdd() {
+  const l = (S.cfg.labs || [])[S.labK], ta = S.labTa; if (!l || !ta) return;
+  const vals = Array.from($('lab_box').querySelectorAll('[data-labv]')).map(i => i.value.trim());
+  const rows = l.subs.length ? l.subs : [{ name: l.name, unit: l.unit }];
+  const parts = rows.map((r, j) => vals[j] ? (l.subs.length ? r.name + ' ' : '') + vals[j] + labUnit(r.unit) : '').filter(Boolean);
+  if (!parts.length) { toast('กรอกตัวเลขอย่างน้อย 1 ช่อง'); return; }
+  const text = l.subs.length ? l.name + ': ' + parts.join(', ') : l.name + ' ' + parts[0];
+  const cur = ta.value;
+  ta.value = cur ? cur + (/\s$/.test(cur) ? '' : '\n') + text : text;
+  ta.dispatchEvent(new Event('input', { bubbles: true }));
+  toast('เพิ่ม ' + l.name + ' แล้ว'); labList();
+}
+document.addEventListener('click', e => {
+  const t = e.target.closest ? e.target : null; if (!t) return;
+  const bt = t.closest('[data-labbtn]');
+  if (bt) { const cs = !!bt.dataset.labcs, ta = document.querySelector(`[${cs ? 'data-cs' : 'data-inc'}="${bt.dataset.labbtn}:detail"]`); if (ta) labOpen(ta); return; }
+  if ($('labdlg').hidden) return;
+  if (t.closest('[data-labx]') || t === $('labdlg')) labClose();
+  else if (t.closest('[data-labpick]')) labForm(+t.closest('[data-labpick]').dataset.labpick);
+  else if (t.closest('[data-labback]')) labList();
+  else if (t.closest('[data-labadd]')) labAdd();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('labdlg').hidden) labClose(); if (e.key === 'Enter' && !$('labdlg').hidden && e.target.dataset && e.target.dataset.labv !== undefined) { e.preventDefault(); labAdd(); } });
+
+/* ADMIN: จัดการรายการ Lab (เพิ่ม/ลบรายการหลักและรายการย่อย) */
+function labAdminHtml() {
+  const L = S.labEdit; if (!L) return '';
+  return `<div class="card labadm" id="labadm"><h3>รายการ Lab (ตัวช่วยพิมพ์ Lab) <span class="sub">เฉพาะผู้ดูแลระบบ</span></h3>
+    <div class="muted" style="font-size:13px">ตัวเดี่ยว = ชื่อ + หน่วย · ฟังก์ชัน = ชื่อหลักที่มีรายการย่อย (เช่น CBC → Hb, Hct) เจ้าหน้าที่กรอกแค่ตัวเลข</div>
+    ${L.map((l, k) => `<div class="lcard"><div class="lr"><b>${l.fn ? 'ฟังก์ชัน' : 'ตัวเดี่ยว'}</b><input data-ln="${k}" value="${esc(l.name)}" placeholder="ชื่อรายการหลัก">${l.fn ? '' : `<input class="un" data-lu="${k}" value="${esc(l.unit)}" placeholder="หน่วย">`}<button type="button" class="btn ghost sm" data-ldel="${k}">ลบ</button></div>
+      ${l.fn ? `${l.subs.map((x, j) => `<div class="lr" style="margin-left:14px"><input data-lsn="${k}:${j}" value="${esc(x.name)}" placeholder="รายการย่อย"><input class="un" data-lsu="${k}:${j}" value="${esc(x.unit)}" placeholder="หน่วย"><button type="button" class="btn ghost sm" data-lsdel="${k}:${j}">ลบ</button></div>`).join('')}<div style="margin-left:14px"><button type="button" class="btn ghost sm" data-lsadd="${k}">+ เพิ่มรายการย่อย</button></div>` : ''}</div>`).join('')}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button type="button" class="btn ghost sm" data-ladd="0">+ เพิ่มตัวเดี่ยว</button><button type="button" class="btn ghost sm" data-ladd="1">+ เพิ่มฟังก์ชัน (มีรายการย่อย)</button><button type="button" class="btn sm" data-lsave>บันทึกรายการ Lab</button></div></div>`;
+}
+function labAdminMount() {
+  const host = $('labadmin'); if (!host) return;
+  if (!S.labEdit) S.labEdit = (S.cfg.labs || []).map(l => ({ name: l.name, unit: l.unit || '', fn: l.subs.length > 0, subs: l.subs.map(x => ({ name: x.name, unit: x.unit || '' })) }));
+  host.innerHTML = labAdminHtml();
+}
+document.addEventListener('input', e => {
+  const t = e.target, L = S.labEdit; if (!L || !t.dataset) return;
+  if (t.dataset.ln !== undefined) L[+t.dataset.ln].name = t.value;
+  else if (t.dataset.lu !== undefined) L[+t.dataset.lu].unit = t.value;
+  else if (t.dataset.lsn !== undefined) { const [k, j] = t.dataset.lsn.split(':').map(Number); L[k].subs[j].name = t.value; }
+  else if (t.dataset.lsu !== undefined) { const [k, j] = t.dataset.lsu.split(':').map(Number); L[k].subs[j].unit = t.value; }
+});
+document.addEventListener('click', async e => {
+  const t = e.target.closest ? e.target.closest('#labadm button') : null, L = S.labEdit; if (!t || !L) return;
+  const d = t.dataset;
+  if (d.ldel !== undefined) L.splice(+d.ldel, 1);
+  else if (d.lsdel !== undefined) { const [k, j] = d.lsdel.split(':').map(Number); L[k].subs.splice(j, 1); }
+  else if (d.lsadd !== undefined) L[+d.lsadd].subs.push({ name: '', unit: '' });
+  else if (d.ladd !== undefined) L.push(d.ladd === '1' ? { name: '', unit: '', fn: true, subs: [{ name: '', unit: '' }] } : { name: '', unit: '', fn: false, subs: [] });
+  else if (d.lsave !== undefined) {
+    try { S.cfg.labs = await api('saveLabs', S.token, L); S.labEdit = null; toast('บันทึกรายการ Lab แล้ว'); labAdminMount(); } catch (err) { handleErr(err); }
+    return;
+  } else return;
+  $('labadmin').innerHTML = labAdminHtml();
+});
+
 // หน้าสรุป/ดูรายงาน: รูปแสดงเป็นรูปเล็ก (โหลดเมื่อเลื่อนมาถึง) กดเพื่อดูรูปเต็ม + ดาวน์โหลด PDF แสดงเป็นไอคอนไฟล์
 const attGallery = files => (files || []).length ? `<div class="agal">${files.map(f => `<button type="button" class="athumb" data-attview="${esc(f.id)}" data-attname="${esc(f.name)}" data-attmime="${esc(f.mime)}" title="${esc(f.name)}"><span class="tp"${f.mime && f.mime.indexOf('image/') === 0 ? ` data-attthumb="${esc(f.id)}">กำลังโหลด...` : '>PDF'}</span><span class="tn">${esc(f.name)}</span><span class="tz">ดูรูปเต็ม</span></button>`).join('')}</div>` : '';
 S.thumbUrl = S.thumbUrl || {};
@@ -2232,6 +2327,7 @@ function incFormHtml(list, cs) {
       </div>
     </fieldset>
     <label class="f">${cs ? 'รายละเอียดเคส' : 'รายละเอียดเหตุการณ์'}</label><textarea ${at}="${i}:detail" rows="3">${esc(x.detail)}</textarea>
+    <div class="labbar"><button type="button" class="btn ghost sm" data-labbtn="${i}" data-labcs="${cs ? 1 : ''}">\u{1F9EA} ช่วยพิมพ์ Lab</button><span class="labnote">กดปุ่มเลือกรายการ Lab ที่ต้องการ จากนั้นกด Add จะพิมพ์ต่อจากที่ค้างไว้</span></div>
     <label class="f">การแก้ไขเบื้องต้น</label><textarea ${at}="${i}:action" rows="2">${esc(x.action)}</textarea>
     <fieldset><legend>ไฟล์แนบ (JPG / PNG / PDF)</legend>
       <div class="atts">${(x.files || []).map((f, k) => attChip(f, true, i, k, cs)).join('') || '<span class="muted" style="font-size:13px">ยังไม่มีไฟล์แนบ</span>'}</div>
@@ -2318,6 +2414,7 @@ function renderStaff() {
       <div class="chips" style="margin-bottom:10px">${rr.map(o => `<span class="pill plain">${esc(o.no)}${o.name && o.name !== o.no ? `<small style="display:block;font-size:10px;opacity:.75;line-height:1.1">${esc(o.name)}</small>` : ''}</span>`).join('') || '<span class="muted">ยังไม่มีห้อง</span>'}</div>
       <button type="button" class="btn ghost sm" data-act="rooms" data-runit="${esc(unit)}">\u270e แก้ไขรายการห้อง (เลขห้อง / ชื่อ)</button><div id="adm_room_editor"></div></div>`;
   }
+  if (admin) html += '<div id="labadmin"></div>';
   return html;
 }
 

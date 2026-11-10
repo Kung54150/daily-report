@@ -17,6 +17,7 @@ const SH_PROCS = 'รายการหัตถการ';
 const SH_STAFF = 'ทะเบียนเจ้าหน้าที่';
 const SH_STATS = 'สถิติ';
 const SH_ROOMS = 'ห้อง';
+const SH_LABS = 'รายการ Lab'; // ตัวช่วยพิมพ์ Lab ในเหตุการณ์/เคส: รายการหลัก, รายการย่อย (ว่าง = ตัวเดี่ยว), หน่วย
 const SH_ALIASES = 'ชื่อแผนกในไฟล์';
 const SH_TITLES = 'การจับคู่ตำแหน่ง';
 const SH_DOCS = 'ตารางเวรแพทย์';      // ตารางออกตรวจของแพทย์ประจำเดือน (อัปโหลดโดย ADMIN) แถวละแพทย์ 1 ท่าน/วัน
@@ -39,6 +40,7 @@ const HEADERS = {
   // ยอดมาตรฐานแบบแถวยาว ใช้ทำ Pivot / Looker Studio ภายหลัง
   [SH_STATS]: ['วันที่', 'กลุ่ม', 'หน่วยงาน', 'หมวด', 'รายการ', 'จำนวน', 'ตึก', 'เวร'],
   [SH_STAFF]: ['id', 'หน่วยงาน', 'ชื่อ-สกุล', 'ตำแหน่ง', 'ที่มา', 'แก้ไขล่าสุด', 'แผนกในไฟล์', 'ตำแหน่งในไฟล์'],
+  [SH_LABS]: ['รายการหลัก', 'รายการย่อย (ว่าง = ตัวเดี่ยว)', 'หน่วย'],
   [SH_ROOMS]: ['หน่วยงาน', 'เลขห้อง', 'ชื่อ/ประเภทห้อง (ไม่บังคับ)'],
   [SH_ALIASES]: ['ชื่อแผนกที่ใช้ในไฟล์', 'หน่วยงานในระบบ'],
   [SH_TITLES]: ['ตำแหน่งในไฟล์', 'บทบาทในระบบ'],
@@ -227,7 +229,7 @@ function auth_(token) {
 }
 
 function getBoot(token) {
-  return { me: auth_(token), config: Object.assign(buildConfig_(), { rooms: getRooms_(), procs: getProcs_(), lineCaseUnits: LINE_CASE_UNITS }) };
+  return { me: auth_(token), config: Object.assign(buildConfig_(), { rooms: getRooms_(), labs: getLabs_(), procs: getProcs_(), lineCaseUnits: LINE_CASE_UNITS }) };
 }
 
 // ===== รายงาน =====
@@ -653,6 +655,65 @@ function saveRooms(token, unit, list) {
     if (out.length) sh.getRange(2, 1, out.length, 3).setValues(out);
   });
   return getRooms_();
+}
+
+// ===== รายการ Lab (ตัวช่วยพิมพ์ Lab) — ADMIN เพิ่ม/ลบได้ในหน้าเว็บ หรือแก้ในชีต 'รายการ Lab' =====
+// แถวที่ไม่มีรายการย่อย = ตัวเดี่ยว (หน่วยอยู่คอลัมน์ C) | แถวที่มีรายการย่อย = ฟังก์ชัน (เช่น CBC → Hb, Hct ...)
+const LAB_SEED_ = [
+  ['CBC', [['Hb', 'g/dL'], ['Hct', '%'], ['WBC', 'cells/mm3'], ['Plt', 'cells/mm3'], ['Neutrophil', '%'], ['Lymphocyte', '%']]],
+  ['Electrolyte', [['Na', 'mmol/L'], ['K', 'mmol/L'], ['Cl', 'mmol/L'], ['CO2', 'mmol/L']]],
+  ['LFT', [['AST', 'U/L'], ['ALT', 'U/L'], ['ALP', 'U/L'], ['TB', 'mg/dL'], ['DB', 'mg/dL']]],
+  ['ABG', [['pH', ''], ['PaCO2', 'mmHg'], ['PaO2', 'mmHg'], ['HCO3', 'mmol/L'], ['BE', 'mmol/L']]],
+  ['DTX', 'mg/dL'], ['BUN', 'mg/dL'], ['Cr', 'mg/dL'], ['Lactate', 'mmol/L'], ['Troponin T', 'ng/L'], ['CRP', 'mg/L'], ['INR', '']
+];
+function seedLabs_() {
+  const sh = sheet_(SH_LABS);
+  if (sh.getLastRow() >= 2) return;
+  const rows = [];
+  LAB_SEED_.forEach(l => { if (Array.isArray(l[1])) l[1].forEach(x => rows.push([l[0], x[0], x[1]])); else rows.push([l[0], '', l[1]]); });
+  sh.getRange(2, 1, rows.length, 3).setValues(rows);
+}
+function getLabs_() {
+  if (!SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SH_LABS) || sheet_(SH_LABS).getLastRow() < 2) withLock_(seedLabs_);
+  const out = [], idx = {};
+  sheet_(SH_LABS).getDataRange().getValues().slice(1).forEach(r => {
+    const name = String(r[0] || '').trim(), sub = String(r[1] || '').trim(), unit = String(r[2] || '').trim();
+    if (!name) return;
+    if (!idx.hasOwnProperty(name)) { idx[name] = out.length; out.push({ name, unit: '', subs: [] }); }
+    const l = out[idx[name]];
+    if (sub) l.subs.push({ name: sub, unit }); else l.unit = unit;
+  });
+  return out;
+}
+// ADMIN เท่านั้น: แทนที่รายการ Lab ทั้งหมด list = [{ name, unit, fn, subs: [{ name, unit }] }]
+function saveLabs(token, list) {
+  const me = auth_(token);
+  if (me.role !== 'admin') throw new Error('เฉพาะผู้ดูแลระบบ (ADMIN) ที่แก้รายการ Lab ได้');
+  const seen = {}, rows = [];
+  (list || []).forEach(l => {
+    const name = String(l && l.name || '').trim().slice(0, 40);
+    if (!name) return;
+    if (seen[name.toLowerCase()]) throw new Error('ชื่อรายการหลักซ้ำ: ' + name);
+    seen[name.toLowerCase()] = true;
+    if (l.fn) {
+      const subs = (l.subs || []).filter(x => x && String(x.name || '').trim());
+      if (!subs.length) throw new Error('ฟังก์ชัน ' + name + ' ต้องมีรายการย่อยอย่างน้อย 1 รายการ');
+      const ss = {};
+      subs.forEach(x => {
+        const sn = String(x.name).trim().slice(0, 40);
+        if (ss[sn.toLowerCase()]) throw new Error('รายการย่อยซ้ำใน ' + name + ': ' + sn);
+        ss[sn.toLowerCase()] = true; rows.push([name, sn, String(x.unit || '').trim().slice(0, 20)]);
+      });
+    } else rows.push([name, '', String(l.unit || '').trim().slice(0, 20)]);
+  });
+  if (rows.length > 500) throw new Error('จำนวนรายการ Lab มากเกินไป');
+  withLock_(() => {
+    const sh = sheet_(SH_LABS);
+    ensureHeaders_(sh, HEADERS[SH_LABS]);
+    sh.getRange(2, 1, Math.max(sh.getLastRow() - 1, 1), 3).clearContent();
+    if (rows.length) sh.getRange(2, 1, rows.length, 3).setValues(rows);
+  });
+  return getLabs_();
 }
 
 function allUnitCodes_() { return GROUPS.flatMap(g => g.units); }
