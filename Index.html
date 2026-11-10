@@ -652,7 +652,7 @@ setTimeout(function () {
       <span class="dlabel" id="d_label"></span>
     </div>
     <div id="view"></div>
-    <div class="noprint muted" id="buildtag" style="text-align:center;font-size:11px;padding:8px 0 4px">หน้าเว็บ build 2026-11-10 #85</div>
+    <div class="noprint muted" id="buildtag" style="text-align:center;font-size:11px;padding:8px 0 4px">หน้าเว็บ build 2026-11-10 #86</div>
   </main>
   <div class="savebar" id="savebar" hidden><div class="wrap">
     <span class="msg" id="sb_msg"></span>
@@ -2131,6 +2131,13 @@ const attChip = (f, editable, i, k, cs) => `<span class="att"><button type="butt
 
 /* ===== ตัวช่วยพิมพ์ Lab ในรายละเอียดเหตุการณ์/เคส ===== */
 const labUnit = u => u ? ' ' + u : '';
+// พิมพ์ต่อท้ายข้อความเดิมในบรรทัดเดียวกัน: เว้นวรรค 2 ช่อง + ครอบด้วย [ ] ให้เห็นขอบเขตชัดเจน แล้ววางเคอร์เซอร์ไว้ท้ายสุดให้พิมพ์ต่อได้
+function labAppend(ta, text) {
+  const cur = ta.value;
+  ta.value = cur + (!cur || /\s$/.test(cur) ? '' : '  ') + '[' + text + '] ';
+  ta.dispatchEvent(new Event('input', { bubbles: true }));
+  try { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } catch (e) {}
+}
 function labOpen(textarea) { S.labTa = textarea; $('labdlg').hidden = false; labList(); }
 function labClose() { $('labdlg').hidden = true; S.labTa = null; }
 function labList() {
@@ -2154,9 +2161,7 @@ function labAdd() {
   const parts = rows.map((r, j) => vals[j] ? (l.subs.length ? r.name + ' ' : '') + vals[j] + labUnit(r.unit) : '').filter(Boolean);
   if (!parts.length) { toast('กรอกตัวเลขอย่างน้อย 1 ช่อง'); return; }
   const text = l.subs.length ? l.name + ': ' + parts.join(', ') : l.name + ' ' + parts[0];
-  const cur = ta.value;
-  ta.value = cur ? cur + (/\s$/.test(cur) ? '' : '\n') + text : text;
-  ta.dispatchEvent(new Event('input', { bubbles: true }));
+  labAppend(ta, text);
   toast('เพิ่ม ' + l.name + ' แล้ว'); labList();
 }
 const VS_FIELDS = [['bp', 'BP', 'mmHg', 'text', '120/80'], ['pr', 'PR', 'ครั้ง/min', 'numeric'], ['rr', 'RR', 'ครั้ง/min', 'numeric'], ['temp', 'T', '\u00b0C', 'decimal'], ['spo2', 'O2 sat', '%', 'numeric'], ['o2', 'O2 ที่ให้', '', 'text', 'เช่น 3 LPM']];
@@ -2176,9 +2181,7 @@ function vsAdd() {
   const parts = VS_FIELDS.map(([k, n, u]) => { const v = $('lab_box').querySelector(`[data-vsv="${k}"]`).value.trim(); return v ? n + ' ' + v + (u ? ' ' + u : '') : ''; }).filter(Boolean);
   if (!parts.length) { toast('กรอกค่า V/S อย่างน้อย 1 ช่อง'); return; }
   const text = 'V/S' + (tm ? ' ' + tm + ' น.' : '') + ': ' + parts.join(', ');
-  const cur = ta.value;
-  ta.value = cur ? cur + (/\s$/.test(cur) ? '' : '\n') + text : text;
-  ta.dispatchEvent(new Event('input', { bubbles: true }));
+  labAppend(ta, text);
   toast('เพิ่ม V/S แล้ว'); labClose();
 }
 document.addEventListener('input', e => { const t = e.target; if (t.dataset && t.dataset.vst !== undefined) t.value = typingTime(t.value); });
