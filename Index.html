@@ -261,10 +261,11 @@
   .labdlg .lgrid { display: flex; flex-wrap: wrap; gap: 8px; }
   .labdlg .lgrid button { border: 1px solid var(--line); background: var(--sunk); color: var(--accent-strong); border-radius: 8px; padding: 6px 12px; font-size: 15px; font: inherit; font-weight: 600; cursor: pointer; }
   .labdlg .lgrid button small { color: var(--muted); font-weight: 400; margin-left: 4px; }
-  .labdlg .lrow { display: grid; grid-template-columns: 1fr 92px 64px; gap: 6px; align-items: center; margin: 3px 0; }
+  .labdlg .lrow { display: grid; grid-template-columns: 1fr 84px 82px; gap: 6px; align-items: center; margin: 3px 0; }
   .labdlg .lrow label { font-size: 15px; font-weight: 600; color: var(--fg); margin: 0; }
   .labdlg .lrow input { padding: 4px 8px; font-size: 16px; color: var(--fg); }
-  .labdlg .lrow span.u { color: var(--muted); font-size: 12px; }
+  .labdlg .lrow .lu { border: 1px dashed var(--line); background: transparent; color: var(--muted); border-radius: 6px; padding: 3px 4px; font: inherit; font-size: 12px; cursor: pointer; text-decoration: line-through; overflow-wrap: anywhere; line-height: 1.2; }
+  .labdlg .lrow .lu.on { border-style: solid; border-color: var(--accent-strong); background: var(--accent-soft, var(--sunk)); color: var(--accent-strong); text-decoration: none; font-weight: 600; }
   .labdlg .lact { display: flex; gap: 8px; margin-top: 8px; }
   .labdlg .lact .btn { padding: 5px 14px; min-height: 0; }
   .labadm .lcard { border: 1px solid var(--line); border-radius: 10px; padding: 8px; margin: 8px 0; background: var(--sunk); }
@@ -652,7 +653,7 @@ setTimeout(function () {
       <span class="dlabel" id="d_label"></span>
     </div>
     <div id="view"></div>
-    <div class="noprint muted" id="buildtag" style="text-align:center;font-size:11px;padding:8px 0 4px">หน้าเว็บ build 2026-11-10 #81</div>
+    <div class="noprint muted" id="buildtag" style="text-align:center;font-size:11px;padding:8px 0 4px">หน้าเว็บ build 2026-11-10 #82</div>
   </main>
   <div class="savebar" id="savebar" hidden><div class="wrap">
     <span class="msg" id="sb_msg"></span>
@@ -2143,7 +2144,8 @@ function labForm(k) {
   const l = (S.cfg.labs || [])[k]; if (!l) return; S.labK = k;
   const rows = l.subs.length ? l.subs : [{ name: l.name, unit: l.unit }];
   $('lab_box').innerHTML = `<div class="lhead"><b>${esc(l.name)}</b><button type="button" class="btn ghost sm" data-labx aria-label="ปิด">\u00d7</button></div>
-    ${rows.map((r, j) => `<div class="lrow"><label for="labv${j}">${esc(r.name)}</label><input id="labv${j}" data-labv="${j}" type="text" inputmode="decimal" autocomplete="off"><span class="u">${esc(r.unit)}</span></div>`).join('')}
+    ${rows.map((r, j) => `<div class="lrow"><label for="labv${j}">${esc(r.name)}</label><input id="labv${j}" data-labv="${j}" type="text" inputmode="decimal" autocomplete="off">${r.unit ? `<button type="button" class="lu" data-labu="${j}" aria-pressed="false" title="แตะเพื่อใส่หน่วยในข้อความ">${esc(r.unit)}</button>` : '<span></span>'}</div>`).join('')}
+    <div class="muted" style="font-size:12px;margin-top:6px">แตะหน่วยที่ต้องการให้แสดง (ไฮไลต์ = ใส่หน่วย) ถ้าไม่แตะ จะไม่ใส่หน่วยในข้อความ</div>
     <div class="lact"><button type="button" class="btn" data-labadd>Add</button><button type="button" class="btn ghost" data-labback>\u2039 กลับ</button></div>`;
   const f = $('lab_box').querySelector('input'); if (f) f.focus();
 }
@@ -2151,7 +2153,8 @@ function labAdd() {
   const l = (S.cfg.labs || [])[S.labK], ta = S.labTa; if (!l || !ta) return;
   const vals = Array.from($('lab_box').querySelectorAll('[data-labv]')).map(i => i.value.trim());
   const rows = l.subs.length ? l.subs : [{ name: l.name, unit: l.unit }];
-  const parts = rows.map((r, j) => vals[j] ? (l.subs.length ? r.name + ' ' : '') + vals[j] + labUnit(r.unit) : '').filter(Boolean);
+  const on = Array.from($('lab_box').querySelectorAll('[data-labu]')).reduce((o, b) => { o[b.dataset.labu] = b.classList.contains('on'); return o; }, {});
+  const parts = rows.map((r, j) => vals[j] ? (l.subs.length ? r.name + ' ' : '') + vals[j] + (on[j] ? labUnit(r.unit) : '') : '').filter(Boolean);
   if (!parts.length) { toast('กรอกตัวเลขอย่างน้อย 1 ช่อง'); return; }
   const text = l.subs.length ? l.name + ': ' + parts.join(', ') : l.name + ' ' + parts[0];
   const cur = ta.value;
@@ -2167,6 +2170,7 @@ document.addEventListener('click', e => {
   if (t.closest('[data-labx]') || t === $('labdlg')) labClose();
   else if (t.closest('[data-labpick]')) labForm(+t.closest('[data-labpick]').dataset.labpick);
   else if (t.closest('[data-labback]')) labList();
+  else if (t.closest('[data-labu]')) { const b = t.closest('[data-labu]'); b.classList.toggle('on'); b.setAttribute('aria-pressed', b.classList.contains('on')); }
   else if (t.closest('[data-labadd]')) labAdd();
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('labdlg').hidden) labClose(); if (e.key === 'Enter' && !$('labdlg').hidden && e.target.dataset && e.target.dataset.labv !== undefined) { e.preventDefault(); labAdd(); } });
