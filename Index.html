@@ -264,6 +264,8 @@
   .labdlg .lrow { display: grid; grid-template-columns: 1fr 84px 82px; gap: 6px; align-items: center; margin: 3px 0; }
   .labdlg .lrow label { font-size: 15px; font-weight: 600; color: var(--fg); margin: 0; }
   .labdlg .lrow input { padding: 4px 8px; font-size: 16px; color: var(--fg); }
+  .labdlg .lrow.wide { grid-template-columns: 1fr 166px; }
+  .labdlg .lrow input::placeholder { font-size: 12px; }
   .labdlg .lrow span.u { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
   .labdlg .lact { display: flex; gap: 8px; margin-top: 8px; }
   .labdlg .lact .btn { padding: 5px 14px; min-height: 0; }
@@ -652,7 +654,7 @@ setTimeout(function () {
       <span class="dlabel" id="d_label"></span>
     </div>
     <div id="view"></div>
-    <div class="noprint muted" id="buildtag" style="text-align:center;font-size:11px;padding:8px 0 4px">หน้าเว็บ build 2026-11-10 #87</div>
+    <div class="noprint muted" id="buildtag" style="text-align:center;font-size:11px;padding:8px 0 4px">หน้าเว็บ build 2026-11-10 #88</div>
   </main>
   <div class="savebar" id="savebar" hidden><div class="wrap">
     <span class="msg" id="sb_msg"></span>
@@ -2196,13 +2198,13 @@ function labAdd() {
   labAppend(ta, text);
   toast('เพิ่ม ' + l.name + ' แล้ว'); labList();
 }
-const VS_FIELDS = [['bp', 'BP', 'mmHg', 'text', '120/80'], ['pr', 'PR', 'ครั้ง/min', 'numeric'], ['rr', 'RR', 'ครั้ง/min', 'numeric'], ['temp', 'T', '\u00b0C', 'decimal'], ['spo2', 'O2 sat', '%', 'numeric'], ['o2', 'O2 ที่ให้', '', 'text', 'เช่น 3 LPM']];
+const VS_FIELDS = [['bp', 'BP', 'mmHg', 'text', '120/80'], ['pr', 'PR', 'ครั้ง/min', 'numeric'], ['rr', 'RR', 'ครั้ง/min', 'numeric'], ['temp', 'T', '\u00b0C', 'decimal'], ['spo2', 'O2 sat', '%', 'numeric'], ['o2', 'O2 ที่ให้', '', 'text', 'เช่น Room air']];
 function vsOpen(textarea) {
   S.labTa = textarea; $('labdlg').hidden = false;
   const d = new Date(), now = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
   $('lab_box').innerHTML = `<div class="lhead"><b>ช่วยพิมพ์ V/S</b><button type="button" class="btn ghost sm" data-labx aria-label="ปิด">\u00d7</button></div>
     <div class="lrow"><label for="vst">เวลา</label><input id="vst" data-vst type="text" inputmode="numeric" maxlength="5" autocomplete="off" value="${now}"><span class="u">น.</span></div>
-    ${VS_FIELDS.map(([k, n, u, mode, ph]) => `<div class="lrow"><label for="vs_${k}">${n}</label><input id="vs_${k}" data-vsv="${k}" type="text" inputmode="${mode}" autocomplete="off"${ph ? ` placeholder="${ph}"` : ''}><span class="u">${esc(u)}</span></div>`).join('')}
+    ${VS_FIELDS.map(([k, n, u, mode, ph]) => `<div class="lrow${u ? '' : ' wide'}"><label for="vs_${k}">${n}</label><input id="vs_${k}" data-vsv="${k}" type="text" inputmode="${mode}" autocomplete="off"${ph ? ` placeholder="${ph}"` : ''}>${u ? `<span class="u">${esc(u)}</span>` : ''}</div>`).join('')}
     <div class="lact"><button type="button" class="btn" data-vsadd>Add</button></div>`;
   const f = $('lab_box').querySelector('[data-vsv]'); if (f) f.focus();
 }
