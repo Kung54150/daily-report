@@ -111,7 +111,37 @@ function migrateRoles_() {
   });
 }
 
+// ย้ายข้อมูลครั้งเดียว: หน่วยงาน HPC เปลี่ยนชื่อเป็น HCC → แก้รหัสหน่วยงานในทุกชีต (รายงานเดิม สถิติ รหัสผ่าน ทะเบียนเจ้าหน้าที่ ฯลฯ)
+function migrateHpcToHcc_() {
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty('mig_hpc_hcc_v1')) return;
+  withLock_(() => {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const fix = v => String(v).split(',').map(x => x.trim() === 'HPC' ? 'HCC' : x.trim()).join(', ');
+    // ชีต → คอลัมน์ (เริ่มที่ 0) ที่เก็บรหัสหน่วยงาน
+    [[SH_USERS, 0], [SH_REPORTS, 1], [SH_INCIDENTS, 1], [SH_CASES, 1], [SH_PROCS, 0], [SH_STAFF, 1], [SH_STATS, 2],
+      [SH_ROOMS, 0], [SH_LINE_CASES, 3], [SH_ALIASES, 1]].forEach(([name, col]) => {
+      const sh = ss.getSheetByName(name);
+      if (!sh || sh.getLastRow() < 2) return;
+      const rng = sh.getRange(2, col + 1, sh.getLastRow() - 1, 1), vals = rng.getValues();
+      if (vals.some(r => String(r[0]).trim() === 'HPC')) rng.setValues(vals.map(r => [String(r[0]).trim() === 'HPC' ? 'HCC' : r[0]]));
+    });
+    const rp = ss.getSheetByName(SH_REPORTS); // รหัสหน่วยงานในข้อมูล JSON ของรายงาน
+    if (rp && rp.getLastRow() > 1) {
+      const r = rp.getRange(2, 5, rp.getLastRow() - 1, 1), v = r.getValues();
+      if (v.some(x => String(x[0]).indexOf('"unit":"HPC"') >= 0)) r.setValues(v.map(x => [String(x[0]).replace(/"unit":"HPC"/g, '"unit":"HCC"')]));
+    }
+    const bd = ss.getSheetByName(SH_DOC_BIND); // คอลัมน์ที่คั่นหลายหน่วยงานด้วย ,
+    if (bd && bd.getLastRow() > 1) {
+      const r = bd.getRange(2, 2, bd.getLastRow() - 1, 1), v = r.getValues();
+      r.setValues(v.map(x => [fix(x[0])]));
+    }
+    props.setProperty('mig_hpc_hcc_v1', '1');
+  });
+}
+
 function ensureUsers_() {
+  migrateHpcToHcc_();
   releaseOrphans_();
   migrateRoles_();
   const sh = sheet_(SH_USERS);
@@ -324,7 +354,7 @@ function saveReport(token, rep) {
     const n = BALLS.reduce((a, b) => a + (Number(values[f.key + '_' + b[0]]) || 0), 0);
     if (n > 0) values[f.key] = n;
   }));
-  // รายการแบบเลือก + เพิ่ม (เช่น HPC): ตรวจรายการ/ชื่อ แล้วคำนวณยอดรวมเอง
+  // รายการแบบเลือก + เพิ่ม (เช่น HCC): ตรวจรายการ/ชื่อ แล้วคำนวณยอดรวมเอง
   form.sections.filter(s => s.type === 'list').forEach(s => {
     const rows = [];
     ((rep.values || {})[s.key] || []).forEach(x => {
@@ -876,7 +906,7 @@ function uploadDocSchedule(token, data) {
   });
   return { month, added: rows.length, sheets: new Set(rows.map(r => r[2])).size };
 }
-// หน่วยงานผู้ป่วยนอกที่ข้อความในตารางระบุไว้ เช่น "(HPC)" "(OPD+ER)" — "OPD" เฉยๆ (ไม่มีเลข) = หน่วยงานที่ผูกกับสาขานั้น
+// หน่วยงานผู้ป่วยนอกที่ข้อความในตารางระบุไว้ เช่น "(HCC)" "(OPD+ER)" — "OPD" เฉยๆ (ไม่มีเลข) = หน่วยงานที่ผูกกับสาขานั้น
 function docTags_(text) {
   const t = String(text || '');
   return opdUnits_().filter(c => new RegExp('(^|[^A-Za-z0-9])' + c.replace(/[-]/g, '\\-') + '(?![A-Za-z0-9])', 'i').test(t));

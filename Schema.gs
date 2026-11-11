@@ -57,7 +57,7 @@ const CUSTOM_ITEM = ['__custom', '+ เพิ่มรายการ (พิม
 const DENT_ITEMS = [['scale', 'ขูดหินปูน'], ['xray', 'X-ray'], ['fill', 'อุดฟัน'], ['ext_perm', 'ถอนฟันแท้'], ['ext_milk', 'ถอนฟันน้ำนม'], ['exam', 'ตรวจฟัน'], ['exam_prog', 'ตรวจฟันโปรแกรม'], ['splint', 'ติดตามอาการหลังใส่ splint'], CUSTOM_ITEM];
 const ENT_ITEMS = [['suction', 'Suction'], ['removefb', 'RemoveFB'], ['blood', 'เจาะเลือด'], ['sinuscope', 'Sinuscope'], ['earpack', 'Ear packing'], ['rhinoscope', 'Rhinoscope'], ['fna', 'FNA'], ['or_admit', 'OR/Admit'], CUSTOM_ITEM];
 const EYE_ITEMS = [['va_auto', 'VA+Autotometer'], ['glasses', 'วัดแว่น'], ['eye_prog', 'ตรวจตาในโปรแกรม'], ['retina', 'Retina camera'], ['removefb', 'RemoveFB'], ['dilate', 'Dilate'], ['or', 'OR'], ['inject', 'ฉีดยา'], ['laser', 'Laser'], ['patch', 'ปิดตา'], ['admit', 'Admit'], CUSTOM_ITEM];
-const HPC_ITEMS = [
+const HCC_ITEMS = [
   ['p1', 'ตรวจสุขภาพโปรแกรม 1'], ['p2', 'ตรวจสุขภาพโปรแกรม 2'], ['p3', 'ตรวจสุขภาพโปรแกรม 3'],
   ['stroke', 'ตรวจสุขภาพโปรแกรมคัดกรองหลอดเลือดสมอง'], ['cancer', 'ตรวจสุขภาพโปรแกรมคัดกรองมะเร็ง'], ['mentor', 'ตรวจสุขภาพโปรแกรมพี่เลี้ยงเด็ก'],
   ['wedding', 'ตรวจสุขภาพโปรแกรม แต่งงาน'], ['excl', 'ตรวจสุขภาพโปรแกรม Exclusive Care'], ['liver', 'ตรวจสุขภาพโปรแกรม การทำงานของตับ'],
@@ -147,7 +147,7 @@ const FORMS = {
       Object.assign(N_('ins_total', 'รวมยอด ปกส. สะสมปีนี้', 'เคส'), { calc: { plus: ['ins_carry', 'ins_today'], minus: [] } })
     ] }
   ] },
-  HPC: { std: { total: 'total' }, sections: [LIST_('svc', 'รายการตรวจ / บริการ', 'total', 'รวมจำนวนผู้รับบริการทั้งหมดในวันนี้', HPC_ITEMS)] },
+  HCC: { std: { total: 'total' }, sections: [LIST_('svc', 'รายการตรวจ / บริการ', 'total', 'รวมจำนวนผู้รับบริการทั้งหมดในวันนี้', HCC_ITEMS)] },
   OPD1: { std: { total: 'total', admit: ['med_admit'] }, sections: [
     { title: 'ยอดรวม', fields: [N_('total', 'ยอด Total (Med+Psy)')] },
     { title: 'ผู้ป่วยอายุรกรรม', fields: [N_('med', 'ผู้ป่วยอายุรกรรม'), N_('med_appt', 'เป็นนัด'), N_('med_admit', 'Admit'), N_('med_elder', 'ผู้สูงอายุ')] },
@@ -183,7 +183,7 @@ const FORMS = {
   'OBG-IVF': { std: { total: ['obg', 'gyn', 'ivf', 'gyn_sp', 'eki', 'stim', 'consult', 'nhso'], admit: ['ad_cs', 'ad_or', 'ad_induce', 'ad_tocolysis', 'ad_obsgyn', 'ad_abort'] }, sections: [
     { title: 'ผู้รับบริการ', sum: 'รวม', fields: [
       N_('obg', 'OBG'), N_('gyn', 'GYN'), N_('ivf', 'IVF'), N_('gyn_sp', 'นรีเวชพิเศษ'), N_('eki', 'Consult EKI'),
-      N_('stim', 'Stimulation'), N_('consult', 'Consult จาก IPD/HPC'), N_('nhso', 'สปสช.+สถาบัน')
+      N_('stim', 'Stimulation'), N_('consult', 'Consult จาก IPD/HCC'), N_('nhso', 'สปสช.+สถาบัน')
     ] },
     { title: 'Admit', sum: 'รวม Admit', fields: [
       N_('ad_cs', 'Admit C/S'), N_('ad_or', 'Admit OR'), N_('ad_induce', 'Admit induction'), N_('or_opd', 'OR OPD'),
@@ -262,7 +262,7 @@ const FORMS = {
 const OPD_DRAFT = { draft: true, std: { total: 'total', admit: 'admit', refer: 'refer' }, sections: [{ title: 'ยอดผู้ป่วย', fields: [N_('total', 'ผู้ป่วยทั้งหมด'), N_('new', 'ผู้ป่วยใหม่'), N_('admit', 'Admit'), N_('refer', 'Refer out')] }] };
 
 const GROUPS = [
-  { key: 'OPD', name: 'ผู้ป่วยนอก', units: ['OPD1', 'OPD3', 'ER', 'HPC', 'CCC', 'OBG-IVF', 'PC', 'EENT', 'Dent'] },
+  { key: 'OPD', name: 'ผู้ป่วยนอก', units: ['OPD1', 'OPD3', 'ER', 'HCC', 'CCC', 'OBG-IVF', 'PC', 'EENT', 'Dent'] },
   { key: 'IPD', name: 'ผู้ป่วยใน', units: ['A4', 'A5', 'A6', 'B3', 'B4', 'B5', 'C3', 'C4', 'C5'] },
   { key: 'SPU', name: 'Special Unit', units: ['ICU', 'LR', 'NB', 'ไตเทียม', 'OR', 'CSSD'] }
 ];
