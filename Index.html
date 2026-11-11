@@ -1234,7 +1234,7 @@ const ageText = a => { const t = String(a == null ? '' : a).trim(); return /^\d+
 const vitals = i => [['BP', i.bp, 'mmHg'], ['PR', i.pr, 'ครั้ง/min'], ['RR', i.rr, 'ครั้ง/min'], ['T', i.temp, '\u00b0C'], ['O2 sat', i.spo2, '%']].filter(x => x[1] !== '' && x[1] != null);
 const o2Text = i => i.o2mode ? (i.o2mode === 'Room air' ? 'Room air' : `${i.o2mode}${i.o2flow ? ' ' + i.o2flow : ''}`) : '';
 
-/* ===== รายการแบบเลือกจาก Drop down แล้วกดเพิ่ม (เช่น HPC) ===== */
+/* ===== รายการแบบเลือกจาก Drop down แล้วกดเพิ่ม (เช่น HCC) ===== */
 const listRows = (s, v) => (v[s.key] || []).map(r => Object.assign({ it: s.items.find(i => i.k === r.k) }, r));
 const listLabel = (it, r) => (it && it.custom ? (r.name || it.label) : (it ? it.label : r.k) + (r.name ? ' \u00b7 ' + r.name : ''));
 const listUnit = s => s.unit || 'ราย';
@@ -1556,7 +1556,7 @@ function rememberProcs(unit, form, values) {
     (d.rows || []).forEach(r => { const it = sec.items.find(i => i.k === r.k); if (it && it.custom && r.name) add(sec.key, r.name); });
   }));
 }
-// รายการ "เลือกจากดรอปดาวน์ + ใส่จำนวน + เพิ่มรายการเอง (พิมพ์ชื่อ มีคำแนะนำ)" ใช้ร่วมกันทั้งรายการทั่วไป (HPC / EENT) และหัตถการรายแพทย์
+// รายการ "เลือกจากดรอปดาวน์ + ใส่จำนวน + เพิ่มรายการเอง (พิมพ์ชื่อ มีคำแนะนำ)" ใช้ร่วมกันทั้งรายการทั่วไป (HCC / EENT) และหัตถการรายแพทย์
 // o = { items, rows, unit, totalLabel, memKey, onChange(), rerender() }
 function mountList(box, o) {
   const rows = o.rows, st = o.state || (box._st = box._st || { k: '', name: '', n: '1' });
@@ -2569,7 +2569,7 @@ async function readDocFile(file) {
 // ชื่อชีตที่ระบบเดาหน่วยงานผู้ป่วยนอกให้ (แก้ได้ก่อนยืนยัน)
 const DOC_SUGGEST = [
   [/สูติ/, ['OBG-IVF']], [/ศัลย์/, ['OPD3']], [/กุมาร|นมแม่|พัฒนาการ/, ['PC']], [/อายุร/, ['OPD1']], [/ENT|จักษุ/i, ['EENT']],
-  [/ทันต/, ['Dent']], [/OPD4|HPC|ER/i, ['HPC', 'ER']], [/CP/, ['PC']]
+  [/ทันต/, ['Dent']], [/OPD4|HCC|ER/i, ['HCC', 'ER']], [/CP/, ['PC']]
 ];
 function docBindDefault(sheet) {
   const have = (S.docInfo && S.docInfo.bindings) || {};
@@ -2673,7 +2673,7 @@ function mapRole(raw) { return (S.titleMap || {})[normTitle(raw)] || builtinRole
 const SUGGEST = [
   [/อุบัติเหตุ/, 'ER'], [/อายุรกรรม/, 'OPD1'], [/ศัลยกรรม/, 'OPD3'], [/สูตินรีเวช|สูติ/, 'OBG-IVF'],
   [/กุมารเวช|เด็กสุขภาพดี|พัฒนาการเด็ก/, 'PC'], [/ตา\s*หู\s*คอ/, 'EENT'], [/ทันตกรรม/, 'Dent'],
-  [/ห้องผ่าตัด/, 'OR'], [/จ่ายกลาง|CSSD/i, 'CSSD'], [/ห้องคลอด/, 'LR'], [/ทารกแรกเกิด/, 'NB'], [/ผู้ป่วยวิกฤต/, 'ICU'], [/ส่งเสริมสุขภาพ/, 'HPC'], [/CCC/i, 'CCC']
+  [/ห้องผ่าตัด/, 'OR'], [/จ่ายกลาง|CSSD/i, 'CSSD'], [/ห้องคลอด/, 'LR'], [/ทารกแรกเกิด/, 'NB'], [/ผู้ป่วยวิกฤต/, 'ICU'], [/ส่งเสริมสุขภาพ/, 'HCC'], [/CCC/i, 'CCC']
 ];
 function suggestUnit(raw) {
   const hit = SUGGEST.find(x => x[0].test(raw));
