@@ -324,7 +324,7 @@ function saveReport(token, rep) {
     const n = BALLS.reduce((a, b) => a + (Number(values[f.key + '_' + b[0]]) || 0), 0);
     if (n > 0) values[f.key] = n;
   }));
-  // รายการแบบเลือก + เพิ่ม (เช่น HPC): ตรวจรายการ/ชื่อ แล้วคำนวณยอดรวมเอง
+  // รายการแบบเลือก + เพิ่ม (เช่น HCC): ตรวจรายการ/ชื่อ แล้วคำนวณยอดรวมเอง
   form.sections.filter(s => s.type === 'list').forEach(s => {
     const rows = [];
     ((rep.values || {})[s.key] || []).forEach(x => {
@@ -876,7 +876,7 @@ function uploadDocSchedule(token, data) {
   });
   return { month, added: rows.length, sheets: new Set(rows.map(r => r[2])).size };
 }
-// หน่วยงานผู้ป่วยนอกที่ข้อความในตารางระบุไว้ เช่น "(HPC)" "(OPD+ER)" — "OPD" เฉยๆ (ไม่มีเลข) = หน่วยงานที่ผูกกับสาขานั้น
+// หน่วยงานผู้ป่วยนอกที่ข้อความในตารางระบุไว้ เช่น "(HCC)" "(OPD+ER)" — "OPD" เฉยๆ (ไม่มีเลข) = หน่วยงานที่ผูกกับสาขานั้น
 function docTags_(text) {
   const t = String(text || '');
   return opdUnits_().filter(c => new RegExp('(^|[^A-Za-z0-9])' + c.replace(/[-]/g, '\\-') + '(?![A-Za-z0-9])', 'i').test(t));
