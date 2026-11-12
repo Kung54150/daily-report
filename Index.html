@@ -2901,18 +2901,35 @@ async function saveReportFile(fmt) {
 }
 // สรุปยอดรวมรายการตามประเภท ของแผนกเดียว (รวมทุกเวร/ทุกวันที่เลือก)
 // รายการมากกว่า 7 คอลัมน์ -> หน้านั้นพิมพ์แนวนอน (A4 landscape)
+// แผนกที่มีหน้าสรุปตารางรายวัน (แผนกอื่นยังใช้รูปแบบเดิม)
+const SUMMARY_TABLE_UNITS = ['OPD1'];
 const matrixCols = (u, reps) => itemSections(u, reps).reduce((a, b) => a + b.lines.length, 0);
 const isLand = (u, reps) => matrixCols(u, reps) > 7;
-// หน้าสรุปท้ายรายงานรายแผนก: ตารางยอดมาตรฐานรายวัน + ตารางรายการที่รายงานรายวัน (มีแถวรวมท้ายตาราง ไม่แยกตารางสรุปใหม่)
+// ตารางรวมรายวัน/เวรเดียว: ยอดมาตรฐาน + ทุกรายการที่รายงาน + RN/PN/NA, แถวรวมและเฉลี่ยท้ายตาราง
+function mergedDaily(u, reps, totLabel) {
+  const L = Object.assign({}, S.cfg.stdLabels, u.form.stdLabels), keys = Object.keys(u.form.std || {}), two = shiftsOf(u).length > 1, many = u.form.sections.length > 1;
+  const items = []; itemSections(u, reps).forEach(b => b.lines.forEach(([k]) => items.push({ t: b.title, k, id: b.title + '\u0001' + k })));
+  const order = reps.map((r, i) => i).sort((x, y) => reps[x].date < reps[y].date ? -1 : reps[x].date > reps[y].date ? 1 : 0);
+  const rows = order.map(i => { const r = reps[i], im = {}; itemSections(u, [r]).forEach(b => b.lines.forEach(([k, n]) => { im[b.title + '\u0001' + k] = n; }));
+    const st = (r.staff || []).filter(x => x.tag !== 'ออกหน่วย'); return { r, sv: stdValues(u, r.values), im, st: ['RN', 'PN', 'NA'].map(n => st.filter(x => asRN(x.role) === n).length) }; });
+  const vals = x => keys.map(k => x.sv[k] || 0).concat(items.map(c => x.im[c.id] || 0));
+  const f1 = n => Number.isInteger(n) ? String(n) : n.toFixed(1), cell = n => `<td class="n">${n || '\u2013'}</td>`;
+  const sums = rows.length ? rows.map(vals).reduce((a, v) => a.map((n, i) => n + v[i])) : [];
+  return `<table class="stat"><thead><tr><th>วันที่</th>${two ? '<th>เวร</th>' : ''}${keys.map(k => `<th>${esc(L[k])}</th>`).join('')}${items.map(c => `<th>${many ? `<small>${esc(c.t)}</small><br>` : ''}${esc(c.k)}</th>`).join('')}<th>RN</th><th>PN</th><th>NA</th></tr></thead>
+    ${rows.map(x => `<tr><td>${esc(fmtDMY(x.r.date))}</td>${two ? `<td>${esc(x.r.shift)}</td>` : ''}${vals(x).map(cell).join('')}${x.st.map(cell).join('')}</tr>`).join('')}
+    <tr class="tot"><td colspan="${two ? 2 : 1}">${esc(totLabel)}</td>${sums.map(n => `<td class="n">${n}</td>`).join('')}${[0, 1, 2].map(() => '<td class="n">\u2013</td>').join('')}</tr>
+    <tr class="sub"><td colspan="${two ? 2 : 1}">เฉลี่ยต่อ${two ? 'เวร' : 'วัน'}</td>${sums.map(n => `<td class="n">${f1(n / rows.length)}</td>`).join('')}${[0, 1, 2].map(i => `<td class="n">${f1(rows.reduce((a, x) => a + x.st[i], 0) / rows.length)}</td>`).join('')}</tr></table>
+    <div class="foot">RN / PN / NA = จำนวนเจ้าหน้าที่ที่ปฏิบัติงานในแต่ละ${two ? 'เวร' : 'วัน'}ตามรายงาน (ไม่นับผู้ที่ออกไปปฏิบัติงานหน่วยอื่น)</div>`;
+}
+// หน้าสรุปท้ายรายงานรายแผนก: ตารางรายวันตารางเดียว มีแถวรวมท้ายตาราง
 function unitSummaryPage(u, reps, label, sign) {
-  const land = isLand(u, reps), mx = itemMatrix(u, reps, 'รวมทั้งหมด', land);
-  return { land, html: `<h2>สรุปยอดรายวัน \u00b7 ${esc(u.code)}</h2><div class="st">${esc(label)} \u00b7 รวม ${reps.length} เวร/รายงาน</div>` + dailyTable(u, reps, 'รวมทั้งหมด') + (mx ? `<h2>รายการที่รายงานรายวัน</h2>` + mx : '') + sign };
+  return { land: false, html: `<h2>สรุปยอดรายวัน \u00b7 ${esc(u.code)}</h2><div class="st">${esc(label)} \u00b7 รวม ${reps.length} เวร/รายงาน</div>` + (reps.length ? mergedDaily(u, reps, 'รวมทั้งหมด') : '<div class="muted">ไม่มีรายงาน</div>') + sign };
 }
 const dayReps = u => shiftsOf(u).map(k => { const r = repAt(u, k); return r ? Object.assign({ date: S.date, shift: k }, r) : null; }).filter(Boolean);
 function buildDayPages(scope, sign) {
   if (scope === 'all') return [{ html: printUnits(), printonly: true }, printOverview() + sign];
   const u = unitCfg(scope), pages = shiftsOf(u).map(k => printSingle(u, k) + sign);
-  if (!S.sumReps) pages.push(unitSummaryPage(u, dayReps(u), thaiDate(S.date, true), sign));
+  if (!S.sumReps && SUMMARY_TABLE_UNITS.includes(u.code)) pages.push(unitSummaryPage(u, dayReps(u), thaiDate(S.date, true), sign));
   return pages;
 }
 const datesBetween = (from, to) => { const out = []; for (let d = from; d <= to && out.length < 40; d = shiftDate(d, 1)) out.push(d); return out; };
@@ -2970,14 +2987,14 @@ function renderPrint() {
     const reps = S.monthData.reports;
     if (scope === 'all') { // ภาพรวมทั้งเดือน (แสดงบนจอ) + รายงานรายเดือนของแต่ละหน่วยงาน (พิมพ์ตามหลัง)
       const byU = {}; reps.forEach(r => (byU[r.unit] = byU[r.unit] || []).push(r));
-      pages = [printMonthlyAll(month, reps) + sign].concat(S.cfg.units.filter(u => byU[u.code]).map(u => ({ html: printMonthly(u, month, byU[u.code]) + sign, printonly: true, land: isLand(u, byU[u.code]) })));
-    } else pages = [{ html: printMonthly(unitCfg(scope), month, reps) + sign, land: isLand(unitCfg(scope), reps) }];
+      pages = [printMonthlyAll(month, reps) + sign].concat(S.cfg.units.filter(u => byU[u.code]).map(u => ({ html: printMonthly(u, month, byU[u.code]) + sign, printonly: true, land: SUMMARY_TABLE_UNITS.includes(u.code) && isLand(u, byU[u.code]) })));
+    } else pages = [{ html: printMonthly(unitCfg(scope), month, reps) + sign, land: SUMMARY_TABLE_UNITS.includes(scope) && isLand(unitCfg(scope), reps) }];
   } else if (from === S.date && to === S.date) pages = buildDayPages(scope, sign);
   else {
     const key = from + '|' + to;
     if (!S.rangeData || S.rangeData.key !== key) { loadRange(from, to); return bar + '<div class="card muted fit">กำลังโหลดรายงาน...</div>'; }
     const saveDate = S.date, saveRaw = S.dayRaw, allReps = [];
-    pages = []; S.sumReps = scope !== 'all';
+    pages = []; S.sumReps = scope !== 'all' && SUMMARY_TABLE_UNITS.includes(scope);
     try {
       datesBetween(from, to).forEach(d => {
         const raw = S.rangeData.days[d];
@@ -2986,7 +3003,7 @@ function renderPrint() {
       });
     } finally { S.date = saveDate; S.dayRaw = saveRaw; S.sumReps = false; }
     if (!pages.length) return bar + '<div class="card muted fit">ไม่มีรายงานในช่วงวันที่ที่เลือก</div>';
-    if (scope !== 'all') pages.push(unitSummaryPage(unitCfg(scope), allReps, isoToDmy(from) + ' \u2013 ' + isoToDmy(to), sign));
+    if (scope !== 'all' && SUMMARY_TABLE_UNITS.includes(scope)) pages.push(unitSummaryPage(unitCfg(scope), allReps, isoToDmy(from) + ' \u2013 ' + isoToDmy(to), sign));
   }
   const note = 'ตัวอย่างตรงกับที่พิมพ์/บันทึกไฟล์ (ขอบกระดาษเท่ากัน) \u00b7 จุดตัดหน้าจริงอาจต่างเล็กน้อยตามเบราว์เซอร์';
   return bar + `<div class="muted noprint" style="font-size:12px;margin:0 0 6px">${note}</div>` + `<div class="a4-scroll">${pages.map(p => typeof p === 'string' ? `<div class="a4">${p}</div>` : `<div class="a4${p.printonly ? ' printonly' : ''}${p.land ? ' land' : ''}">${p.html}</div>`).join('')}</div>`;
@@ -3096,11 +3113,11 @@ function printMonthly(u, month, reps) {
   const head = t => `<h1>${t} \u00b7 ${esc(u.code)}</h1><div class="d">${esc(monthTitle(month))}</div>`;
   const days = new Set(reps.map(r => r.date)).size;
   let p1 = head('รายงานประจำเดือน') + `<div class="st">${esc(unitLabel(u))} \u00b7 มีรายงาน ${reps.length} ฉบับ จาก ${days} วัน</div>` + dailyTable(u, reps, 'รวมทั้งเดือน');
-  const mx = itemMatrix(u, reps, 'รวมทั้งเดือน', isLand(u, reps));
+  const tbl = SUMMARY_TABLE_UNITS.includes(u.code), mx = tbl ? itemMatrix(u, reps, 'รวมทั้งเดือน', isLand(u, reps)) : '', boxes = tbl ? [] : itemTotalBoxes(u, reps);
   const incs = reps.flatMap(r => (r.incidents || []).map(i => Object.assign({}, i, { unit: fmtDMY(r.date) + (two ? ' \u00b7 ' + r.shift : '') })));
   const css = reps.flatMap(r => (r.cases || []).map(i => Object.assign({}, i, { unit: fmtDMY(r.date) + (two ? ' \u00b7 ' + r.shift : '') })));
   let p2 = '';
-  p2 += mx ? `<h2>รายการที่รายงานรายวัน</h2>${mx}` : '<div class="muted">ไม่มีรายการอื่นนอกเหนือจากตารางยอดรายวัน</div>';
+  p2 += tbl ? (mx ? `<h2>รายการที่รายงานรายวัน</h2>${mx}` : '<div class="muted">ไม่มีรายการอื่นนอกเหนือจากตารางยอดรายวัน</div>') : boxes.length ? `<h2>รวมจำนวนรายการ</h2><div class="cols">${boxes.join('')}</div>` : '<div class="muted">ไม่มีรายการอื่นนอกเหนือจากตารางยอดรายวัน</div>';
   const byType = {}; incs.forEach(i => byType[i.type] = (byType[i.type] || 0) + 1);
   p2 += `<h2>เหตุการณ์ผิดปกติ (${incs.length})</h2>` + (incs.length ? `<div class="chipsp">${Object.entries(byType).map(([k, n]) => `<span>${esc(k)} <b>${n}</b></span>`).join('')}</div>${incTable(incs, 'วันที่ / เวร')}` : '<div>ไม่มีรายงานเหตุการณ์ผิดปกติ</div>');
   if (css.length) p2 += `<h2>รายงานเคส (${css.length})</h2>${incTable(css, 'วันที่ / เวร', true)}`;
