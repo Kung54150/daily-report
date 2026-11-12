@@ -2911,19 +2911,28 @@ function mergedDaily(u, reps, totLabel) {
   const items = []; itemSections(u, reps).forEach(b => b.lines.forEach(([k]) => items.push({ t: b.title, k, id: b.title + '\u0001' + k })));
   const order = reps.map((r, i) => i).sort((x, y) => reps[x].date < reps[y].date ? -1 : reps[x].date > reps[y].date ? 1 : 0);
   const rows = order.map(i => { const r = reps[i], im = {}; itemSections(u, [r]).forEach(b => b.lines.forEach(([k, n]) => { im[b.title + '\u0001' + k] = n; }));
-    const st = (r.staff || []).filter(x => x.tag !== 'ออกหน่วย'); const rd = r.reduce || {}; return { r, red: num(rd.RN) + num(rd.PN) + num(rd.NA), sv: stdValues(u, r.values), im, st: ['RN', 'PN', 'NA'].map(n => st.filter(x => asRN(x.role) === n).length) }; });
+    const st = (r.staff || []).filter(x => x.tag !== 'ออกหน่วย'); return { r, sv: stdValues(u, r.values), im, st: ['RN', 'PN', 'NA'].map(n => st.filter(x => asRN(x.role) === n).length) }; });
   const vals = x => keys.map(k => x.sv[k] || 0).concat(items.map(c => x.im[c.id] || 0));
   const f1 = n => Number.isInteger(n) ? String(n) : n.toFixed(1), cell = n => `<td class="n">${n || '\u2013'}</td>`;
   const sums = rows.length ? rows.map(vals).reduce((a, v) => a.map((n, i) => n + v[i])) : [];
-  return `<table class="stat"><thead><tr><th>วันที่</th>${two ? '<th>เวร</th>' : ''}${keys.map(k => `<th>${esc(L[k])}</th>`).join('')}${items.map(c => `<th>${many ? `<small>${esc(c.t)}</small><br>` : ''}${esc(c.k)}</th>`).join('')}<th>RN</th><th>PN</th><th>NA</th><th>ลดอัตรากำลัง (ชม.)</th></tr></thead>
-    ${rows.map(x => `<tr><td>${esc(fmtDMY(x.r.date))}</td>${two ? `<td>${esc(x.r.shift)}</td>` : ''}${vals(x).map(cell).join('')}${x.st.map(cell).join('')}${cell(x.red)}</tr>`).join('')}
-    <tr class="tot"><td colspan="${two ? 2 : 1}">${esc(totLabel)}</td>${sums.map(n => `<td class="n">${n}</td>`).join('')}${[0, 1, 2].map(() => '<td class="n">\u2013</td>').join('')}<td class="n">${rows.reduce((a, x) => a + x.red, 0) || '\u2013'}</td></tr>
-    <tr class="sub"><td colspan="${two ? 2 : 1}">เฉลี่ยต่อ${two ? 'เวร' : 'วัน'}</td>${sums.map(n => `<td class="n">${f1(n / rows.length)}</td>`).join('')}${[0, 1, 2].map(i => `<td class="n">${f1(rows.reduce((a, x) => a + x.st[i], 0) / rows.length)}</td>`).join('')}<td class="n">${f1(rows.reduce((a, x) => a + x.red, 0) / rows.length)}</td></tr></table>
-    <div class="foot">RN / PN / NA = จำนวนเจ้าหน้าที่ที่ปฏิบัติงานในแต่ละ${two ? 'เวร' : 'วัน'}ตามรายงาน (ไม่นับผู้ที่ออกไปปฏิบัติงานหน่วยอื่น) \u00b7 ลดอัตรากำลัง = ผลรวม RN+PN+NA เป็นชั่วโมง</div>`;
+  return `<table class="stat"><thead><tr><th>วันที่</th>${two ? '<th>เวร</th>' : ''}${keys.map(k => `<th>${esc(L[k])}</th>`).join('')}${items.map(c => `<th>${many ? `<small>${esc(c.t)}</small><br>` : ''}${esc(c.k)}</th>`).join('')}<th>RN</th><th>PN</th><th>NA</th></tr></thead>
+    ${rows.map(x => `<tr><td>${esc(fmtDMY(x.r.date))}</td>${two ? `<td>${esc(x.r.shift)}</td>` : ''}${vals(x).map(cell).join('')}${x.st.map(cell).join('')}</tr>`).join('')}
+    <tr class="tot"><td colspan="${two ? 2 : 1}">${esc(totLabel)}</td>${sums.map(n => `<td class="n">${n}</td>`).join('')}${[0, 1, 2].map(() => '<td class="n">\u2013</td>').join('')}</tr>
+    <tr class="sub"><td colspan="${two ? 2 : 1}">เฉลี่ยต่อ${two ? 'เวร' : 'วัน'}</td>${sums.map(n => `<td class="n">${f1(n / rows.length)}</td>`).join('')}${[0, 1, 2].map(i => `<td class="n">${f1(rows.reduce((a, x) => a + x.st[i], 0) / rows.length)}</td>`).join('')}</tr></table>
+    <div class="foot">RN / PN / NA = จำนวนเจ้าหน้าที่ที่ปฏิบัติงานในแต่ละ${two ? 'เวร' : 'วัน'}ตามรายงาน (ไม่นับผู้ที่ออกไปปฏิบัติงานหน่วยอื่น)</div>`;
+}
+// ตารางลดอัตรากำลัง (ชม.) แยก RN/PN/NA: แสดงเฉพาะวัน/เวรที่มีการลดอัตรากำลัง + แถวรวมท้ายตาราง
+function reduceTable(u, reps, totLabel) {
+  const two = shiftsOf(u).length > 1, rs = reps.filter(r => { const d = r.reduce || {}; return num(d.RN) + num(d.PN) + num(d.NA) > 0; }).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  if (!rs.length) return '<div class="muted">ไม่มีการลดอัตรากำลังในช่วงนี้</div>';
+  const t = k => rs.reduce((a, r) => a + num((r.reduce || {})[k]), 0), c = n => `<td class="n">${n || '\u2013'}</td>`;
+  return `<table class="stat"><thead><tr><th>วันที่</th>${two ? '<th>เวร</th>' : ''}<th>RN (ชม.)</th><th>PN (ชม.)</th><th>NA (ชม.)</th><th>รวม (ชม.)</th><th>รายละเอียด</th></tr></thead>
+    ${rs.map(r => { const d = r.reduce || {}; return `<tr><td>${esc(fmtDMY(r.date))}</td>${two ? `<td>${esc(r.shift)}</td>` : ''}${c(num(d.RN))}${c(num(d.PN))}${c(num(d.NA))}${c(num(d.RN) + num(d.PN) + num(d.NA))}<td>${esc(d.detail || '').replace(/\n/g, ' / ')}</td></tr>`; }).join('')}
+    <tr class="tot"><td colspan="${two ? 2 : 1}">${esc(totLabel)}</td>${c(t('RN'))}${c(t('PN'))}${c(t('NA'))}${c(t('RN') + t('PN') + t('NA'))}<td></td></tr></table>`;
 }
 // หน้าสรุปท้ายรายงานรายแผนก: ตารางรายวันตารางเดียว มีแถวรวมท้ายตาราง
 function unitSummaryPage(u, reps, label, sign) {
-  return { land: false, html: `<h2>สรุปยอดรายวัน \u00b7 ${esc(u.code)}</h2><div class="st">${esc(label)} \u00b7 รวม ${reps.length} เวร/รายงาน</div>` + (reps.length ? mergedDaily(u, reps, 'รวมทั้งหมด') : '<div class="muted">ไม่มีรายงาน</div>') + sign };
+  return { land: false, html: `<h2>สรุปยอดรายวัน \u00b7 ${esc(u.code)}</h2><div class="st">${esc(label)} \u00b7 รวม ${reps.length} เวร/รายงาน</div>` + (reps.length ? mergedDaily(u, reps, 'รวมทั้งหมด') + '<h2>ลดอัตรากำลัง</h2>' + reduceTable(u, reps, 'รวมทั้งหมด') : '<div class="muted">ไม่มีรายงาน</div>') + sign };
 }
 const dayReps = u => shiftsOf(u).map(k => { const r = repAt(u, k); return r ? Object.assign({ date: S.date, shift: k }, r) : null; }).filter(Boolean);
 function buildDayPages(scope, sign) {
