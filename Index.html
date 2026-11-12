@@ -1085,7 +1085,7 @@ function go(tab, unit) {
   if (S.editing && S.dirty && !leaveGuard()) return;
   S.editing = false; S.dirty = false;
   S.tab = tab; S.viewUnit = unit || null;
-  if (tab === 'print') S.monthData = null;
+  if (tab === 'print') { S.monthData = null; if (S.printKeep) S.printKeep = false; else S.printScope = null; } // เข้าจากแท็บพิมพ์ = ต้องเลือกแผนกใหม่ · เข้าจากหน้าแผนก = แผนกนั้น
   render(); window.scrollTo(0, 0);
 }
 // ไม่มี confirm() ในบางเบราว์เซอร์ฝังตัว -> กดซ้ำเพื่อยืนยัน
@@ -2871,14 +2871,54 @@ async function reportCanvases() {
   } finally { box.remove(); }
   return out;
 }
+// กด "บันทึกเป็นไฟล์" แล้วเลือกชนิดไฟล์: PDF / Excel / JPG
+function saveChoice() {
+  const old = $('dlg'); if (old) old.remove();
+  const el = document.createElement('div'); el.id = 'dlg'; el.className = 'noprint';
+  el.innerHTML = `<div class="dlgbox" role="dialog" aria-label="เลือกชนิดไฟล์"><h3 style="color:var(--fg)">บันทึกเป็นไฟล์</h3><div class="muted" style="margin-bottom:10px">เลือกชนิดไฟล์ที่ต้องการ</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" data-fmt="pdf">PDF</button><button type="button" class="btn" data-fmt="xlsx">Excel</button><button type="button" class="btn" data-fmt="jpg">JPG</button><button type="button" class="btn ghost" id="dlg_ok">ยกเลิก</button></div></div>`;
+  document.body.appendChild(el);
+  el.querySelectorAll('[data-fmt]').forEach(b => b.onclick = () => { el.remove(); saveReportFile(b.dataset.fmt); });
+  $('dlg_ok').onclick = () => el.remove();
+  el.onclick = e => { if (e.target === el) el.remove(); };
+}
+// Excel: แปลงตารางและข้อความในแต่ละหน้ารายงานเป็นชีต (1 หน้า = 1 ชีต) ตัวเลขเก็บเป็นตัวเลข
+function reportWorkbook(XLSX) {
+  const wb = XLSX.utils.book_new(), used = new Set(), txt = e => { const c = e.cloneNode(true); c.querySelectorAll('br').forEach(b => b.replaceWith(' ')); return (c.textContent || '').replace(/\s+/g, ' ').trim(); };
+  const val = t => /^-?\d+(\.\d+)?$/.test(t) ? Number(t) : (/^[\u2013-]$/.test(t) ? '' : t);
+  Array.from(document.querySelectorAll('.a4-scroll > .a4')).forEach((p, pi) => {
+    const rows = [], merges = []; let width = 1;
+    p.querySelectorAll('h1,h2,.d,.st,.ln,.foot,.miss,.muted,table').forEach(e => {
+      if (e.tagName === 'TABLE') {
+        if (rows.length) rows.push([]);
+        e.querySelectorAll('tr').forEach(tr => { const row = []; tr.querySelectorAll('th,td').forEach(c => { row.push(val(txt(c))); for (let k = 1; k < (c.colSpan || 1); k++) row.push(''); }); width = Math.max(width, row.length); rows.push(row); });
+        rows.push([]);
+      } else if (!e.closest('table') && txt(e)) { if (/^H[12]$/.test(e.tagName) && rows.length) rows.push([]); rows.push([txt(e)]); }
+    });
+    let name = (txt(p.querySelector('h1')) || txt(p.querySelector('h2')) || 'หน้า ' + (pi + 1)).replace(/[\\\/?*\[\]:]/g, ' ').slice(0, 28).trim() || 'หน้า ' + (pi + 1);
+    while (used.has(name)) name = name.slice(0, 25) + ' (' + (pi + 1) + ')';
+    used.add(name);
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = Array.from({ length: width }, (_, i) => ({ wch: i === 0 ? 22 : 14 }));
+    XLSX.utils.book_append_sheet(wb, ws, name);
+  });
+  return wb;
+}
 async function saveReportFile(fmt) {
   if (S.pendingAtt > 0) return toast('กำลังโหลดไฟล์แนบ รอสักครู่แล้วกดบันทึกอีกครั้ง');
   if (!document.querySelector('.a4-scroll > .a4')) return toast('ยังไม่มีรายงานให้บันทึก รอให้ข้อมูลโหลดก่อน');
   const scope = S.me.role === 'unit' ? S.me.unit : (S.printScope || 'all');
   const kind = S.printKind || 'day', rg = printRange();
   const base = 'daily-report_' + (/^[\w-]+$/.test(scope) ? scope : 'unit') + '_' + (kind === 'month' ? (S.printMonth || S.date.slice(0, 7)) : rg.from === rg.to ? rg.from : rg.from + '_to_' + rg.to);
-  Busy.start('กำลังสร้างไฟล์ ' + (fmt === 'jpg' ? 'JPG' : 'PDF') + '...', true);
+  Busy.start('กำลังสร้างไฟล์ ' + (fmt === 'jpg' ? 'JPG' : fmt === 'xlsx' ? 'Excel' : 'PDF') + '...', true);
   try {
+    if (fmt === 'xlsx') {
+      await loadLib('xlsx', 'https:\/\/cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', () => window.XLSX);
+      const wb = reportWorkbook(window.XLSX);
+      downloadBlob(new Blob([window.XLSX.write(wb, { type: 'array', bookType: 'xlsx' })], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), base + '.xlsx');
+      toast(`บันทึก Excel ${wb.SheetNames.length} ชีตแล้ว`);
+      return;
+    }
     await loadLib('h2c', 'https:\/\/cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', () => window.html2canvas);
     if (fmt !== 'jpg') await loadLib('jspdf', 'https:\/\/cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', () => window.jspdf);
     const pages = await reportCanvases();
@@ -2906,29 +2946,39 @@ const SUMMARY_TABLE_UNITS = ['OPD1'];
 const matrixCols = (u, reps) => itemSections(u, reps).reduce((a, b) => a + b.lines.length, 0);
 const isLand = (u, reps) => matrixCols(u, reps) > 7;
 // ตารางรวมรายวัน/เวรเดียว: ยอดมาตรฐาน + ทุกรายการที่รายงาน + RN/PN/NA, แถวรวมและเฉลี่ยท้ายตาราง
+// ย่อคำในหัวคอลัมน์ของบางแผนก (ลดความกว้างตาราง) และเปลี่ยนชื่อ/ย้ายคอลัมน์ยอดมาตรฐาน
+const COL_SHORT = { OPD1: [[/ผู้ป่วยอายุรกรรม/g, 'Med'], [/ผู้ป่วยจิตเวช/g, 'Psy']] };
+const COL_STD = { OPD1: { admit: { label: 'Admit Med', after: 'ผู้ป่วยอายุรกรรม' } } }; // คอลัมน์ยอดมาตรฐานที่ย้ายไปต่อท้ายรายการที่ระบุ
 function mergedDaily(u, reps, totLabel) {
   const L = Object.assign({}, S.cfg.stdLabels, u.form.stdLabels), keys = Object.keys(u.form.std || {}), two = shiftsOf(u).length > 1, many = u.form.sections.length > 1;
-  const items = []; itemSections(u, reps).forEach(b => b.lines.forEach(([k]) => items.push({ t: b.title, k, id: b.title + '\u0001' + k })));
+  const sh = t => (COL_SHORT[u.code] || []).reduce((a, [re, to]) => a.replace(re, to), String(t)), mv = COL_STD[u.code] || {};
+  // คอลัมน์ = ยอดมาตรฐาน (ยกเว้นที่ย้าย) + รายการที่รายงาน (ยอดมาตรฐานที่ย้ายแทรกหลังรายการที่ระบุ)
+  const cols = [];
+  keys.filter(k => !mv[k]).forEach(k => cols.push({ head: esc(mv[k] ? mv[k].label : L[k]), get: x => x.sv[k] || 0 }));
+  itemSections(u, reps).forEach(b => b.lines.forEach(([k]) => {
+    const id = b.title + '\u0001' + k, t = sh(b.title), l = sh(k);
+    cols.push({ head: (many && t !== l ? `<small>${esc(t)}</small><br>` : '') + esc(l), get: x => x.im[id] || 0 });
+    keys.filter(q => mv[q] && mv[q].after === k).forEach(q => cols.push({ head: esc(mv[q].label), get: x => x.sv[q] || 0 }));
+  }));
   const order = reps.map((r, i) => i).sort((x, y) => reps[x].date < reps[y].date ? -1 : reps[x].date > reps[y].date ? 1 : 0);
   const rows = order.map(i => { const r = reps[i], im = {}; itemSections(u, [r]).forEach(b => b.lines.forEach(([k, n]) => { im[b.title + '\u0001' + k] = n; }));
     const st = (r.staff || []).filter(x => x.tag !== 'ออกหน่วย'); return { r, sv: stdValues(u, r.values), im, st: ['RN', 'PN', 'NA'].map(n => st.filter(x => asRN(x.role) === n).length) }; });
-  const vals = x => keys.map(k => x.sv[k] || 0).concat(items.map(c => x.im[c.id] || 0));
+  const vals = x => cols.map(c => c.get(x));
   const f1 = n => Number.isInteger(n) ? String(n) : n.toFixed(1), cell = n => `<td class="n">${n || '\u2013'}</td>`;
   const sums = rows.length ? rows.map(vals).reduce((a, v) => a.map((n, i) => n + v[i])) : [];
-  return `<table class="stat"><thead><tr><th>วันที่</th>${two ? '<th>เวร</th>' : ''}${keys.map(k => `<th>${esc(L[k])}</th>`).join('')}${items.map(c => `<th>${many ? `<small>${esc(c.t)}</small><br>` : ''}${esc(c.k)}</th>`).join('')}<th>RN</th><th>PN</th><th>NA</th></tr></thead>
+  return `<table class="stat"><thead><tr><th>วันที่</th>${two ? '<th>เวร</th>' : ''}${cols.map(c => `<th>${c.head}</th>`).join('')}<th>RN</th><th>PN</th><th>NA</th></tr></thead>
     ${rows.map(x => `<tr><td>${esc(fmtDMY(x.r.date))}</td>${two ? `<td>${esc(x.r.shift)}</td>` : ''}${vals(x).map(cell).join('')}${x.st.map(cell).join('')}</tr>`).join('')}
     <tr class="tot"><td colspan="${two ? 2 : 1}">${esc(totLabel)}</td>${sums.map(n => `<td class="n">${n}</td>`).join('')}${[0, 1, 2].map(() => '<td class="n">\u2013</td>').join('')}</tr>
     <tr class="sub"><td colspan="${two ? 2 : 1}">เฉลี่ยต่อ${two ? 'เวร' : 'วัน'}</td>${sums.map(n => `<td class="n">${f1(n / rows.length)}</td>`).join('')}${[0, 1, 2].map(i => `<td class="n">${f1(rows.reduce((a, x) => a + x.st[i], 0) / rows.length)}</td>`).join('')}</tr></table>
-    <div class="foot">RN / PN / NA = จำนวนเจ้าหน้าที่ที่ปฏิบัติงานในแต่ละ${two ? 'เวร' : 'วัน'}ตามรายงาน (ไม่นับผู้ที่ออกไปปฏิบัติงานหน่วยอื่น)</div>`;
+    <div class="foot">RN / PN / NA = จำนวนเจ้าหน้าที่ที่ปฏิบัติงานในแต่ละ${two ? 'เวร' : 'วัน'}ตามรายงาน (ไม่นับผู้ที่ออกไปปฏิบัติงานหน่วยอื่น)${COL_SHORT[u.code] ? ' \u00b7 Med = ผู้ป่วยอายุรกรรม, Psy = ผู้ป่วยจิตเวช' + (mv.admit ? ', Admit Med = Admit ผู้ป่วยอายุรกรรม' : '') : ''}</div>`;
 }
 // ตารางลดอัตรากำลัง (ชม.) แยก RN/PN/NA: แสดงเฉพาะวัน/เวรที่มีการลดอัตรากำลัง + แถวรวมท้ายตาราง
 function reduceTable(u, reps, totLabel) {
   const two = shiftsOf(u).length > 1, rs = reps.filter(r => { const d = r.reduce || {}; return num(d.RN) + num(d.PN) + num(d.NA) > 0; }).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
-  if (!rs.length) return '<div class="muted">ไม่มีการลดอัตรากำลังในช่วงนี้</div>';
   const t = k => rs.reduce((a, r) => a + num((r.reduce || {})[k]), 0), c = n => `<td class="n">${n || '\u2013'}</td>`;
   return `<table class="stat"><thead><tr><th>วันที่</th>${two ? '<th>เวร</th>' : ''}<th>RN (ชม.)</th><th>PN (ชม.)</th><th>NA (ชม.)</th><th>รวม (ชม.)</th><th>รายละเอียด</th></tr></thead>
-    ${rs.map(r => { const d = r.reduce || {}; return `<tr><td>${esc(fmtDMY(r.date))}</td>${two ? `<td>${esc(r.shift)}</td>` : ''}${c(num(d.RN))}${c(num(d.PN))}${c(num(d.NA))}${c(num(d.RN) + num(d.PN) + num(d.NA))}<td>${esc(d.detail || '').replace(/\n/g, ' / ')}</td></tr>`; }).join('')}
-    <tr class="tot"><td colspan="${two ? 2 : 1}">${esc(totLabel)}</td>${c(t('RN'))}${c(t('PN'))}${c(t('NA'))}${c(t('RN') + t('PN') + t('NA'))}<td></td></tr></table>`;
+    ${!rs.length ? `<tr><td colspan="${(two ? 2 : 1) + 5}" class="muted" style="text-align:center">ไม่มีข้อมูลการลดอัตรากำลัง</td></tr>` : rs.map(r => { const d = r.reduce || {}; return `<tr><td>${esc(fmtDMY(r.date))}</td>${two ? `<td>${esc(r.shift)}</td>` : ''}${c(num(d.RN))}${c(num(d.PN))}${c(num(d.NA))}${c(num(d.RN) + num(d.PN) + num(d.NA))}<td>${esc(d.detail || '').replace(/\n/g, ' / ')}</td></tr>`; }).join('')}
+    ${!rs.length ? '' : `<tr class="tot"><td colspan="${two ? 2 : 1}">${esc(totLabel)}</td>${c(t('RN'))}${c(t('PN'))}${c(t('NA'))}${c(t('RN') + t('PN') + t('NA'))}<td></td></tr>`}</table>`;
 }
 // หน้าสรุปท้ายรายงานรายแผนก: ตารางรายวันตารางเดียว มีแถวรวมท้ายตาราง
 function unitSummaryPage(u, reps, label, sign) {
@@ -2973,6 +3023,7 @@ const dateField = (id, iso, label) => `<span class="dfld"><input type="text" id=
 function renderPrint() {
   const viewer = S.me.role !== 'unit';
   const scope = viewer ? (S.printScope || 'all') : S.me.unit;
+  const picking = scope === '__pick';
   const mode = scope === 'all' ? 'all' : 'unit';
   const kind = S.printKind || 'day', month = S.printMonth || S.date.slice(0, 7), { from, to } = printRange();
   const inFrame = !(window.google && google.script);
@@ -2980,15 +3031,14 @@ function renderPrint() {
   const segBtn = (attr, val, on, text) => `<button type="button" ${attr}="${val}" class="${on ? 'on' : ''}">${text}</button>`;
   const bar = `<div class="noprint pbar">
     ${viewer ? `<div class="prow"><span class="pl">พิมพ์</span><div class="seg">${segBtn('data-pmode', 'all', mode === 'all', 'ทุกแผนก')}${segBtn('data-pmode', 'unit', mode === 'unit', 'รายแผนก')}</div>
-      ${mode === 'unit' ? `<select id="p_scope" aria-label="แผนก" style="flex:1 1 110px;max-width:220px">${unitOptgroups(scope)}</select>` : ''}</div>` : ''}
+      ${mode === 'unit' ? `<select id="p_scope" aria-label="แผนก" style="flex:1 1 110px;max-width:220px">${picking ? '<option value="" selected disabled>\u2013 เลือกแผนก \u2013</option>' : ''}${unitOptgroups(scope)}</select>` : ''}</div>` : ''}
     <div class="prow"><span class="pl">ประเภท</span><div class="seg">${segBtn('data-pkind', 'day', kind === 'day', 'รายวัน')}${segBtn('data-pkind', 'month', kind === 'month', 'รายเดือน')}</div></div>
     <div class="prow">${kind === 'month'
       ? `<label class="pl" for="p_month">เดือน</label><input type="month" id="p_month" value="${esc(month)}" style="flex:0 1 170px">`
       : `<label class="pl" for="p_from">วันที่</label><div class="daterange">${dateField('p_from', from, 'วันที่เริ่มต้น')}<span class="dash">\u2013</span>${dateField('p_to', to, 'ถึงวันที่')}</div>`}
-      <button type="button" class="btn" data-act="print">พิมพ์</button></div>
-    <div class="prow"><label class="pl" for="p_fmt">ไฟล์</label><select id="p_fmt" style="flex:0 0 78px"><option value="pdf"${S.saveFmt !== 'jpg' ? ' selected' : ''}>PDF</option><option value="jpg"${S.saveFmt === 'jpg' ? ' selected' : ''}>JPG</option></select>
-      <button type="button" class="btn ghost" data-act="savefile">บันทึกเป็นไฟล์</button></div>
-    <div class="muted" style="font-size:12px;margin:2px 0 6px">${inFrame ? 'ในหน้าตัวอย่างนี้ปุ่มพิมพ์ใช้ไม่ได้ ในแอปจริงจะเปิดหน้าต่างพิมพ์ของเครื่อง' : 'พิมพ์: A4 แนวตั้ง · บันทึกไฟล์: PDF 1 ไฟล์ หรือ JPG ไฟล์ละหน้า · รายวันเลือกได้สูงสุด 31 วัน'}</div></div>`;
+      <button type="button" class="btn" data-act="print">พิมพ์</button><button type="button" class="btn ghost" data-act="savefile">บันทึกเป็นไฟล์</button></div>
+    <div class="muted" style="font-size:12px;margin:2px 0 6px">${inFrame ? 'ในหน้าตัวอย่างนี้ปุ่มพิมพ์ใช้ไม่ได้ ในแอปจริงจะเปิดหน้าต่างพิมพ์ของเครื่อง' : 'พิมพ์: A4 แนวตั้ง · บันทึกไฟล์: PDF 1 ไฟล์ / JPG ไฟล์ละหน้า / Excel 1 ไฟล์ (1 หน้ารายงาน = 1 ชีต) · รายวันเลือกได้สูงสุด 31 วัน'}</div></div>`;
+  if (picking) return bar + '<div class="card muted fit">เลือกแผนกที่ต้องการพิมพ์ก่อน</div>';
   let pages;
   if (kind === 'month') {
     const key = scope + '|' + month;
@@ -2996,8 +3046,8 @@ function renderPrint() {
     const reps = S.monthData.reports;
     if (scope === 'all') { // ภาพรวมทั้งเดือน (แสดงบนจอ) + รายงานรายเดือนของแต่ละหน่วยงาน (พิมพ์ตามหลัง)
       const byU = {}; reps.forEach(r => (byU[r.unit] = byU[r.unit] || []).push(r));
-      pages = [printMonthlyAll(month, reps) + sign].concat(S.cfg.units.filter(u => byU[u.code]).map(u => ({ html: printMonthly(u, month, byU[u.code]) + sign, printonly: true, land: SUMMARY_TABLE_UNITS.includes(u.code) && isLand(u, byU[u.code]) })));
-    } else pages = [{ html: printMonthly(unitCfg(scope), month, reps) + sign, land: SUMMARY_TABLE_UNITS.includes(scope) && isLand(unitCfg(scope), reps) }];
+      pages = [printMonthlyAll(month, reps) + sign].concat(S.cfg.units.filter(u => byU[u.code]).map(u => ({ html: printMonthly(u, month, byU[u.code]) + sign, printonly: true, land: false })));
+    } else pages = [{ html: printMonthly(unitCfg(scope), month, reps) + sign, land: false }];
   } else if (from === S.date && to === S.date) pages = buildDayPages(scope, sign);
   else {
     const key = from + '|' + to;
@@ -3121,12 +3171,12 @@ function printMonthly(u, month, reps) {
   const L = Object.assign({}, S.cfg.stdLabels, u.form.stdLabels), keys = Object.keys(u.form.std || {}), two = shiftsOf(u).length > 1;
   const head = t => `<h1>${t} \u00b7 ${esc(u.code)}</h1><div class="d">${esc(monthTitle(month))}</div>`;
   const days = new Set(reps.map(r => r.date)).size;
-  let p1 = head('รายงานประจำเดือน') + `<div class="st">${esc(unitLabel(u))} \u00b7 มีรายงาน ${reps.length} ฉบับ จาก ${days} วัน</div>` + dailyTable(u, reps, 'รวมทั้งเดือน');
-  const tbl = SUMMARY_TABLE_UNITS.includes(u.code), mx = tbl ? itemMatrix(u, reps, 'รวมทั้งเดือน', isLand(u, reps)) : '', boxes = tbl ? [] : itemTotalBoxes(u, reps);
+  let p1 = head('รายงานประจำเดือน') + `<div class="st">${esc(unitLabel(u))} \u00b7 มีรายงาน ${reps.length} ฉบับ จาก ${days} วัน</div>` + (SUMMARY_TABLE_UNITS.includes(u.code) ? (reps.length ? mergedDaily(u, reps, 'รวมทั้งเดือน') : '<div class="miss" style="text-align:center;margin:20mm 0">ไม่มีรายงานในเดือนนี้</div>') + '<h2>ลดอัตรากำลัง</h2>' + reduceTable(u, reps, 'รวมทั้งเดือน') : dailyTable(u, reps, 'รวมทั้งเดือน'));
+  const tbl = SUMMARY_TABLE_UNITS.includes(u.code), boxes = tbl ? [] : itemTotalBoxes(u, reps);
   const incs = reps.flatMap(r => (r.incidents || []).map(i => Object.assign({}, i, { unit: fmtDMY(r.date) + (two ? ' \u00b7 ' + r.shift : '') })));
   const css = reps.flatMap(r => (r.cases || []).map(i => Object.assign({}, i, { unit: fmtDMY(r.date) + (two ? ' \u00b7 ' + r.shift : '') })));
   let p2 = '';
-  p2 += tbl ? (mx ? `<h2>รายการที่รายงานรายวัน</h2>${mx}` : '<div class="muted">ไม่มีรายการอื่นนอกเหนือจากตารางยอดรายวัน</div>') : boxes.length ? `<h2>รวมจำนวนรายการ</h2><div class="cols">${boxes.join('')}</div>` : '<div class="muted">ไม่มีรายการอื่นนอกเหนือจากตารางยอดรายวัน</div>';
+  p2 += tbl ? '' : boxes.length ? `<h2>รวมจำนวนรายการ</h2><div class="cols">${boxes.join('')}</div>` : '<div class="muted">ไม่มีรายการอื่นนอกเหนือจากตารางยอดรายวัน</div>';
   const byType = {}; incs.forEach(i => byType[i.type] = (byType[i.type] || 0) + 1);
   p2 += `<h2>เหตุการณ์ผิดปกติ (${incs.length})</h2>` + (incs.length ? `<div class="chipsp">${Object.entries(byType).map(([k, n]) => `<span>${esc(k)} <b>${n}</b></span>`).join('')}</div>${incTable(incs, 'วันที่ / เวร')}` : '<div>ไม่มีรายงานเหตุการณ์ผิดปกติ</div>');
   if (css.length) p2 += `<h2>รายงานเคส (${css.length})</h2>${incTable(css, 'วันที่ / เวร', true)}`;
@@ -3498,8 +3548,8 @@ function bindView() {
     if (a === 'edit') startEdit(b.dataset.eunit);
     else if (a === 'back') go('all');
     else if (a === 'home') go(S.home);
-    else if (a === 'gotoprint') { if (b.dataset.punit) { S.printScope = b.dataset.punit; S.printKind = 'day'; } go('print'); }
-    else if (a === 'savefile') saveReportFile((($('p_fmt') || {}).value) || S.saveFmt || 'pdf');
+    else if (a === 'gotoprint') { if (b.dataset.punit) { S.printScope = b.dataset.punit; S.printLastUnit = b.dataset.punit; S.printKind = 'day'; S.printKeep = true; } go('print'); }
+    else if (a === 'savefile') saveChoice();
     else if (a === 'print') { if (S.pendingAtt > 0) toast('กำลังโหลดไฟล์แนบ รอสักครู่แล้วกดพิมพ์อีกครั้ง'); else window.print(); }
     else if (a === 'tpl') downloadTemplate();
     else if (a === 'bindsave') saveBindingsNow();
@@ -3509,8 +3559,8 @@ function bindView() {
   v.querySelectorAll('[data-vshift]').forEach(b => b.onclick = () => { S.vshift = b.dataset.vshift; S.day = { reports: deriveReports(S.vshift) }; render(); });
   v.querySelectorAll('[data-mshift]').forEach(b => b.onclick = () => { S.shift = b.dataset.mshift; render(); });
   v.querySelectorAll('[data-sub]').forEach(b => { if (!S.editing) b.onclick = () => { S.sub = b.dataset.sub; render(); }; });
-  if ($('p_scope')) $('p_scope').onchange = () => { S.printScope = S.printLastUnit = $('p_scope').value; render(); };
-  v.querySelectorAll('[data-pmode]').forEach(b => b.onclick = () => { S.printScope = b.dataset.pmode === 'all' ? 'all' : (S.printLastUnit || S.cfg.units[0].code); render(); });
+  if ($('p_scope')) $('p_scope').onchange = () => { if ($('p_scope').value) { S.printScope = S.printLastUnit = $('p_scope').value; render(); } };
+  v.querySelectorAll('[data-pmode]').forEach(b => b.onclick = () => { S.printScope = b.dataset.pmode === 'all' ? 'all' : '__pick'; render(); });
   v.querySelectorAll('[data-pkind]').forEach(b => b.onclick = () => { S.printKind = b.dataset.pkind; render(); });
   const setFrom = iso => {
     // เลือกวันเดียว (วันที่ = ถึงวันที่) แล้วเปลี่ยนวันที่เริ่ม: ให้ "ถึงวันที่" ตามไปด้วย ไม่ค้างเป็นวันเดิม (เดิมทำให้พิมพ์/บันทึกได้ทั้งวันที่เลือกและวันบนแถบวันที่)
@@ -3533,7 +3583,6 @@ function bindView() {
     const nat = $(id + '_n');
     if (nat) { nat.onpointerdown = nat.onfocus = () => { nat.value = parseDmy(t.value) || ''; }; nat.onchange = () => { if (nat.value) apply(nat.value); }; }
   });
-  if ($('p_fmt')) $('p_fmt').onchange = () => { S.saveFmt = $('p_fmt').value; };
   if ($('p_month')) $('p_month').onchange = () => { if ($('p_month').value) { S.printMonth = $('p_month').value; render(); } };
   v.querySelectorAll('[data-unit].ucard').forEach(b => b.onclick = () => (b.dataset.unit === S.me.unit ? go('mine') : go('all', b.dataset.unit)));
   v.querySelectorAll('[data-sact]').forEach(b => b.onclick = () => staffAction(b.dataset.sact, b.dataset.id, b.dataset.unit));
