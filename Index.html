@@ -2898,6 +2898,7 @@ async function saveReportFile(fmt) {
 function unitSummaryHtml(u, reps, label) {
   const boxes = itemTotalBoxes(u, reps);
   return `<h2>สรุปยอดรายวัน \u00b7 ${esc(u.code)}</h2><div class="st">${esc(label)} \u00b7 รวม ${reps.length} เวร/รายงาน</div>` + dailyTable(u, reps, 'รวมทั้งหมด')
+    + (itemMatrix(u, reps, 'รวมทั้งหมด') ? `<h2>รายการที่รายงานรายวัน</h2>` + itemMatrix(u, reps, 'รวมทั้งหมด') : '')
     + `<h2>สรุปยอดรวมรายการ</h2>` + (boxes.length ? `<div class="cols">${boxes.join('')}</div>` : '<div class="muted">ไม่มียอดรายการ</div>');
 }
 const dayReps = u => shiftsOf(u).map(k => { const r = repAt(u, k); return r ? Object.assign({ date: S.date, shift: k }, r) : null; }).filter(Boolean);
@@ -3005,7 +3006,7 @@ function printMonthlyAll(month, reps) {
   return h + '<div class="foot">ยอดรวมทั้งเดือน = ผลรวมของทุกเวรที่ส่งรายงาน \u00b7 รายละเอียดรายวันของแต่ละหน่วยงานอยู่ในหน้าถัดไปเมื่อพิมพ์</div>';
 }
 // รวมจำนวนรายการตามประเภทที่แจกแจงไว้ในแบบฟอร์มของหน่วยงาน (ไม่ซ้ำกับยอดมาตรฐาน) -> html กล่องต่อหัวข้อ
-function itemTotalBoxes(u, reps) {
+function itemSections(u, reps) {
   const stdKeys = new Set(Object.values(u.form.std || {}).flat());
   const boxes = [];
   u.form.sections.forEach(s => {
@@ -3036,9 +3037,28 @@ function itemTotalBoxes(u, reps) {
         if (n) lines.push([f.label, n]);
       });
     }
-    if (lines.length) boxes.push(`<div class="ub"><b>${esc(s.title)}</b><table class="stat">${lines.map(([k, n]) => `<tr><td>${esc(k)}</td><td class="n">${n}</td></tr>`).join('')}</table></div>`);
+    if (lines.length) boxes.push({ title: s.title, lines });
   });
   return boxes;
+}
+function itemTotalBoxes(u, reps) {
+  return itemSections(u, reps).map(b => `<div class="ub"><b>${esc(b.title)}</b><table class="stat">${b.lines.map(([k, n]) => `<tr><td>${esc(k)}</td><td class="n">${n}</td></tr>`).join('')}</table></div>`);
+}
+// ตารางรายการที่รายงานในแต่ละวัน/เวร: แถว = วัน/เวร, คอลัมน์ = รายการที่มียอด (ตัดเป็นหลายตารางตารางละไม่เกิน 7 คอลัมน์) + แถวรวมท้ายตาราง
+function itemMatrix(u, reps, totLabel) {
+  const two = shiftsOf(u).length > 1, cols = [];
+  itemSections(u, reps).forEach(b => b.lines.forEach(([k]) => cols.push({ t: b.title, k, id: b.title + '\u0001' + k })));
+  if (!cols.length || !reps.length) return '';
+  const vals = reps.map(r => { const m = {}; itemSections(u, [r]).forEach(b => b.lines.forEach(([k, n]) => { m[b.title + '\u0001' + k] = n; })); return m; });
+  const sorted = reps.map((r, i) => i).sort((a, b) => reps[a].date < reps[b].date ? -1 : reps[a].date > reps[b].date ? 1 : 0);
+  const N = 7; let h = '';
+  for (let i = 0; i < cols.length; i += N) {
+    const cs = cols.slice(i, i + N);
+    h += `<table class="stat"><thead><tr><th style="width:15%">วันที่</th>${two ? '<th style="width:8%">เวร</th>' : ''}${cs.map(c => `<th>${(u.form.sections.length > 1 ? `<small>${esc(c.t)}</small><br>` : '') + esc(c.k)}</th>`).join('')}</tr></thead>
+      ${sorted.map(j => `<tr><td>${esc(fmtDMY(reps[j].date))}</td>${two ? `<td>${esc(reps[j].shift)}</td>` : ''}${cs.map(c => `<td class="n">${vals[j][c.id] || '\u2013'}</td>`).join('')}</tr>`).join('')}
+      <tr class="tot"><td colspan="${two ? 2 : 1}">${esc(totLabel)}</td>${cs.map(c => `<td class="n">${vals.reduce((a, m) => a + (m[c.id] || 0), 0)}</td>`).join('')}</tr></table><div style="height:6px"></div>`;
+  }
+  return h;
 }
 // รายงานประจำเดือนของหน่วยงานเดียว: หน้า 1 ยอดรายวัน/เวร + รวม + เฉลี่ย \u00b7 หน้า 2 รายการรวมทั้งเดือน + เหตุการณ์ผิดปกติ
 // ตารางยอดรายวัน/เวร + แถวรวมท้ายตาราง + เฉลี่ย (ใช้ทั้งรายงานรายเดือนและสรุปท้ายรายงานรายแผนก)
