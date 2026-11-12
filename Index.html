@@ -2875,7 +2875,7 @@ async function reportCanvases() {
 function saveChoice() {
   const old = $('dlg'); if (old) old.remove();
   const el = document.createElement('div'); el.id = 'dlg'; el.className = 'noprint';
-  el.innerHTML = `<div class="dlgbox" role="dialog" aria-label="เลือกชนิดไฟล์"><h3 style="color:var(--fg)">บันทึกเป็นไฟล์</h3><div class="muted" style="margin-bottom:10px">เลือกชนิดไฟล์ที่ต้องการ</div>
+  el.innerHTML = `<div class="dlgbox" role="dialog" aria-label="เลือกชนิดไฟล์"><h3 style="color:var(--fg)">บันทึกไฟล์</h3><div class="muted" style="margin-bottom:10px">เลือกชนิดไฟล์ที่ต้องการ</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" data-fmt="pdf">PDF</button><button type="button" class="btn" data-fmt="xlsx">Excel</button><button type="button" class="btn" data-fmt="jpg">JPG</button><button type="button" class="btn ghost" id="dlg_ok">ยกเลิก</button></div></div>`;
   document.body.appendChild(el);
   el.querySelectorAll('[data-fmt]').forEach(b => b.onclick = () => { el.remove(); saveReportFile(b.dataset.fmt); });
@@ -3037,7 +3037,7 @@ function renderPrint() {
     <div class="prow">${kind === 'month'
       ? `<label class="pl" for="p_month">เดือน</label><input type="month" id="p_month" value="${esc(month)}" style="flex:0 1 170px">`
       : `<label class="pl" for="p_from">วันที่</label><div class="daterange">${dateField('p_from', from, 'วันที่เริ่มต้น')}<span class="dash">\u2013</span>${dateField('p_to', to, 'ถึงวันที่')}</div>`}
-      <button type="button" class="btn" data-act="print">พิมพ์</button><button type="button" class="btn ghost" data-act="savefile">บันทึกเป็นไฟล์</button></div>
+      <button type="button" class="btn" data-act="print">พิมพ์</button><button type="button" class="btn" data-act="savefile">บันทึกไฟล์</button></div>
     <div class="muted" style="font-size:12px;margin:2px 0 6px">${inFrame ? 'ในหน้าตัวอย่างนี้ปุ่มพิมพ์ใช้ไม่ได้ ในแอปจริงจะเปิดหน้าต่างพิมพ์ของเครื่อง' : 'พิมพ์: A4 แนวตั้ง · บันทึกไฟล์: PDF 1 ไฟล์ / JPG ไฟล์ละหน้า / Excel 1 ไฟล์ (1 หน้ารายงาน = 1 ชีต) · รายวันเลือกได้สูงสุด 31 วัน'}</div></div>`;
   if (picking) return bar + '<div class="card muted fit">เลือกแผนกที่ต้องการพิมพ์ก่อน</div>';
   let pages;
