@@ -2948,7 +2948,7 @@ const isLand = (u, reps) => matrixCols(u, reps) > 7;
 // ตารางรวมรายวัน/เวรเดียว: ยอดมาตรฐาน + ทุกรายการที่รายงาน + RN/PN/NA, แถวรวมและเฉลี่ยท้ายตาราง
 // ย่อคำในหัวคอลัมน์ของบางแผนก (ลดความกว้างตาราง) และเปลี่ยนชื่อ/ย้ายคอลัมน์ยอดมาตรฐาน
 const COL_SHORT = { OPD1: [[/ผู้ป่วยอายุรกรรม/g, 'Med'], [/ผู้ป่วยจิตเวช/g, 'Psy']] };
-const COL_HEAD = { OPD1: { 'โทร recall นัด': 'Recall นัด', 'สรุปแฟ้มประจำวัน': 'ยอดสรุปแฟ้ม' } }; // หัวคอลัมน์รายการที่ใช้ชื่อสั้นแทน (ไม่แสดงชื่อหัวข้อกำกับ)
+const COL_HEAD = { OPD1: { 'โทร recall นัด': 'Recall นัด', 'สรุปแฟ้มประจำวัน': 'สรุปแฟ้ม' } }; // หัวคอลัมน์รายการที่ใช้ชื่อสั้นแทน (ไม่แสดงชื่อหัวข้อกำกับ)
 const COL_STD = { OPD1: { admit: { label: 'Med<br>Admit', after: 'ผู้ป่วยอายุรกรรม' } } }; // คอลัมน์ยอดมาตรฐานที่ย้ายไปต่อท้ายรายการที่ระบุ
 function mergedDaily(u, reps, totLabel) {
   const L = Object.assign({}, S.cfg.stdLabels, u.form.stdLabels), keys = Object.keys(u.form.std || {}), two = shiftsOf(u).length > 1, many = u.form.sections.length > 1;
