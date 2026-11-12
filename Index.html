@@ -539,6 +539,8 @@
   .seg button.on { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
   /* ขอบกระดาษ บน 2.5 ซม. ล่าง 1.5 ซม. ซ้ายขวา 1 ซม. ทุกหน้า: เครื่องพิมพ์พิมพ์ชิดขอบไม่ได้ (ประมาณ 4-6 มม.) ขอบ 0 ทำให้หัวกระดาษของหน้าที่ 2 เป็นต้นไปและขอบบนตกหล่น */
   @page { size: A4 portrait; margin: 25mm 10mm 15mm; }
+  @page land { size: A4 landscape; margin: 25mm 10mm 15mm; }
+  .a4.land { width: 297mm; min-height: 210mm; }
   @media print {
     body { background: #fff; }
     body::before, .top, .tabs, .datebar, .savebar, .noprint, .toast, #login { display: none !important; }
@@ -550,6 +552,8 @@
     .a4 + .a4 { margin-top: 0; break-before: page; }
     .a4 thead { display: table-header-group; }
     .a4 + .a4 { margin-top: 0; break-before: page; }
+    .a4-scroll { overflow: visible; }
+    .a4.land { page: land; width: 277mm; min-height: 0; }
   }
   @media (max-width: 480px) {
     .datebar .dlabel { display: none; }
@@ -2817,15 +2821,16 @@ const PG = { W: 1654, H: 2339, mx: 79, my: 94 };
 async function reportCanvases() {
   const pages = Array.from(document.querySelectorAll('.a4-scroll > .a4'));
   const box = document.createElement('div');
-  box.style.cssText = 'position:fixed;left:-10000px;top:0;width:190mm;background:#fff;z-index:-1';
+  box.style.cssText = 'position:fixed;left:-10000px;top:0;width:277mm;background:#fff;z-index:-1';
   document.body.appendChild(box);
-  const out = [], cw = PG.W - PG.mx * 2, ch = PG.H - PG.my * 2;
+  const out = [];
   try {
     if (document.fonts && document.fonts.ready) await document.fonts.ready;
     for (const p of pages) {
+      const land = p.classList.contains('land'), G = land ? { W: PG.H, H: PG.W, mx: PG.mx, my: PG.my } : PG, cw = G.W - G.mx * 2, ch = G.H - G.my * 2;
       const c = p.cloneNode(true);
       c.classList.add('saving');
-      c.style.cssText = 'display:block;width:190mm;min-height:0;margin:0;padding:0;box-shadow:none;background:#fff';
+      c.style.cssText = 'display:block;width:' + (land ? '277mm' : '190mm') + ';min-height:0;margin:0;padding:0;box-shadow:none;background:#fff';
       box.appendChild(c);
       await Promise.all(Array.from(c.querySelectorAll('img')).map(i => i.decode ? i.decode().catch(() => {}) : 0));
       const top = c.getBoundingClientRect().top, cuts = [0];
@@ -2854,9 +2859,9 @@ async function reportCanvases() {
             if (cand != null) end = cand;
           }
           const sy = Math.round(y * k), sh = Math.max(1, Math.min(cv.height, Math.round(end * k)) - sy), pg = document.createElement('canvas');
-          pg.width = PG.W; pg.height = PG.H;
-          const g = pg.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, PG.W, PG.H);
-          g.drawImage(cv, 0, sy, cv.width, sh, PG.mx, PG.my, cw, sh * (cw / cv.width));
+          pg.width = G.W; pg.height = G.H;
+          const g = pg.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, G.W, G.H);
+          g.drawImage(cv, 0, sy, cv.width, sh, G.mx, G.my, cw, sh * (cw / cv.width));
           out.push(pg);
           y = end;
         }
@@ -2887,7 +2892,7 @@ async function saveReportFile(fmt) {
       toast(pages.length > 1 ? `บันทึก JPG ${pages.length} ไฟล์ (หน้าละไฟล์) แล้ว` : 'บันทึก JPG แล้ว');
     } else {
       const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
-      pages.forEach((pg, i) => { if (i) pdf.addPage(); pdf.addImage(pg.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297); });
+      pages.forEach((pg, i) => { const L = pg.width > pg.height; if (i) pdf.addPage('a4', L ? 'landscape' : 'portrait'); else if (L) { pdf.deletePage(1); pdf.addPage('a4', 'landscape'); } pdf.addImage(pg.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, L ? 297 : 210, L ? 210 : 297); });
       downloadBlob(pdf.output('blob'), base + '.pdf');
       toast(`บันทึก PDF ${pages.length} หน้าแล้ว`);
     }
@@ -2895,17 +2900,19 @@ async function saveReportFile(fmt) {
   finally { Busy.end(); }
 }
 // สรุปยอดรวมรายการตามประเภท ของแผนกเดียว (รวมทุกเวร/ทุกวันที่เลือก)
-function unitSummaryHtml(u, reps, label) {
-  const boxes = itemTotalBoxes(u, reps);
-  return `<h2>สรุปยอดรายวัน \u00b7 ${esc(u.code)}</h2><div class="st">${esc(label)} \u00b7 รวม ${reps.length} เวร/รายงาน</div>` + dailyTable(u, reps, 'รวมทั้งหมด')
-    + (itemMatrix(u, reps, 'รวมทั้งหมด') ? `<h2>รายการที่รายงานรายวัน</h2>` + itemMatrix(u, reps, 'รวมทั้งหมด') : '')
-    + `<h2>สรุปยอดรวมรายการ</h2>` + (boxes.length ? `<div class="cols">${boxes.join('')}</div>` : '<div class="muted">ไม่มียอดรายการ</div>');
+// รายการมากกว่า 7 คอลัมน์ -> หน้านั้นพิมพ์แนวนอน (A4 landscape)
+const matrixCols = (u, reps) => itemSections(u, reps).reduce((a, b) => a + b.lines.length, 0);
+const isLand = (u, reps) => matrixCols(u, reps) > 7;
+// หน้าสรุปท้ายรายงานรายแผนก: ตารางยอดมาตรฐานรายวัน + ตารางรายการที่รายงานรายวัน (มีแถวรวมท้ายตาราง ไม่แยกตารางสรุปใหม่)
+function unitSummaryPage(u, reps, label, sign) {
+  const land = isLand(u, reps), mx = itemMatrix(u, reps, 'รวมทั้งหมด', land);
+  return { land, html: `<h2>สรุปยอดรายวัน \u00b7 ${esc(u.code)}</h2><div class="st">${esc(label)} \u00b7 รวม ${reps.length} เวร/รายงาน</div>` + dailyTable(u, reps, 'รวมทั้งหมด') + (mx ? `<h2>รายการที่รายงานรายวัน</h2>` + mx : '') + sign };
 }
 const dayReps = u => shiftsOf(u).map(k => { const r = repAt(u, k); return r ? Object.assign({ date: S.date, shift: k }, r) : null; }).filter(Boolean);
 function buildDayPages(scope, sign) {
   if (scope === 'all') return [{ html: printUnits(), printonly: true }, printOverview() + sign];
   const u = unitCfg(scope), pages = shiftsOf(u).map(k => printSingle(u, k) + sign);
-  if (!S.sumReps) pages.push(unitSummaryHtml(u, dayReps(u), thaiDate(S.date, true)) + sign);
+  if (!S.sumReps) pages.push(unitSummaryPage(u, dayReps(u), thaiDate(S.date, true), sign));
   return pages;
 }
 const datesBetween = (from, to) => { const out = []; for (let d = from; d <= to && out.length < 40; d = shiftDate(d, 1)) out.push(d); return out; };
@@ -2963,8 +2970,8 @@ function renderPrint() {
     const reps = S.monthData.reports;
     if (scope === 'all') { // ภาพรวมทั้งเดือน (แสดงบนจอ) + รายงานรายเดือนของแต่ละหน่วยงาน (พิมพ์ตามหลัง)
       const byU = {}; reps.forEach(r => (byU[r.unit] = byU[r.unit] || []).push(r));
-      pages = [printMonthlyAll(month, reps) + sign].concat(S.cfg.units.filter(u => byU[u.code]).map(u => ({ html: printMonthly(u, month, byU[u.code]) + sign, printonly: true })));
-    } else pages = [printMonthly(unitCfg(scope), month, reps) + sign];
+      pages = [printMonthlyAll(month, reps) + sign].concat(S.cfg.units.filter(u => byU[u.code]).map(u => ({ html: printMonthly(u, month, byU[u.code]) + sign, printonly: true, land: isLand(u, byU[u.code]) })));
+    } else pages = [{ html: printMonthly(unitCfg(scope), month, reps) + sign, land: isLand(unitCfg(scope), reps) }];
   } else if (from === S.date && to === S.date) pages = buildDayPages(scope, sign);
   else {
     const key = from + '|' + to;
@@ -2979,10 +2986,10 @@ function renderPrint() {
       });
     } finally { S.date = saveDate; S.dayRaw = saveRaw; S.sumReps = false; }
     if (!pages.length) return bar + '<div class="card muted fit">ไม่มีรายงานในช่วงวันที่ที่เลือก</div>';
-    if (scope !== 'all') pages.push(unitSummaryHtml(unitCfg(scope), allReps, isoToDmy(from) + ' \u2013 ' + isoToDmy(to)) + sign);
+    if (scope !== 'all') pages.push(unitSummaryPage(unitCfg(scope), allReps, isoToDmy(from) + ' \u2013 ' + isoToDmy(to), sign));
   }
   const note = 'ตัวอย่างตรงกับที่พิมพ์/บันทึกไฟล์ (ขอบกระดาษเท่ากัน) \u00b7 จุดตัดหน้าจริงอาจต่างเล็กน้อยตามเบราว์เซอร์';
-  return bar + `<div class="muted noprint" style="font-size:12px;margin:0 0 6px">${note}</div>` + `<div class="a4-scroll">${pages.map(p => typeof p === 'string' ? `<div class="a4">${p}</div>` : `<div class="a4${p.printonly ? ' printonly' : ''}">${p.html}</div>`).join('')}</div>`;
+  return bar + `<div class="muted noprint" style="font-size:12px;margin:0 0 6px">${note}</div>` + `<div class="a4-scroll">${pages.map(p => typeof p === 'string' ? `<div class="a4">${p}</div>` : `<div class="a4${p.printonly ? ' printonly' : ''}${p.land ? ' land' : ''}">${p.html}</div>`).join('')}</div>`;
 }
 
 // ภาพรวมรายเดือนทุกหน่วยงาน: ยอดรวมทั้งเดือนของแต่ละหน่วยงาน (ยอดยกมา/คงพยาบาลแสดงค่าเฉลี่ยต่อเวร)
@@ -3045,13 +3052,13 @@ function itemTotalBoxes(u, reps) {
   return itemSections(u, reps).map(b => `<div class="ub"><b>${esc(b.title)}</b><table class="stat">${b.lines.map(([k, n]) => `<tr><td>${esc(k)}</td><td class="n">${n}</td></tr>`).join('')}</table></div>`);
 }
 // ตารางรายการที่รายงานในแต่ละวัน/เวร: แถว = วัน/เวร, คอลัมน์ = รายการที่มียอด (ตัดเป็นหลายตารางตารางละไม่เกิน 7 คอลัมน์) + แถวรวมท้ายตาราง
-function itemMatrix(u, reps, totLabel) {
+function itemMatrix(u, reps, totLabel, land) {
   const two = shiftsOf(u).length > 1, cols = [];
   itemSections(u, reps).forEach(b => b.lines.forEach(([k]) => cols.push({ t: b.title, k, id: b.title + '\u0001' + k })));
   if (!cols.length || !reps.length) return '';
   const vals = reps.map(r => { const m = {}; itemSections(u, [r]).forEach(b => b.lines.forEach(([k, n]) => { m[b.title + '\u0001' + k] = n; })); return m; });
   const sorted = reps.map((r, i) => i).sort((a, b) => reps[a].date < reps[b].date ? -1 : reps[a].date > reps[b].date ? 1 : 0);
-  const N = 7; let h = '';
+  const N = land ? 14 : 7; let h = '';
   for (let i = 0; i < cols.length; i += N) {
     const cs = cols.slice(i, i + N);
     h += `<table class="stat"><thead><tr><th style="width:15%">วันที่</th>${two ? '<th style="width:8%">เวร</th>' : ''}${cs.map(c => `<th>${(u.form.sections.length > 1 ? `<small>${esc(c.t)}</small><br>` : '') + esc(c.k)}</th>`).join('')}</tr></thead>
@@ -3089,11 +3096,11 @@ function printMonthly(u, month, reps) {
   const head = t => `<h1>${t} \u00b7 ${esc(u.code)}</h1><div class="d">${esc(monthTitle(month))}</div>`;
   const days = new Set(reps.map(r => r.date)).size;
   let p1 = head('รายงานประจำเดือน') + `<div class="st">${esc(unitLabel(u))} \u00b7 มีรายงาน ${reps.length} ฉบับ จาก ${days} วัน</div>` + dailyTable(u, reps, 'รวมทั้งเดือน');
-  const boxes = itemTotalBoxes(u, reps);
+  const mx = itemMatrix(u, reps, 'รวมทั้งเดือน', isLand(u, reps));
   const incs = reps.flatMap(r => (r.incidents || []).map(i => Object.assign({}, i, { unit: fmtDMY(r.date) + (two ? ' \u00b7 ' + r.shift : '') })));
   const css = reps.flatMap(r => (r.cases || []).map(i => Object.assign({}, i, { unit: fmtDMY(r.date) + (two ? ' \u00b7 ' + r.shift : '') })));
   let p2 = '';
-  p2 += boxes.length ? `<h2>รวมจำนวนรายการ</h2><div class="cols">${boxes.join('')}</div>` : '<div class="muted">ไม่มีรายการอื่นนอกเหนือจากตารางยอดรายวัน</div>';
+  p2 += mx ? `<h2>รายการที่รายงานรายวัน</h2>${mx}` : '<div class="muted">ไม่มีรายการอื่นนอกเหนือจากตารางยอดรายวัน</div>';
   const byType = {}; incs.forEach(i => byType[i.type] = (byType[i.type] || 0) + 1);
   p2 += `<h2>เหตุการณ์ผิดปกติ (${incs.length})</h2>` + (incs.length ? `<div class="chipsp">${Object.entries(byType).map(([k, n]) => `<span>${esc(k)} <b>${n}</b></span>`).join('')}</div>${incTable(incs, 'วันที่ / เวร')}` : '<div>ไม่มีรายงานเหตุการณ์ผิดปกติ</div>');
   if (css.length) p2 += `<h2>รายงานเคส (${css.length})</h2>${incTable(css, 'วันที่ / เวร', true)}`;
