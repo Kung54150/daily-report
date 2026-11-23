@@ -218,7 +218,38 @@ const FORMS = {
 
   // ----- Special Unit (รอรูปแบบจริง) -----
   ICU: { staffSlot: true, std: IPD_STD, sections: [ICU_CENSUS, { title: 'ประเภทผู้ป่วยคงพยาบาล', categories: true, fields: ADULT_MIX, sum: 'รวม' }, IPD_ROOMS] },
-  LR: { draft: true, std: { total: ['nl', 'cs'] }, sections: [{ title: 'การคลอด', fields: [N_('nl', 'คลอดปกติ'), N_('cs', 'ผ่าคลอด')] }] },
+  // ห้องคลอด ตามตารางสถิติแผนกห้องคลอดรายเดือน (พ.ศ. 2568-2569): ยอดรวม = รวมการคลอด + NST + IPD รับใหม่ + Inhibit of labour + Observe OPD + Observe IPD
+  // (ABORTION และ OPD รับใหม่ ไม่นับในยอดรวมตามสูตรของตาราง) · คีย์ nl / cs คงเดิม รายงานที่ส่งแล้วยังอ่านได้
+  LR: { std: { total: 'total' }, sections: [
+    { title: 'ยอดรวม', hint: 'ยอดรวม = รวมการคลอด + NST + IPD รับใหม่ + Inhibit of labour + Observe OPD + Observe IPD (ABORTION และ OPD รับใหม่ ไม่นับ)', fields: [
+      Object.assign(N_('total', 'ยอดรวมทั้งหมด'), { calc: { plus: ['nl', 'vac', 'forcep', 'cs', 'bba', 'nst', 'ipd_new', 'inhibit', 'obs_opd', 'obs_ipd'], minus: [] } })
+    ] },
+    { title: 'การคลอด', sum: 'รวมการคลอด', fields: [N_('nl', 'Normal labour'), N_('vac', 'Vacuum Extraction'), N_('forcep', 'Forcep Extraction'), N_('cs', 'Cesarean Section'), N_('bba', 'Birth Before Arrival (BBA)')] },
+    { title: 'บริการอื่นๆ', fields: [
+      N_('nst', 'NST'), N_('abortion', 'ABORTION'), N_('opd_new', 'OPD รับใหม่'), N_('ipd_new', 'IPD รับใหม่'),
+      N_('inhibit', 'Inhibit of labour'), N_('obs_opd', 'Observe OPD'), N_('obs_ipd', 'Observe IPD')
+    ] },
+    { title: 'บริการเสริม', fields: [N_('stay', 'ฝากนอน'), N_('semen', 'เก็บน้ำเชื้อ'), N_('sse', 'อบสมุนไพร / SSE')] },
+    { title: 'ข้อมูลด้านมาตรฐานวิชาชีพห้องคลอดทั้งมารดาและทารก', fields: [
+      N_('stuck', 'การคลอดติดขัด'),
+      Object.assign(N_('complic', 'เกิดภาวะแทรกซ้อน'), { note: 'ระบุภาวะแทรกซ้อน' }),
+      Object.assign(N_('accident', 'เกิดอุบัติเหตุ'), { note: 'ระบุอุบัติเหตุ' }),
+      N_('eclampsia', 'ECLAMPSIA'), N_('embolism', 'EMBOLISM'), N_('pph', 'ตกเลือดหลังคลอด (EBL ≥ 500 cc.)'),
+      N_('tear3', 'แผลฉีกขาด ≥ 3°'), N_('uterine', 'มดลูกปลิ้น , ทะลุ , แตก'), N_('retained', 'รกค้าง (ต้องล้วงรก)'), N_('twin', 'ครรภ์แฝด (คู่)')
+    ] },
+    { title: 'จำนวนผ่าตัดคลอด', sum: 'รวม', sumEq: 'cs', fields: [N_('cs_first', 'ครรภ์แรก'), N_('cs_again', 'ครรภ์หลัง')] },
+    { title: 'การดูแลและข้อร้องเรียน', fields: [
+      N_('refer', 'การส่งต่อ / ขอย้าย / ปฏิเสธการรักษา'), N_('complaint', 'การเกิดข้อร้องเรียน'),
+      N_('antenatal', 'จำนวนการดูแลก่อนคลอด'), N_('postnatal', 'จำนวนการดูแลหลังคลอด'), N_('mom_dead', 'จำนวนมารดาตาย')
+    ] },
+    { title: 'จำนวนการเกิดทั้งหมด', hint: 'เกิดมีชีพ + เกิดไร้ชีพ', fields: [
+      Object.assign(N_('born_m', 'เพศชาย', 'คน'), { calc: { plus: ['live_m', 'dead_m'], minus: [] } }),
+      Object.assign(N_('born_f', 'เพศหญิง', 'คน'), { calc: { plus: ['live_f', 'dead_f'], minus: [] } })
+    ] },
+    { title: 'จำนวนการเกิดมีชีพ', fields: [N_('live_m', 'เพศชาย', 'คน'), N_('live_f', 'เพศหญิง', 'คน')] },
+    { title: 'จำนวนการเกิดไร้ชีพ', fields: [N_('dead_m', 'เพศชาย', 'คน'), N_('dead_f', 'เพศหญิง', 'คน')] },
+    { title: 'จำนวนการเกิดมีชีพต่างด้าว', hint: 'ต่างด้าว = บุคคลธรรมดาที่ไม่มีสัญชาติไทย หรือเด็กที่บิดา มารดา ไม่ใช่สัญชาติไทย (นับเป็นส่วนหนึ่งของเกิดมีชีพ)', fields: [N_('alien_m', 'เพศชาย', 'คน'), N_('alien_f', 'เพศหญิง', 'คน')] }
+  ] },
   NB: { draft: true, std: { total: 'nb' }, sections: [{ title: 'ทารกแรกเกิด', fields: [N_('nb', 'ทารกแรกเกิด'), N_('nb_adm', 'Admit ตึกเด็ก')] }] },
   // CSSD: ST = นึ่งด้วยไอน้ำ 4 หม้อ · EO = อบแก๊ส 1 หม้อ · ยอดรวม = ST + EO (ชิ้น)
   CSSD: { items: true, stdLabels: { total: 'ยอดรวม (ชิ้น)' }, std: { total: 'total' }, sections: [
