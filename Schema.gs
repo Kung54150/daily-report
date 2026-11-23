@@ -147,7 +147,9 @@ const FORMS = {
       Object.assign(N_('ins_total', 'รวมยอด ปกส. สะสมปีนี้', 'เคส'), { calc: { plus: ['ins_carry', 'ins_today'], minus: [] } })
     ] }
   ] },
-  HCC: { std: { total: 'total' }, sections: [LIST_('svc', 'รายการตรวจ / บริการ', 'total', 'รวมจำนวนผู้รับบริการทั้งหมดในวันนี้', HCC_ITEMS)] },
+  HCC: { std: { total: 'total' }, sections: [LIST_('svc', 'รายการตรวจ / บริการ', 'total', 'รวมจำนวนผู้รับบริการทั้งหมดในวันนี้', HCC_ITEMS),
+    // หมวดแยก: ตรวจไปต่างประเทศ พิมพ์ชื่อรายการ/ประเทศเอง (ระบบจำชื่อไว้แนะนำครั้งต่อไป) · ยอดแยกจากยอดรวมผู้รับบริการด้านบน
+    LIST_('abroad', 'ตรวจไปต่างประเทศ', 'abroad_total', 'รวมตรวจไปต่างประเทศ', [CUSTOM_ITEM])] },
   OPD1: { std: { total: 'total', admit: ['med_admit'] }, sections: [
     { title: 'ยอดรวม', fields: [N_('total', 'ยอด Total (Med+Psy)')] },
     { title: 'ผู้ป่วยอายุรกรรม', fields: [N_('med', 'ผู้ป่วยอายุรกรรม'), N_('med_appt', 'เป็นนัด'), N_('med_admit', 'Admit'), N_('med_elder', 'ผู้สูงอายุ')] },
