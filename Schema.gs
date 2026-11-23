@@ -221,8 +221,8 @@ const FORMS = {
   // ห้องคลอด ตามตารางสถิติแผนกห้องคลอดรายเดือน (พ.ศ. 2568-2569): ยอดรวม = รวมการคลอด + NST + IPD รับใหม่ + Inhibit of labour + Observe OPD + Observe IPD
   // (ABORTION และ OPD รับใหม่ ไม่นับในยอดรวมตามสูตรของตาราง) · คีย์ nl / cs คงเดิม รายงานที่ส่งแล้วยังอ่านได้
   LR: { std: { total: 'total' }, sections: [
-    { title: 'ยอดรวม', hint: 'ยอดรวม = รวมการคลอด + NST + IPD รับใหม่ + Inhibit of labour + Observe OPD + Observe IPD (ABORTION และ OPD รับใหม่ ไม่นับ)', fields: [
-      Object.assign(N_('total', 'ยอดรวมทั้งหมด'), { calc: { plus: ['nl', 'vac', 'forcep', 'cs', 'bba', 'nst', 'ipd_new', 'inhibit', 'obs_opd', 'obs_ipd'], minus: [] } })
+    { title: 'จำนวนเคสทั้งหมด', hint: 'จำนวนเคสทั้งหมด = รวมการคลอด + NST + IPD รับใหม่ + Inhibit of labour + Observe OPD + Observe IPD (ABORTION และ OPD รับใหม่ ไม่นับ) · รายการอื่นเป็นการแจกแจงเท่านั้น ไม่นับรวม', fields: [
+      Object.assign(N_('total', 'จำนวนเคสทั้งหมด'), { calc: { plus: ['nl', 'vac', 'forcep', 'cs', 'bba', 'nst', 'ipd_new', 'inhibit', 'obs_opd', 'obs_ipd'], minus: [] } })
     ] },
     { title: 'การคลอด', sum: 'รวมการคลอด', fields: [N_('nl', 'Normal labour'), N_('vac', 'Vacuum Extraction'), N_('forcep', 'Forcep Extraction'), N_('cs', 'Cesarean Section'), N_('bba', 'Birth Before Arrival (BBA)')] },
     { title: 'บริการอื่นๆ', fields: [
