@@ -229,7 +229,7 @@ const FORMS = {
       N_('nst', 'NST'), N_('abortion', 'ABORTION'), N_('opd_new', 'OPD รับใหม่'), N_('ipd_new', 'IPD รับใหม่'),
       N_('inhibit', 'Inhibit of labour'), N_('obs_opd', 'Observe OPD'), N_('obs_ipd', 'Observe IPD')
     ] },
-    { title: 'บริการเสริม', fields: [N_('stay', 'ฝากนอน'), N_('semen', 'เก็บน้ำเชื้อ'), N_('sse', 'อบสมุนไพร / SSE')] },
+    { title: 'บริการเสริม', fields: [N_('stay', 'ฝากนอน'), N_('semen', 'เก็บน้ำเชื้อ'), N_('sse', 'SSE')] },
     { title: 'ข้อมูลด้านมาตรฐานวิชาชีพห้องคลอดทั้งมารดาและทารก', fields: [
       N_('stuck', 'การคลอดติดขัด'),
       Object.assign(N_('complic', 'เกิดภาวะแทรกซ้อน'), { note: 'ระบุภาวะแทรกซ้อน' }),
