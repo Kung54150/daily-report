@@ -118,6 +118,8 @@
   .dpick { position: relative; flex: 0 1 190px; min-width: 150px; height: 40px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); cursor: pointer; font-weight: 600; }
   .dpick input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; padding: 0; border: 0; }
   .dpick .cal { color: var(--muted); }
+  /* กดตรงไหนของช่องวันที่ก็เปิดปฏิทินของเบราว์เซอร์ (showPicker() ใช้ไม่ได้ในกรอบของ Apps Script) */
+  .dpick input::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; opacity: 0; cursor: pointer; }
   .datebar .dlabel { color: var(--muted); font-size: 14px; flex: 1; min-width: 0; }
   .iconbtn { width: 38px; height: 38px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; flex: 0 0 auto; }
 
@@ -1067,12 +1069,22 @@ $('d_prev').onclick = () => { S.date = shiftDate(S.date, -1); loadDay(); };
 $('d_next').onclick = () => { S.date = shiftDate(S.date, 1); loadDay(); };
 
 async function loadDay() {
-  if (S.editing && S.dirty) { S.date = S.draft.date; setDateUI(); toast('บันทึกหรือยกเลิกรายงานก่อนเปลี่ยนวันที่'); return; }
-  S.editing = false;
+  const target = S.date;
+  if (S.editing && S.dirty) {
+    // ยังไม่ได้บันทึก: เลือกวันที่เดิมซ้ำภายใน 4 วินาทีเพื่อยืนยันเปลี่ยนวันโดยไม่บันทึก
+    if (S.pendingDate === target) S.pendingDate = null;
+    else {
+      S.pendingDate = target; setTimeout(() => { if (S.pendingDate === target) S.pendingDate = null; }, 4000);
+      S.date = S.draft.date; setDateUI(); toast('ยังไม่ได้บันทึก \u2014 เลือกวันที่นี้อีกครั้งเพื่อเปลี่ยนวันโดยไม่บันทึก'); return;
+    }
+  }
+  const wasEditing = S.editing, eu = wasEditing ? euUnit() : null;
+  S.editing = false; S.dirty = false;
   setDateUI();
   $('view').innerHTML = '<div class="card muted fit">กำลังโหลด...</div>';
   try { setDay(await api('getDay', S.token, S.date)); } catch (e) { return handleErr(e); }
-  render();
+  if (wasEditing) { if (S.me.role === 'admin') S.vshift = S.shift; startEdit(eu); } // อยู่หน้ากรอก/แก้ไข: เปิดฟอร์มของวันที่ใหม่ต่อ (หน่วยเดิม เวรเดิม)
+  else render();
 }
 async function loadStaff() { try { S.staff = await api('listStaff', S.token); } catch (e) { handleErr(e); } }
 
